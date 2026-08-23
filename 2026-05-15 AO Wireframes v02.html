@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Appraisal Online: Wireframes v02</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --panel: #FFFFFF;
+    --ink: #1A1F2E;
+    --muted: #6B7280;
+    --border: #E5E7EB;
+    --brand: #0E5B9A;
+    --brand-soft: #E8F1F9;
+    --accent: #00A878;
+    --accent-soft: #E6F6F0;
+    --warn: #F59E0B;
+    --danger: #DC2626;
+    --gold: #B7791F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .page { max-width: 1400px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.title { margin-bottom: 48px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  header.title h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  header.title p { color: var(--muted); margin: 0; font-size: 15px; max-width: 720px; }
+  header.title .meta { color: var(--muted); margin-top: 12px; font-size: 13px; }
+
+  section.flow { margin: 56px 0; }
+  section.flow > h2 {
+    font-size: 22px; margin: 0 0 8px; letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  section.flow > h2 .pill {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+    background: var(--brand-soft); color: var(--brand);
+    padding: 4px 10px; border-radius: 999px;
+    text-transform: uppercase;
+  }
+  section.flow > p.lead { color: var(--muted); margin: 0 0 32px; font-size: 14px; max-width: 720px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 32px;
+  }
+  .screen { display: flex; flex-direction: column; }
+  .screen .label { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.4px; margin-bottom: 8px; text-transform: uppercase; }
+  .screen .title { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+  .screen .caption { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  .phone { background: #111; border-radius: 36px; padding: 10px; box-shadow: 0 14px 32px rgba(20, 30, 60, 0.10), 0 2px 6px rgba(20, 30, 60, 0.06); width: 100%; aspect-ratio: 375 / 812; position: relative; }
+  .phone .frame { background: #FFF; border-radius: 28px; width: 100%; height: 100%; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 32%; height: 22px; background: #111; border-radius: 0 0 14px 14px; z-index: 2; }
+  .statusbar { height: 36px; padding: 14px 22px 0; display: flex; justify-content: space-between; align-items: flex-start; font-size: 10px; font-weight: 600; color: var(--ink); }
+  .body { flex: 1; padding: 8px 18px 18px; overflow: hidden; }
+  .h-hero { font-size: 19px; font-weight: 700; line-height: 1.25; letter-spacing: -0.3px; }
+  .h-section { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; }
+  .t-body { font-size: 11px; color: var(--ink); line-height: 1.5; }
+  .t-muted { font-size: 10px; color: var(--muted); line-height: 1.5; }
+  .t-tiny { font-size: 9px; color: var(--muted); }
+
+  .btn { background: var(--brand); color: #FFF; padding: 10px 0; border-radius: 12px; text-align: center; font-size: 11px; font-weight: 600; }
+  .btn-secondary { background: var(--brand-soft); color: var(--brand); padding: 10px 0; border-radius: 12px; text-align: center; font-size: 11px; font-weight: 600; }
+  .btn-outline { background: #FFF; color: var(--ink); border: 1px solid var(--border); padding: 10px 0; border-radius: 12px; text-align: center; font-size: 11px; font-weight: 600; }
+  .field { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 11px; color: var(--muted); }
+  .stack > * + * { margin-top: 10px; }
+  .stack-sm > * + * { margin-top: 6px; }
+
+  .card { border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+  .card.featured { border: 2px solid var(--brand); background: linear-gradient(180deg, var(--brand-soft) 0%, #FFF 50%); position: relative; }
+  .card.featured::before { content: "MOST POPULAR"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--brand); color: #FFF; font-size: 8px; font-weight: 700; letter-spacing: 0.6px; padding: 3px 10px; border-radius: 999px; }
+  .card.lifetime { border: 1px solid var(--gold); background: linear-gradient(180deg, #FCF8E8 0%, #FFF 60%); }
+
+  .progress { height: 3px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--brand); }
+
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; }
+  .badge-gold { background: #FCF1D8; color: var(--gold); }
+  .badge-brand { background: var(--brand-soft); color: var(--brand); }
+  .badge-accent { background: var(--accent-soft); color: var(--accent); }
+  .badge-muted { background: #F1F3F7; color: var(--muted); }
+
+  .navbar { display: flex; justify-content: space-around; align-items: center; border-top: 1px solid var(--border); padding: 8px 0 16px; font-size: 9px; color: var(--muted); }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .nav-item.active { color: var(--brand); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .estimate-bar { background: var(--brand-soft); border-radius: 10px; padding: 10px 12px; }
+  .comparable { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 10px; }
+  .comparable:last-child { border-bottom: none; }
+  .footer-cta { border-top: 1px solid var(--border); padding-top: 10px; margin-top: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 24px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; font-size: 12px; color: var(--muted); }
+  .legend .swatch { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch i { width: 12px; height: 12px; border-radius: 3px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .star-row { display: flex; gap: 6px; font-size: 16px; color: var(--gold); }
+  .toggle { width: 28px; height: 16px; background: var(--brand); border-radius: 999px; position: relative; }
+  .toggle::after { content: ""; position: absolute; right: 2px; top: 2px; width: 12px; height: 12px; background: #FFF; border-radius: 50%; }
+  .toggle.off { background: var(--border); }
+  .toggle.off::after { left: 2px; right: auto; }
+  .city-pill { display: inline-block; padding: 4px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: 9px; font-weight: 600; margin: 2px; }
+  .meter { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+  .meter .bar { flex: 1; height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .meter .bar > div { height: 100%; background: var(--gold); }
+  .counter { background: linear-gradient(135deg, #FCF1D8 0%, #FFF8E1 100%); border: 1px solid #F4D08C; border-radius: 10px; padding: 10px 12px; text-align: center; }
+  .counter .num { font-size: 18px; font-weight: 800; color: var(--gold); line-height: 1.1; }
+  .counter .label { font-size: 9px; color: var(--gold); letter-spacing: 0.3px; font-weight: 600; }
+  .demo-tile { background: var(--brand-soft); border-radius: 10px; padding: 10px; font-size: 10px; color: var(--brand); font-weight: 600; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  hr.divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+  .toolbar { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .toolbar .back { color: var(--brand); font-size: 11px; font-weight: 600; }
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    .page { padding: 24px 16px; }
+  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="title">
+    <h1>Appraisal Online: Wireframes v02</h1>
+    <p>iOS-first mobile app, consumer and broker flows, aligned with Monetization Model v05. Functional wireframes, not visual design. v02 updates the paywall and refund screens for the tier-specific money-back guarantee (14 days for Lifetime, 30 days for Annual tiers).</p>
+    <div class="meta">Date: 2026-05-15 &middot; Source of truth: AO Mobile Monetization Model v05 &middot; Feature Specifications v02</div>
+  </header>
+
+  <section class="flow">
+    <h2><span class="pill">Consumer Flow</span> Free property valuation, opt-in to broker contact</h2>
+    <p class="lead">The free consumer report is the painkiller. Three free reports per consumer per calendar month. Privacy-first, opt-in to broker contact, clear disclaimer.</p>
+    <div class="grid">
+      <div class="screen"><div class="label">C1</div><div class="title">Splash / Onboarding</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="text-align:center; padding-top: 40px;"><div style="font-size:36px; color: var(--brand); font-weight: 800; margin-bottom: 24px;">AO</div><div class="h-hero" style="margin-bottom: 12px;">Get a free property valuation in 60 seconds.</div><div class="t-muted" style="margin-bottom: 32px;">Used by 1,000+ property professionals across the US and the Philippines.</div><div class="stack-sm" style="margin-top: 60px;"><div class="btn">Start my free report</div><div class="t-tiny" style="margin-top: 10px;">I am a property professional</div></div></div></div></div><div class="caption">First screen frames the painkiller. Single CTA.</div></div>
+
+      <div class="screen"><div class="label">C2</div><div class="title">Property Address</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="toolbar"><span class="back">&larr; Back</span></div><div class="progress" style="margin: 14px 0;"><div style="width:12%"></div></div><div class="h-section" style="margin-bottom: 4px;">What address are we valuing?</div><div class="t-muted" style="margin-bottom: 16px;">Type the address or pick from the list.</div><div class="field" style="color: var(--ink);">123 Brickell Avenue, Miami, FL</div><div class="stack-sm" style="margin-top: 12px;"><div class="card" style="padding: 8px 12px;"><div class="t-body" style="font-size:11px;">123 Brickell Ave</div><div class="t-tiny">Miami, FL 33131</div></div><div class="card" style="padding: 8px 12px;"><div class="t-body" style="font-size:11px;">123 Brickell Bay Dr</div><div class="t-tiny">Miami, FL 33131</div></div></div><div class="footer-cta"><div class="btn">Continue</div></div></div></div></div><div class="caption">Autocomplete via Google Places.</div></div>
+
+      <div class="screen"><div class="label">C3</div><div class="title">Property Details</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="toolbar"><span class="back">&larr; Back</span><span class="t-tiny">3 / 8</span></div><div class="progress" style="margin: 14px 0;"><div style="width:37%"></div></div><div class="h-section" style="margin-bottom: 12px;">Tell us about the property</div><div class="stack"><div><div class="t-tiny" style="margin-bottom:4px;">Property type</div><div class="field" style="color: var(--ink);">Condo</div></div><div class="row"><div><div class="t-tiny" style="margin-bottom:4px;">Bedrooms</div><div class="field" style="color: var(--ink); text-align:center;">2</div></div><div><div class="t-tiny" style="margin-bottom:4px;">Bathrooms</div><div class="field" style="color: var(--ink); text-align:center;">2</div></div></div><div><div class="t-tiny" style="margin-bottom:4px;">Square meters</div><div class="field" style="color: var(--ink);">85</div></div><div><div class="t-tiny" style="margin-bottom:4px;">Condition</div><div class="field" style="color: var(--ink);">Good</div></div></div><div class="footer-cta"><div class="btn">Next</div></div></div></div></div><div class="caption">8 fields with progress indicator.</div></div>
+
+      <div class="screen"><div class="label">C4</div><div class="title">Generating Report</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;"><div style="width: 80px; height: 80px; border-radius: 50%; border: 4px solid var(--brand-soft); border-top-color: var(--brand); animation: spin 1s linear infinite; margin-bottom: 20px;"></div><div class="h-section" style="margin-bottom:8px;">Building your report</div><div class="t-muted">Pulling comparable sales in your area.</div><div class="stack-sm" style="margin-top: 28px; width: 100%;"><div class="t-tiny" style="text-align:left;">&#10003; Property data captured</div><div class="t-tiny" style="text-align:left;">&#10003; Market trends analyzed</div><div class="t-tiny" style="text-align:left; color: var(--ink); font-weight: 600;">Finalizing your estimate...</div></div></div></div></div><div class="caption">Sub-60-second target.</div></div>
+
+      <div class="screen"><div class="label">C5</div><div class="title">Your Report</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="t-tiny" style="margin-bottom: 4px;">123 Brickell Ave, Miami, FL</div><div class="h-section" style="margin-bottom: 12px;">Estimated value</div><div class="estimate-bar"><div style="font-size:18px; font-weight:800; color: var(--brand);">$420k - $475k</div><div class="t-tiny" style="margin-top: 4px;">Confidence: high (within 8%)</div></div><div class="h-section" style="margin-top: 14px; margin-bottom: 6px; font-size: 11px;">Comparable sales</div><div class="comparable"><span>122 Brickell, sold 03/2026</span><span style="font-weight:600;">$461k</span></div><div class="comparable"><span>140 Brickell, sold 01/2026</span><span style="font-weight:600;">$435k</span></div><div class="comparable"><span>98 Bay Dr, sold 12/2025</span><span style="font-weight:600;">$448k</span></div><div class="t-tiny" style="margin-top: 10px; padding: 8px; background: #FFF8E1; border-radius: 6px;">This is an AI estimate, not a licensed appraisal. Banks and courts do not accept this for legal purposes.</div><div class="footer-cta stack-sm"><div class="btn">Continue</div><div class="t-tiny" style="text-align:center;">Download PDF &middot; Share report</div></div></div></div></div><div class="caption">Three values, comparables, disclaimer.</div></div>
+
+      <div class="screen"><div class="label">C6</div><div class="title">Broker Contact Opt-In</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div style="margin-top: 36px;"><div class="h-hero" style="margin-bottom: 12px;">Want a local pro to follow up?</div><div class="t-muted" style="margin-bottom: 28px;">A licensed property professional can answer questions about your specific market, comparable sales, and what your property could sell for.</div></div><div class="stack" style="margin-top: auto;"><div class="btn">Yes, connect me</div><div class="btn-outline">No, just the report</div><div class="t-tiny" style="text-align: center; margin-top: 12px;">We never share your information without your explicit permission. <span style="color: var(--brand);">Privacy policy</span></div></div></div></div></div><div class="caption">Single question. Explicit opt-in.</div></div>
+
+      <div class="screen"><div class="label">C7</div><div class="title">Phone Capture</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div class="toolbar"><span class="back">&larr; Back</span></div><div style="margin-top: 30px;"><div class="h-section" style="margin-bottom: 8px;">What phone number can brokers use?</div><div class="t-muted" style="margin-bottom: 18px;">Optional. You can skip and connect via email.</div><div class="row" style="margin-bottom: 12px;"><div class="field" style="flex: 0 0 60px; color: var(--ink); text-align: center;">+1</div><div class="field" style="color: var(--muted);">(305) 555-0123</div></div></div><div class="stack-sm" style="margin-top: auto;"><div class="btn">Submit</div><div class="btn-outline">Skip, use email only</div></div></div></div></div><div class="caption">Phone optional. Skip is prominent.</div></div>
+
+      <div class="screen"><div class="label">C8</div><div class="title">Confirmation</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column; align-items:center; text-align:center;"><div style="width:64px; height:64px; border-radius:50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 28px; margin-top: 60px;">&#10003;</div><div class="h-hero" style="margin-top: 20px; margin-bottom: 8px;">All done.</div><div class="t-muted" style="margin-bottom: 32px;">Local brokers will reach out within 48 hours.</div><div class="card" style="width: 100%; background: var(--brand-soft); border-color: transparent;"><div class="h-section" style="font-size: 12px; margin-bottom: 4px;">Save this report</div><div class="t-tiny" style="margin-bottom: 8px;">Create a free account to access reports anytime, get re-valuations, and watch properties.</div><div class="btn-secondary" style="background: var(--brand); color: #FFF;">Create my account</div></div></div></div></div><div class="caption">Confirmation + soft account creation prompt.</div></div>
+
+      <div class="screen"><div class="label">C10</div><div class="title">Monthly Allowance Reached</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div style="margin-top: 40px;"><div class="h-hero" style="margin-bottom: 10px;">You have used your 3 free reports this month.</div><div class="t-muted" style="margin-bottom: 28px;">New reports unlock on June 1.</div></div><div class="card" style="background: var(--brand-soft); border-color: transparent;"><div class="badge badge-brand">COMING SOON</div><div class="h-section" style="font-size: 12px; margin-top: 6px; margin-bottom: 4px;">Want unlimited reports?</div><div class="t-tiny">Our consumer premium tier is launching soon. Get notified.</div><div class="btn-secondary" style="margin-top: 10px; background: var(--brand); color: #FFF;">Notify me</div></div><div class="stack-sm" style="margin-top: 18px;"><div class="btn-outline">View my saved reports</div></div></div></div></div><div class="caption">Soft paywall. Captures email for premium launch waitlist.</div></div>
+    </div>
+  </section>
+
+  <section class="flow">
+    <h2><span class="pill">Broker Flow</span> Sign up, value reveal, paywall, dashboard</h2>
+    <p class="lead">Broker funnel: long onboarding, personalized value reveal, pre-paywall rating, three-screen paywall with the per-city Founder cap counter and tier-specific money-back guarantee (14 days for Lifetime, 30 days for Premium and Basic Annual).</p>
+    <div class="grid">
+      <div class="screen"><div class="label">B1</div><div class="title">Broker Splash</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="text-align:center;"><div style="font-size:36px; color: var(--brand); font-weight: 800; margin-top: 32px;">AO</div><div class="h-hero" style="margin-top: 24px; margin-bottom: 12px;">Real-time property leads in your cities.</div><div class="t-muted" style="margin-bottom: 24px;">Plus, we direct our marketing budget to your cities for the life of your membership.</div><div class="counter" style="margin-bottom: 20px;"><div class="num">12</div><div class="label">FOUNDER SLOTS LEFT IN MIAMI</div></div><div class="stack-sm" style="margin-top: auto;"><div class="btn">Become a member</div><div class="t-tiny" style="margin-top: 8px;">14-day money-back on Lifetime, 30-day on Annual.</div></div></div></div></div><div class="caption">Painkiller framing. Live founder counter.</div></div>
+
+      <div class="screen"><div class="label">B2</div><div class="title">Broker Onboarding</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="toolbar"><span class="back">&larr;</span><span class="t-tiny">Step 4 of 9</span></div><div class="progress" style="margin: 14px 0;"><div style="width:44%"></div></div><div class="h-section" style="margin-bottom: 12px;">Which cities do you cover?</div><div class="t-muted" style="margin-bottom: 12px;">Up to 25 cities. Premium gets 10. Basic gets 1.</div><div><span class="city-pill">Miami &#10003;</span><span class="city-pill">Houston &#10003;</span><span class="city-pill">Doral &#10003;</span><span class="city-pill" style="background:#F1F3F7; color: var(--muted);">+ Add city</span></div><hr class="divider" style="margin-top: 16px;"><div class="t-muted" style="font-size: 10px;">Popular near you</div><div style="margin-top: 8px;"><span class="city-pill" style="background:#F1F3F7; color: var(--muted);">Hialeah</span><span class="city-pill" style="background:#F1F3F7; color: var(--muted);">Coral Gables</span><span class="city-pill" style="background:#F1F3F7; color: var(--muted);">Aventura</span></div><div class="footer-cta"><div class="btn">Continue</div></div></div></div></div><div class="caption">3 to 5 minute professional setup.</div></div>
+
+      <div class="screen"><div class="label">B3</div><div class="title">Personalized Value Reveal</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="h-section" style="margin-bottom: 10px;">Here is what your membership unlocks</div><div class="estimate-bar" style="margin-bottom: 12px;"><div class="t-tiny" style="color: var(--brand); font-weight: 600; margin-bottom: 4px;">PROJECTED WEEKLY LEADS</div><div style="font-size: 22px; font-weight: 800; color: var(--brand);">4 - 7</div><div class="t-tiny" style="margin-top: 4px;">Based on your 3 cities and current platform activity</div></div><div class="card"><div class="t-tiny" style="color: var(--muted); margin-bottom: 4px;">YOUR MATH</div><div class="t-body" style="font-size: 11px;">At your stated average commission of $9,500, one closed deal pays for your membership 47 times over.</div></div><div class="t-tiny" style="margin-top: 10px; text-align: center; color: var(--muted);">We use conservative numbers. Most brokers see more.</div><div class="footer-cta"><div class="btn">Continue</div></div></div></div></div><div class="caption">Peak enthusiasm. Real platform data, conservative.</div></div>
+
+      <div class="screen"><div class="label">B4</div><div class="title">Pre-Paywall Rating</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column; align-items:center; text-align:center;"><div style="margin-top: 60px;"></div><div class="h-hero" style="margin-bottom: 8px;">Finding this useful?</div><div class="t-muted" style="margin-bottom: 28px;">Rate Appraisal Online before we ask anything else.</div><div class="star-row" style="margin-bottom: 30px;">&#9733; &#9733; &#9733; &#9733; &#9734;</div><div class="t-tiny">Your rating helps other brokers find us.</div><div class="stack-sm" style="margin-top: auto; width:100%;"><div class="btn">Submit rating</div><div class="btn-outline">Skip</div></div></div></div></div><div class="caption">Rating captured at peak enthusiasm.</div></div>
+
+      <div class="screen"><div class="label">B5.1</div><div class="title">Paywall: The Promise</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div style="height: 140px; background: var(--brand); border-radius: 16px; margin-top: 12px; display: flex; align-items: center; justify-content: center; color: #FFF; font-size: 36px; font-weight: 800;">AO</div><div style="margin-top: 24px;"><div class="h-hero" style="margin-bottom: 14px;">Real-time leads. Your cities. Our marketing budget.</div><div class="t-body">Premium and Lifetime members get real-time alerts the moment someone in their city requests a valuation. We also direct our consumer-acquisition spend to your markets.</div></div><div class="footer-cta"><div class="btn">See plans</div></div></div></div></div><div class="caption">Screen 1 of 3: the promise.</div></div>
+
+      <div class="screen"><div class="label">B5.2</div><div class="title">Paywall: The Protection</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div style="height: 140px; background: var(--accent-soft); border-radius: 16px; margin-top: 12px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 80px;">&#9851;</div><div style="margin-top: 24px;"><div class="h-hero" style="margin-bottom: 14px;">Risk-free, your way.</div><div class="t-body" style="margin-bottom: 12px;"><strong>Premium and Basic Annual:</strong> 30-day full refund.<br><br><strong>Founder Lifetime:</strong> 14-day full refund.</div><div class="t-tiny">After the window closes, payments are final. Refunds process through Stripe in 5 to 10 business days.</div></div><div class="footer-cta"><div class="btn">Continue</div></div></div></div></div><div class="caption">Screen 2 of 3: refund framing.</div></div>
+
+      <div class="screen"><div class="label">B5.3</div><div class="title">Paywall: Choose Your Plan</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="h-section" style="margin-bottom: 6px;">Choose your plan</div><div class="t-muted" style="font-size:10px; margin-bottom: 12px;">14-day refund on Lifetime &middot; 30-day refund on Annual.</div><div class="stack-sm"><div class="card lifetime"><div style="display:flex; justify-content: space-between; align-items: center;"><span class="badge badge-gold">FOUNDER</span><span class="t-tiny" style="color: var(--gold); font-weight: 600;">12 slots left in Miami</span></div><div style="font-size: 16px; font-weight: 800; margin-top: 8px;">$499 <span style="font-size: 10px; font-weight: 500; color: var(--muted);">one-time</span></div><div class="t-tiny" style="margin-top: 2px;">25 cities &middot; Real-time &middot; Locked in for life</div><div class="t-tiny" style="margin-top: 4px; color: var(--gold); font-weight: 600;">14-day refund window</div></div><div class="card featured"><span class="badge badge-brand">PREMIUM ANNUAL</span><div style="font-size: 16px; font-weight: 800; margin-top: 8px;">$199 <span style="font-size: 10px; font-weight: 500; color: var(--muted);">per year</span></div><div class="t-tiny" style="margin-top: 2px;">10 cities &middot; Real-time &middot; Renews annually</div><div class="t-tiny" style="margin-top: 4px; color: var(--brand); font-weight: 600;">30-day refund window</div></div><div class="card"><span class="badge badge-muted">BASIC ANNUAL</span><div style="font-size: 16px; font-weight: 800; margin-top: 8px;">$49 <span style="font-size: 10px; font-weight: 500; color: var(--muted);">per year</span></div><div class="t-tiny" style="margin-top: 2px;">1 city &middot; Weekly digest &middot; Renews annually</div><div class="t-tiny" style="margin-top: 4px; color: var(--muted); font-weight: 600;">30-day refund window</div></div></div><div class="footer-cta"><div class="btn">Continue with Premium</div></div></div></div></div><div class="caption">Three tiers. Premium highlighted. Founder counter live.</div></div>
+
+      <div class="screen"><div class="label">B7</div><div class="title">Welcome and Activation</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display:flex; flex-direction:column;"><div style="margin-top: 32px; text-align:center;"><div style="width:64px; height:64px; border-radius:50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 28px; margin: 0 auto;">&#10003;</div><div class="h-hero" style="margin-top: 16px;">Welcome to Appraisal Online.</div><div class="t-muted" style="margin-top: 6px;">Your Premium Annual membership is active.</div></div><div class="card" style="margin-top: 24px; background: var(--accent-soft); border-color: transparent;"><div class="t-tiny" style="font-weight: 700; color: var(--accent); margin-bottom: 4px;">30-DAY MONEY-BACK GUARANTEE</div><div class="t-body" style="font-size: 11px;">You have until June 14 to test everything. Request a refund anytime from your account.</div></div><div class="stack-sm" style="margin-top: 18px;"><div class="btn">Set up notifications</div><div class="btn-outline">Build my profile</div></div></div></div></div><div class="caption">Refund window is explicit.</div></div>
+
+      <div class="screen"><div class="label">B10</div><div class="title">Broker Dashboard</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body" style="display: flex; flex-direction: column;"><div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 12px;"><div><div class="t-tiny">Welcome back</div><div class="h-section">Mike, Premium</div></div><div class="badge badge-brand">Active</div></div><div class="card" style="background: var(--brand-soft); border-color: transparent; padding: 12px;"><div class="t-tiny" style="color: var(--brand); font-weight: 600; margin-bottom: 4px;">THIS WEEK</div><div style="font-size: 22px; font-weight: 800; color: var(--brand);">5 new leads</div><div class="t-tiny" style="margin-top: 2px;">Across Houston, The Woodlands, Cypress</div></div><div class="h-section" style="font-size: 11px; margin-top: 16px; margin-bottom: 8px;">Recent leads</div><div class="card" style="padding: 10px; margin-bottom: 8px;"><div style="display:flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600; font-size: 11px;">2-bed condo, The Woodlands</div><span class="badge badge-accent">NEW</span></div><div class="t-tiny" style="margin-top: 3px;">Requested 12 minutes ago &middot; $325k estimate</div></div><div class="card" style="padding: 10px;"><div style="display:flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600; font-size: 11px;">4-bed home, Cypress</div><span class="t-tiny" style="color: var(--muted);">2h</span></div><div class="t-tiny" style="margin-top: 3px;">$580k estimate</div></div><div class="navbar" style="margin-top: auto;"><div class="nav-item active"><span class="dot"></span>Home</div><div class="nav-item"><span class="dot"></span>Leads</div><div class="nav-item"><span class="dot"></span>Profile</div><div class="nav-item"><span class="dot"></span>Settings</div></div></div></div></div><div class="caption">Lead inbox + city performance.</div></div>
+
+      <div class="screen"><div class="label">B12</div><div class="title">Request Refund</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="toolbar"><span class="back">&larr;</span><span class="t-tiny">Refund Request</span></div><div class="card" style="background: var(--accent-soft); border-color: transparent; margin-top: 14px;"><div class="t-tiny" style="color: var(--accent); font-weight: 700; margin-bottom: 2px;">YOUR REFUND WINDOW</div><div class="t-body" style="font-size: 11px;">You are within your 30-day money-back window. Day 18 of 30.</div></div><div class="h-section" style="margin-top: 18px; margin-bottom: 8px;">Why are you leaving?</div><div class="t-muted" style="font-size: 10px; margin-bottom: 12px;">Optional. Helps us improve.</div><div class="stack-sm"><div class="card" style="padding: 10px;"><div class="t-body" style="font-size: 11px;">Did not receive enough leads</div></div><div class="card" style="padding: 10px;"><div class="t-body" style="font-size: 11px;">Lead quality was poor</div></div><div class="card" style="padding: 10px;"><div class="t-body" style="font-size: 11px;">Found a better platform</div></div><div class="card" style="padding: 10px;"><div class="t-body" style="font-size: 11px;">Other</div></div></div><div class="footer-cta stack-sm"><div class="btn" style="background: var(--danger);">Confirm refund</div><div class="btn-outline">Cancel</div></div></div></div></div><div class="caption">One-tap refund. Reason optional.</div></div>
+    </div>
+  </section>
+
+  <section class="flow">
+    <h2><span class="pill">Public Marketing</span> Homepage and demo content</h2>
+    <p class="lead">Public-facing content. Demo showcase and live founder counter convert undecided visitors.</p>
+    <div class="grid">
+      <div class="screen"><div class="label">M1</div><div class="title">Demo Showcase</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="h-section" style="margin-bottom: 6px;">See what brokers actually get</div><div class="t-muted" style="font-size: 10px; margin-bottom: 14px;">Real examples. No fluff.</div><div class="demo-grid"><div class="demo-tile">Sample Report</div><div class="demo-tile">Real-Time Alert</div><div class="demo-tile">Weekly Digest</div><div class="demo-tile">Founder Profile</div></div><hr class="divider" style="margin-top: 16px;"><div class="h-section" style="font-size: 11px; margin-bottom: 6px;">How we make money</div><div class="t-body" style="font-size: 10px; line-height: 1.5;">Appraisal Online is free for consumers. We do not sell your data. We make money by selling annual memberships to property professionals.</div><div class="footer-cta"><div class="btn">Start my free report</div></div></div></div></div><div class="caption">Demo content tackles "buying blind" objection.</div></div>
+
+      <div class="screen"><div class="label">M2</div><div class="title">Founder Counter Page</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="h-section" style="margin-bottom: 4px;">Founder slots remaining</div><div class="t-muted" style="font-size: 10px; margin-bottom: 16px;">First 30 per city. Then closed forever.</div><div class="stack-sm"><div class="card" style="padding: 10px;"><div style="display: flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600;">Miami</div><div class="t-body" style="font-weight: 700; color: var(--gold);">12 / 30</div></div><div class="meter" style="margin-top: 6px;"><div class="bar"><div style="width:60%;"></div></div></div></div><div class="card" style="padding: 10px;"><div style="display: flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600;">Houston</div><div class="t-body" style="font-weight: 700; color: var(--gold);">24 / 30</div></div><div class="meter" style="margin-top: 6px;"><div class="bar"><div style="width:20%;"></div></div></div></div><div class="card" style="padding: 10px;"><div style="display: flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600;">Manila</div><div class="t-body" style="font-weight: 700; color: var(--danger);">3 / 30</div></div><div class="meter" style="margin-top: 6px;"><div class="bar"><div style="width:90%;"></div></div></div></div><div class="card" style="padding: 10px;"><div style="display: flex; justify-content: space-between;"><div class="t-body" style="font-weight: 600;">Cebu</div><div class="t-body" style="font-weight: 700; color: var(--gold);">18 / 30</div></div><div class="meter" style="margin-top: 6px;"><div class="bar"><div style="width:40%;"></div></div></div></div></div><div class="footer-cta"><div class="btn">Become a Founder</div></div></div></div></div><div class="caption">Live scarcity. Per-city urgency.</div></div>
+
+      <div class="screen"><div class="label">M3</div><div class="title">How We Make Money</div><div class="phone"><div class="frame"><div class="notch"></div><div class="statusbar"><span>9:41</span><span>...</span></div><div class="body"><div class="h-section" style="margin-bottom: 12px;">How we make money</div><div class="t-body" style="font-size: 11px; line-height: 1.7;">Appraisal Online is free for consumers. <br><br>We do not sell your data. <br><br>We make money by selling annual memberships to property professionals who want to connect with people in their cities. <br><br>Brokers pay us. You do not.</div><div class="card" style="background: var(--brand-soft); border-color: transparent; margin-top: 14px;"><div class="t-tiny" style="font-weight: 700; color: var(--brand);">YOUR DATA</div><div class="t-body" style="font-size: 10px; line-height: 1.5;">We only share your contact details with brokers if you explicitly opt in. You can request deletion of your data at any time.</div></div><div class="footer-cta"><div class="btn-outline">Read the privacy policy</div></div></div></div></div><div class="caption">Trust gap closer. Plain-language transparency.</div></div>
+    </div>
+  </section>
+
+  <div class="legend">
+    <div class="swatch"><i style="background: var(--brand);"></i> Brand (CTA, accents)</div>
+    <div class="swatch"><i style="background: var(--gold);"></i> Founder / Scarcity</div>
+    <div class="swatch"><i style="background: var(--accent);"></i> Success / Refund window</div>
+    <div class="swatch"><i style="background: var(--muted);"></i> Secondary text</div>
+    <div class="swatch"><i style="background: var(--danger);"></i> Urgency / Refund</div>
+  </div>
+
+  <p style="color: var(--muted); font-size: 13px; margin-top: 32px; line-height: 1.7;">Functional wireframes. The Master Prompt and Feature Specifications translate this into the build brief for Claude Code.</p>
+</div>
+</body>
+</html>
