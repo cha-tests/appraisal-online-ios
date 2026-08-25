@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -7,14 +7,32 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useReportStore } from '../../stores/report.store';
 import { PropertyDetailsFormData } from '../../types';
+import { getMarketConfig, type SizeUnit } from '../../config/marketConfig';
 
-const PROPERTY_TYPES = ['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land'];
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
+
+// square_feet stays the one value that is stored, sent to the backend, and
+// fed into the valuation prompt — the same field the DB column and
+// PropertyDetailsFormData type already use. The toggle only changes how that
+// number is entered and displayed; it never changes what gets saved.
+const SQFT_PER_SQM = 10.7639;
+const sqftToSqm = (sqft: number) => sqft / SQFT_PER_SQM;
+const sqmToSqft = (sqm: number) => sqm * SQFT_PER_SQM;
 
 export default function PropertyDetails() {
   const router = useRouter();
   const currentProperty = useReportStore((state) => state.currentProperty);
   const setCurrentPropertyDetails = useReportStore((state) => state.setCurrentPropertyDetails);
+
+  // Derived once from the property's own country (captured during address
+  // entry), not a device-wide setting — so a US buyer entering a PH property
+  // still sees PH conventions, and vice versa. This is the one place that
+  // decides both the size unit and the property type options, so the two
+  // never disagree about which market they're presenting.
+  const market = useMemo(
+    () => getMarketConfig(currentProperty?.address_components?.country_code),
+    [currentProperty?.address_components?.country_code]
+  );
 
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<PropertyDetailsFormData>({
@@ -22,10 +40,40 @@ export default function PropertyDetails() {
     bathrooms: 2,
     square_feet: 2000,
     year_built: 2000,
-    property_type: 'Single Family',
+    property_type: market.propertyTypes[0],
     condition: 'Good',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>(market.sizeUnit);
+  // Text the size field shows, in sizeUnit. Kept separate from
+  // formData.square_feet (always sqft) so switching units doesn't compound
+  // rounding on every toggle, and so a half-typed number isn't clobbered by
+  // a live sqft<->sqm conversion on every keystroke.
+  const [sizeText, setSizeText] = useState(
+    sizeUnit === 'sqft'
+      ? String(formData.square_feet)
+      : String(Math.round(sqftToSqm(formData.square_feet)))
+  );
+
+  const handleUnitChange = (unit: SizeUnit) => {
+    if (unit === sizeUnit) return;
+    setSizeUnit(unit);
+    // Re-derive the displayed text from the canonical sqft value rather than
+    // converting the displayed text again, which would drift with each toggle.
+    setSizeText(
+      unit === 'sqft'
+        ? String(Math.round(formData.square_feet))
+        : String(Math.round(sqftToSqm(formData.square_feet)))
+    );
+  };
+
+  const handleSizeChange = (text: string) => {
+    setSizeText(text);
+    const value = parseFloat(text) || 0;
+    const sqft = sizeUnit === 'sqft' ? value : sqmToSqft(value);
+    updateFormData('square_feet', Math.round(sqft));
+  };
 
   const validateStep = (stepNum: number): boolean => {
     const newErrors: Record<string, string> = {};
@@ -39,7 +87,12 @@ export default function PropertyDetails() {
       }
     } else if (stepNum === 2) {
       if (formData.square_feet < 100 || formData.square_feet > 50000) {
-        newErrors.square_feet = 'Please enter 100-50,000 sq ft';
+        // Bounds are stored in sqft; report them back in whichever unit the
+        // user is currently looking at so the message matches what they typed.
+        newErrors.square_feet =
+          sizeUnit === 'sqft'
+            ? 'Please enter 100-50,000 sq ft'
+            : `Please enter ${Math.round(sqftToSqm(100))}-${Math.round(sqftToSqm(50000)).toLocaleString()} sq m`;
       }
       if (formData.year_built < 1800 || formData.year_built > new Date().getFullYear()) {
         newErrors.year_built = `Please enter year between 1800 and ${new Date().getFullYear()}`;
@@ -132,12 +185,37 @@ export default function PropertyDetails() {
         <View>
           <Text style={styles.sectionTitle}>Size & Age</Text>
 
+          <View style={styles.sizeLabelRow}>
+            <Text style={styles.label}>Property Size</Text>
+            <View style={styles.unitToggle}>
+              <TouchableOpacity
+                style={[styles.unitButton, sizeUnit === 'sqm' && styles.unitButtonActive]}
+                onPress={() => handleUnitChange('sqm')}
+              >
+                <Text
+                  style={[styles.unitButtonText, sizeUnit === 'sqm' && styles.unitButtonTextActive]}
+                >
+                  m²
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.unitButton, sizeUnit === 'sqft' && styles.unitButtonActive]}
+                onPress={() => handleUnitChange('sqft')}
+              >
+                <Text
+                  style={[styles.unitButtonText, sizeUnit === 'sqft' && styles.unitButtonTextActive]}
+                >
+                  sq ft
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <TextInput
-            label="Square Feet"
-            placeholder="e.g., 2000"
+            placeholder={sizeUnit === 'sqft' ? 'e.g., 2000' : 'e.g., 186'}
             keyboardType="numeric"
-            value={formData.square_feet.toString()}
-            onChangeText={(val) => updateFormData('square_feet', parseInt(val) || 0)}
+            value={sizeText}
+            onChangeText={handleSizeChange}
             error={errors.square_feet}
           />
 
@@ -159,7 +237,7 @@ export default function PropertyDetails() {
 
           <Text style={styles.label}>Type</Text>
           <View style={styles.buttonGroup}>
-            {PROPERTY_TYPES.map((type) => (
+            {market.propertyTypes.map((type) => (
               <TouchableOpacity
                 key={type}
                 style={[
@@ -268,6 +346,35 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 12,
+  },
+  sizeLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    overflow: 'hidden',
+  },
+  unitButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  unitButtonActive: {
+    backgroundColor: '#2563EB',
+  },
+  unitButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  unitButtonTextActive: {
+    color: '#FFFFFF',
   },
   buttonGroup: {
     flexDirection: 'row',
