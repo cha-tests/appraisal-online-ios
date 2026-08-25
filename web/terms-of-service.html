@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Appraisal Online</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .back-link {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .page-header {
+            margin-bottom: 48px;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .last-updated {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+
+        section {
+            margin-bottom: 32px;
+        }
+
+        section h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+            scroll-margin-top: 80px;
+        }
+
+        .section-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .section-card p {
+            font-size: 15px;
+            color: #6b7280;
+            line-height: 24px;
+            margin-bottom: 12px;
+        }
+
+        .section-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-card ul, .section-card ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        .section-card li {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 22px;
+            margin-bottom: 8px;
+        }
+
+        .bold {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .warning-box p {
+            margin: 0;
+            color: #92400e;
+            font-size: 14px;
+        }
+
+        .disclaimer-box {
+            background: #fecaca;
+            border-left: 4px solid #dc2626;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .disclaimer-box p {
+            margin: 0;
+            color: #7f1d1d;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .contact-section {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 32px;
+            color: white;
+            text-align: center;
+            margin-top: 48px;
+        }
+
+        .contact-section h2 {
+            color: white;
+            margin-bottom: 16px;
+        }
+
+        .contact-section p {
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .contact-section a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-section a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            background: #1f2937;
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 64px;
+        }
+
+        footer a {
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 16px;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            section h2 {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">Appraisal Online</div>
+            <a href="#" class="back-link" onclick="history.back(); return false;">← Back</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Terms of Service</h1>
+            <p class="last-updated">Last updated: August 24, 2026</p>
+        </div>
+
+        <section>
+            <h2>1. Agreement to Terms</h2>
+            <div class="section-card">
+                <p>By accessing and using Appraisal Online, you accept and agree to be bound by the terms and provisions of this agreement. If you do not agree to abide by the above, please do not use this service.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>2. Use License</h2>
+            <div class="section-card">
+                <p>Permission is granted to temporarily download one copy of the materials (information or software) on Appraisal Online for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title, and under this license you may not:</p>
+                <ul>
+                    <li>Modify or copy the materials</li>
+                    <li>Use the materials for any commercial purpose or for any public display</li>
+                    <li>Attempt to decompile or reverse engineer any software</li>
+                    <li>Remove any copyright or other proprietary notations</li>
+                    <li>Transfer the materials to another person or "mirror" the materials</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>3. Disclaimer</h2>
+            <div class="section-card">
+                <p><span class="bold">AI-Generated Content:</span></p>
+                <p>Property valuations provided by Appraisal Online are computer-generated estimates based on available market data. These are <span class="bold">NOT licensed appraisals</span> and should not be used for:</p>
+                <ul>
+                    <li>Mortgage lending decisions</li>
+                    <li>Legal proceedings</li>
+                    <li>Insurance claims</li>
+                    <li>Tax assessments</li>
+                    <li>Any official purpose requiring a licensed appraisal</li>
+                </ul>
+                <div class="disclaimer-box">
+                    <p>⚠️ Always consult with a licensed appraiser for official valuations.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>4. Limitations of Liability</h2>
+            <div class="section-card">
+                <p>In no event shall Appraisal Online or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials, even if we or our authorized representative has been notified orally or in writing of the possibility of such damage.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>5. Accuracy of Materials</h2>
+            <div class="section-card">
+                <p>The materials appearing on Appraisal Online could include technical, typographical, or photographic errors. We do not warrant that any of the materials are accurate, complete, or current. We may make changes to the materials contained on our service at any time without notice.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>6. User Conduct</h2>
+            <div class="section-card">
+                <p>Users agree not to:</p>
+                <ul>
+                    <li>Engage in any conduct that restricts the use of our services</li>
+                    <li>Attempt to gain unauthorized access to our systems</li>
+                    <li>Provide false or misleading information</li>
+                    <li>Engage in harassment or abusive behavior</li>
+                    <li>Upload malicious content or viruses</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>7. Free Reports Policy</h2>
+            <div class="section-card">
+                <p>Consumers receive <span class="bold">3 free property valuation reports per calendar month</span>. Reports reset on the 1st of each month. Additional reports may require a subscription or purchase.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>8. Broker Terms</h2>
+            <div class="section-card">
+                <p>Brokers who subscribe agree to:</p>
+                <ul>
+                    <li>Use leads only for legitimate business purposes</li>
+                    <li>Respect consumer privacy and opt-in preferences</li>
+                    <li>Comply with fair housing laws</li>
+                    <li>Not share leads with unauthorized third parties</li>
+                    <li>Not engage in spam or harassment</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>9. Refund Policy</h2>
+            <div class="section-card">
+                <p>Refunds are available within the tier-specific window:</p>
+                <ul>
+                    <li><span class="bold">Founder Lifetime:</span> 14 days from purchase</li>
+                    <li><span class="bold">Premium Annual:</span> 30 days from purchase</li>
+                    <li><span class="bold">Basic Annual:</span> 30 days from purchase</li>
+                </ul>
+                <p style="margin-top: 12px;">Refunds are processed within 5-10 business days.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>10. Termination</h2>
+            <div class="section-card">
+                <p>We may terminate or suspend your account immediately, without prior notice or liability, for any reason whatsoever, including if you breach these Terms. Upon termination, your right to use the service will immediately cease.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>11. Governing Law</h2>
+            <div class="section-card">
+                <p>These terms and conditions are governed by and construed in accordance with the laws of the jurisdiction in which Appraisal Online is located, and you irrevocably submit to the exclusive jurisdiction of the courts in that location.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>12. Changes to Terms</h2>
+            <div class="section-card">
+                <p>We reserve the right to modify these terms at any time. Changes become effective immediately upon posting. Your continued use constitutes acceptance of the modified terms.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>13. Contact</h2>
+            <div class="contact-section">
+                <h2>Questions About Our Terms?</h2>
+                <p>Email: <a href="mailto:support@appraisalonline.com">support@appraisalonline.com</a></p>
+                <p>Website: <a href="https://www.appraisalonline.com">www.appraisalonline.com</a></p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Appraisal Online. All rights reserved. | <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a> | <a href="/contact">Contact</a></p>
+    </footer>
+</body>
+</html>

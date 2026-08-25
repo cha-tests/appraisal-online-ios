@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How It Works - Appraisal Online</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .back-link {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .page-header {
+            margin-bottom: 48px;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .page-header p {
+            font-size: 16px;
+            color: #6b7280;
+            line-height: 24px;
+        }
+
+        .process-section {
+            margin-bottom: 64px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .process-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+
+        .step {
+            text-align: center;
+            padding: 32px 24px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s;
+        }
+
+        .step:hover {
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+
+        .step-number {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: #dbeafe;
+            color: #2563eb;
+            font-size: 32px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .step-icon {
+            font-size: 48px;
+            margin: 0 0 12px 0;
+        }
+
+        .step h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .step p {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 22px;
+        }
+
+        .report-section {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .report-section h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .report-contents {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .report-item {
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .report-item h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+
+        .report-item p {
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 20px;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 48px 32px;
+            text-align: center;
+            color: white;
+            margin-top: 48px;
+        }
+
+        .cta-section h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .cta-section p {
+            font-size: 16px;
+            margin-bottom: 24px;
+            opacity: 0.95;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 12px 32px;
+            background: white;
+            color: #2563eb;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+            transition: all 0.2s;
+            margin: 0 8px;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        footer {
+            background: #1f2937;
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 64px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 16px;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            .section-title {
+                font-size: 20px;
+            }
+
+            .process-steps {
+                grid-template-columns: 1fr;
+            }
+
+            .report-contents {
+                grid-template-columns: 1fr;
+            }
+
+            .cta-section {
+                padding: 32px 16px;
+            }
+
+            .cta-section h2 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">Appraisal Online</div>
+            <a href="#" class="back-link" onclick="history.back(); return false;">← Back</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>How It Works</h1>
+            <p>Get a professional property appraisal in minutes, powered by AI and real-time market data.</p>
+        </div>
+
+        <section class="process-section">
+            <h2 class="section-title">3-Step Process</h2>
+
+            <div class="process-steps">
+                <div class="step">
+                    <div class="step-icon">📝</div>
+                    <div class="step-number">1</div>
+                    <h3>Fill Out Form</h3>
+                    <p>Enter property details: address, square footage, bedrooms, bathrooms, and recent improvements. Takes just 2-3 minutes.</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-icon">🤖</div>
+                    <div class="step-number">2</div>
+                    <h3>AI Analyzes</h3>
+                    <p>Our AI analyzes market data, comparable sales, location trends, and property features to generate a comprehensive valuation.</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-icon">📊</div>
+                    <div class="step-number">3</div>
+                    <h3>Report Delivered</h3>
+                    <p>Receive a professional report with detailed analysis, comparable properties, market insights, and investment potential.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="process-section">
+            <h2 class="section-title">What Your Report Includes</h2>
+
+            <div class="report-section">
+                <h3>9 Comprehensive Sections</h3>
+                <div class="report-contents">
+                    <div class="report-item">
+                        <h4>Executive Summary</h4>
+                        <p>Quick overview of property value, market position, and key findings</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Location Analysis</h4>
+                        <p>Neighborhood demographics, trends, and amenities impact on value</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Property Description</h4>
+                        <p>Detailed breakdown of structure, condition, and unique features</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Market Dynamics</h4>
+                        <p>Current market conditions, absorption rates, and price trends</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Comparable Sales</h4>
+                        <p>Analysis of similar properties sold in the area with price adjustments</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Valuation Methods</h4>
+                        <p>Multiple valuation approaches and their impact on final estimate</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>SWOT Analysis</h4>
+                        <p>Strengths, weaknesses, opportunities, and threats for the property</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Investment Potential</h4>
+                        <p>ROI analysis, rental income projections, and appreciation potential</p>
+                    </div>
+
+                    <div class="report-item">
+                        <h4>Recommendations</h4>
+                        <p>Expert recommendations for value improvement and strategic decisions</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="cta-section">
+            <h2>Start Your Appraisal Today</h2>
+            <p>Get instant insights into your property's value with our AI-powered appraisal tool.</p>
+            <button class="cta-button" onclick="window.location.href='/app'">Get Started</button>
+            <button class="cta-button secondary" onclick="window.location.href='/learn-more'">Learn More</button>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Appraisal Online. All rights reserved. | <a href="/privacy" style="color: inherit;">Privacy</a> | <a href="/terms" style="color: inherit;">Terms</a></p>
+    </footer>
+</body>
+</html>

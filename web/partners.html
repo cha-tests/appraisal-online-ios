@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Real Estate Leads - Appraisal Online</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .back-link {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .page-header {
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .page-header p {
+            font-size: 16px;
+            color: #6b7280;
+            line-height: 24px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .mission-section {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .mission-section h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+        }
+
+        .mission-section p {
+            font-size: 15px;
+            color: #6b7280;
+            line-height: 24px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 48px 0 32px 0;
+            text-align: center;
+        }
+
+        .partners-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .partner-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .partner-card:hover {
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+
+        .partner-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .partner-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .partner-card p {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .benefit-card {
+            background: white;
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 24px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .benefit-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .benefit-card p {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 22px;
+        }
+
+        .opportunities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .opportunity-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 28px;
+        }
+
+        .opportunity-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+
+        .opportunity-card p {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 22px;
+            margin-bottom: 16px;
+        }
+
+        .email-link {
+            display: inline-block;
+            padding: 10px 16px;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .email-link:hover {
+            background: #1e40af;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 48px 32px;
+            text-align: center;
+            color: white;
+            margin-top: 48px;
+        }
+
+        .cta-section h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .cta-section p {
+            font-size: 16px;
+            margin-bottom: 24px;
+            opacity: 0.95;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 12px 32px;
+            background: white;
+            color: #2563eb;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+            transition: all 0.2s;
+            margin: 0 8px;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .cta-button.secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        footer {
+            background: #1f2937;
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 64px;
+        }
+
+        footer a {
+            color: white;
+        }
+
+        .hidden-section {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 16px;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            .section-title {
+                font-size: 20px;
+            }
+
+            .partners-grid,
+            .benefits-grid,
+            .opportunities-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cta-section {
+                padding: 32px 16px;
+            }
+
+            .cta-section h2 {
+                font-size: 22px;
+            }
+
+            .cta-button {
+                display: block;
+                margin: 8px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">Appraisal Online</div>
+            <a href="#" class="back-link" onclick="history.back(); return false;">← Back</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <!-- Limited Launch Offer Banner -->
+        <div style="text-align: center; color: #226C93; font-weight: 600; font-size: 14px; margin-bottom: 24px; letter-spacing: 1px;">
+            LIMITED LAUNCH OFFER
+        </div>
+
+        <!-- Hero Section -->
+        <div class="page-header" style="text-align: center; margin-bottom: 48px;">
+            <h1 style="font-size: 48px; margin-bottom: 16px;">Get Real Estate Leads Delivered to Your Inbox</h1>
+            <p style="font-size: 18px; color: #6B7280; margin-bottom: 24px;">Property owners are requesting free AI valuation reports in your city right now.<br>We notify you when they opt in to hear from a licensed professional.</p>
+            <button style="padding: 12px 32px; background: #226C93; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer;">Try it free for 30 days</button>
+        </div>
+
+        <!-- Key Stats -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; text-align: center; margin-bottom: 64px;">
+            <div>
+                <div style="font-size: 48px; font-weight: 700; color: #226C93; margin-bottom: 8px;">6</div>
+                <div style="font-size: 14px; color: #6B7280;">Active Cities</div>
+            </div>
+            <div>
+                <div style="font-size: 48px; font-weight: 700; color: #226C93; margin-bottom: 8px;">~60s</div>
+                <div style="font-size: 14px; color: #6B7280;">Report Delivery Time</div>
+            </div>
+            <div>
+                <div style="font-size: 48px; font-weight: 700; color: #226C93; margin-bottom: 8px;">$0</div>
+                <div style="font-size: 14px; color: #6B7280;">Per-Lead Fees</div>
+            </div>
+        </div>
+
+        <!-- How It Works Section -->
+        <h2 class="section-title">How It Works</h2>
+        <div style="text-align: center; margin-bottom: 32px; color: #6B7280; font-size: 16px;">
+            Three steps. No cold calling. No buying lists.
+        </div>
+
+        <div class="partners-grid" style="margin-bottom: 48px;">
+            <div class="partner-card">
+                <div style="font-size: 32px; margin-bottom: 12px; font-weight: 700; color: #226C93;">1</div>
+                <h3>You sign up</h3>
+                <p>Choose up to 3 cities you serve. Takes less than a minute.</p>
+            </div>
+
+            <div class="partner-card">
+                <div style="font-size: 32px; margin-bottom: 12px; font-weight: 700; color: #226C93;">2</div>
+                <h3>Property owners request reports</h3>
+                <p>They get a free AI valuation and can opt in to hear from professionals like you.</p>
+            </div>
+
+            <div class="partner-card">
+                <div style="font-size: 32px; margin-bottom: 12px; font-weight: 700; color: #226C93;">3</div>
+                <h3>You get the lead</h3>
+                <p>Their name, email, property details, and reason for the request, sent straight to your inbox.</p>
+            </div>
+        </div>
+
+        <!-- What You Receive Section -->
+        <h2 class="section-title">What You Receive</h2>
+        <div style="text-align: center; margin-bottom: 32px; color: #6B7280; font-size: 16px;">
+            Every time an opted-in property owner submits a request in your city, you get an email like this:
+        </div>
+
+        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; margin-bottom: 48px; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.8;">
+            <div style="margin-bottom: 12px;"><strong>From:</strong> Appraisal Online</div>
+            <div style="margin-bottom: 12px;"><strong>To:</strong> you@yourbrokerage.com</div>
+            <div style="margin-bottom: 20px;"><strong>Subject:</strong> New Lead in Miami, FL</div>
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                <div style="margin-bottom: 8px;"><strong>Name:</strong> Maria Santos</div>
+                <div style="margin-bottom: 8px;"><strong>Email:</strong> maria.santos@email.com</div>
+                <div style="margin-bottom: 8px;"><strong>Property:</strong> 2BR / 2BA Condo, 85 sqm</div>
+                <div style="margin-bottom: 8px;"><strong>Location:</strong> 1420 Brickell Ave, Miami, FL</div>
+                <div style="margin-bottom: 8px;"><strong>Reason:</strong> Considering selling</div>
+            </div>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-style: italic; color: #6B7280;">
+                This person opted in to be contacted by licensed professionals in their area.
+            </div>
+        </div>
+
+        <!-- Why This Is Different -->
+        <h2 class="section-title">Why This Is Different</h2>
+
+        <div class="benefits-grid">
+            <div class="benefit-card">
+                <h3>✓ They come to you</h3>
+                <p>These are property owners who actively requested a valuation report. You are not cold calling.</p>
+            </div>
+
+            <div class="benefit-card">
+                <h3>✓ They opted in</h3>
+                <p>Every lead you receive explicitly agreed to be contacted by a licensed professional. No guessing.</p>
+            </div>
+
+            <div class="benefit-card">
+                <h3>✓ No per-lead fees</h3>
+                <p>One flat annual price. Use every lead you get without worrying about extra charges.</p>
+            </div>
+
+            <div class="benefit-card">
+                <h3>✓ Risk-free start</h3>
+                <p>30-day free trial, then auto-renews. Choose annual and get 2 extra months free. That is 3 months of leads before your first payment.</p>
+            </div>
+        </div>
+
+        <!-- Pricing Section -->
+        <h2 class="section-title">Simple, Transparent Pricing</h2>
+
+        <div style="text-align: center; margin-bottom: 48px; color: #6B7280; font-size: 16px;">
+            Start with a free 30-day trial. Your subscription renews automatically after the trial. Choose annual and get 2 bonus months free.
+        </div>
+
+        <div class="opportunities-grid" style="margin-bottom: 48px;">
+            <div class="opportunity-card" style="border: 2px solid #226C93; position: relative;">
+                <div style="position: absolute; top: -12px; left: 20px; background: white; padding: 0 8px; color: #226C93; font-weight: 600; font-size: 12px;">START HERE</div>
+                <h3 style="color: #226C93; margin-top: 12px;">Free Trial</h3>
+                <div style="font-size: 32px; font-weight: 700; color: #226C93; margin: 16px 0;">$0<span style="font-size: 16px;">/30 days</span></div>
+                <ul style="list-style: none; padding: 0; margin: 16px 0; text-align: left;">
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">No credit card needed</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Up to 3 cities</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Full lead notifications</li>
+                    <li style="padding: 8px 0;">See the leads before you pay</li>
+                </ul>
+            </div>
+
+            <div class="opportunity-card" style="border: 2px solid #226C93; position: relative; background: #f0f9ff;">
+                <div style="position: absolute; top: -12px; left: 20px; background: white; padding: 0 8px; color: #226C93; font-weight: 600; font-size: 12px;">BEST VALUE</div>
+                <h3 style="color: #226C93; margin-top: 12px;">Founding Member</h3>
+                <div style="font-size: 32px; font-weight: 700; color: #226C93; margin: 16px 0;">$199<span style="font-size: 16px;">/year</span></div>
+                <ul style="list-style: none; padding: 0; margin: 16px 0; text-align: left;">
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Early adopter rate, locked in</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Up to 3 cities</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Unlimited lead notifications</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">No per-lead fees ever</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Rate locked for life on renewal</li>
+                    <li style="padding: 8px 0; color: #226C93; font-weight: 600;">+ 2 bonus months free</li>
+                </ul>
+            </div>
+
+            <div class="opportunity-card">
+                <h3 style="color: #226C93;">Standard</h3>
+                <div style="font-size: 32px; font-weight: 700; color: #226C93; margin: 16px 0;">$349<span style="font-size: 16px;">/year</span></div>
+                <ul style="list-style: none; padding: 0; margin: 16px 0; text-align: left;">
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Regular annual rate</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Up to 3 cities</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Unlimited lead notifications</li>
+                    <li style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">No per-lead fees ever</li>
+                    <li style="padding: 8px 0;">Priority support</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Who This Is For -->
+        <h2 class="section-title">Who This Is For</h2>
+
+        <div class="benefits-grid">
+            <div class="benefit-card">
+                <h3>🏠 Real Estate Brokers</h3>
+                <p>Connect with sellers and buyers in your market.</p>
+            </div>
+
+            <div class="benefit-card">
+                <h3>🏦 Mortgage Lenders</h3>
+                <p>Reach property owners exploring their options.</p>
+            </div>
+
+            <div class="benefit-card">
+                <h3>📈 Property Investors</h3>
+                <p>Find motivated sellers before they list publicly.</p>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <div class="cta-section">
+            <h2>Start Your Free 30-Day Trial</h2>
+            <p>See the leads in your city before you pay. Choose annual and get 3 months free total.</p>
+            <p style="font-size: 14px; margin-top: 16px;">Email us your name, role, and the cities you serve. We will activate your trial within 24 hours.</p>
+            <button class="cta-button" onclick="window.location.href='mailto:wallacepanlilio@gmail.com'">Start Free Trial</button>
+        </div>
+
+        <!-- FAQ Section -->
+        <h2 class="section-title" style="margin-top: 64px;">Common Questions</h2>
+
+        <div style="max-width: 800px; margin: 0 auto;">
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">How does the free trial work?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">Email us with your name, role, and the cities you serve. We activate your account within 24 hours. For 30 days, you receive the same lead notifications as paid members. After the trial, your subscription automatically renews to the plan you chose at sign-up.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">What happens after the trial ends?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">Your subscription auto-renews so there is no gap in your lead notifications. If you chose an annual plan, you get 2 bonus months free on top of your 30-day trial. That means 3 months of leads before your first payment. You can cancel at any time before the trial ends if you decide it is not for you.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">Do I pay per lead?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">No. Your annual membership covers unlimited lead notifications in your selected cities. There are no per-lead fees, no commissions, and no hidden costs.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">How many cities can I choose?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">You can select up to 3 cities. If you need to change your cities later, just email us and we will update your profile.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">Are leads exclusive to me?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">Leads are shared with all active members serving that city. There is no exclusivity, which keeps the cost low and gives property owners the best chance of finding a good match.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">What markets are currently active?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">We are currently serving Miami, Houston, and Los Angeles in the US, and Manila, Cebu, and Davao in the Philippines. More cities are coming soon.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">What is the Founding Member rate?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">The $199/year Founding Member rate is available for a limited time during our launch period. Once you lock in this rate, it stays the same when you renew. You also get 2 bonus months free when you choose an annual plan, giving you 3 months free total with the trial. After the launch period, new members pay the Standard rate of $349/year.</p>
+            </div>
+
+            <div style="margin-bottom: 32px;">
+                <h3 style="color: #226C93; font-size: 18px; margin-bottom: 12px;">Where do the leads come from?</h3>
+                <p style="color: #6B7280; line-height: 1.6;">Property owners find us through social media and word of mouth. They submit their property details to receive a free AI-generated valuation report. During that process, they can opt in to be contacted by licensed professionals in their area. Only opted-in requests are shared with partners.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Appraisal Online. All rights reserved. | <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a> | <a href="/contact">Contact</a></p>
+    </footer>
+</body>
+</html>

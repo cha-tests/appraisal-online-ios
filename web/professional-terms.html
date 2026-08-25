@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Terms - Appraisal Online</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2563eb;
+        }
+
+        .back-link {
+            padding: 8px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #6b7280;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .back-link:hover {
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 24px;
+        }
+
+        .page-header {
+            margin-bottom: 48px;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .page-header .subtitle {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .last-updated {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+
+        section {
+            margin-bottom: 32px;
+        }
+
+        section h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 16px;
+            scroll-margin-top: 80px;
+        }
+
+        .section-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .section-card p {
+            font-size: 15px;
+            color: #6b7280;
+            line-height: 24px;
+            margin-bottom: 12px;
+        }
+
+        .section-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-card ul, .section-card ol {
+            margin-left: 20px;
+            margin-bottom: 12px;
+        }
+
+        .section-card li {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 22px;
+            margin-bottom: 8px;
+        }
+
+        .bold {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .tier-box {
+            background: #f0f9ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 4px solid #2563eb;
+        }
+
+        .tier-box p {
+            margin: 0;
+        }
+
+        .highlight {
+            background: #f3f4f6;
+            border-left: 4px solid #2563eb;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+        }
+
+        .warning-box p {
+            margin: 0;
+            color: #92400e;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .contact-section {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 32px;
+            color: white;
+            text-align: center;
+            margin-top: 48px;
+        }
+
+        .contact-section h2 {
+            color: white;
+            margin-bottom: 16px;
+        }
+
+        .contact-section p {
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .contact-section a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-section a:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            background: #1f2937;
+            color: white;
+            padding: 32px 24px;
+            text-align: center;
+            font-size: 14px;
+            margin-top: 64px;
+        }
+
+        footer a {
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 32px 16px;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            section h2 {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo">Appraisal Online</div>
+            <a href="#" class="back-link" onclick="history.back(); return false;">← Back</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        <div class="page-header">
+            <h1>Professional Terms</h1>
+            <div class="subtitle">For Real Estate Brokers & Agents</div>
+            <p class="last-updated">Last updated: August 24, 2026</p>
+        </div>
+
+        <section>
+            <h2>1. Broker Subscription Agreement</h2>
+            <div class="section-card">
+                <p>This agreement governs your use of Appraisal Online as a real estate professional. By subscribing, you agree to comply with all applicable laws and our professional standards.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>2. Lead Quality & Authenticity</h2>
+            <div class="section-card">
+                <ul>
+                    <li>All leads come from consumers who have explicitly opted in to professional contact</li>
+                    <li>Lead data is automatically verified against property records</li>
+                    <li>No synthesized or duplicate leads</li>
+                    <li>Leads are delivered in real-time (Lifetime/Premium) or as weekly digest (Basic)</li>
+                    <li>We do not resell or share leads with competitors</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>3. Fair Housing Compliance</h2>
+            <div class="section-card">
+                <p>You agree to comply with the Fair Housing Act and all applicable anti-discrimination laws:</p>
+                <ul>
+                    <li>No discrimination based on protected characteristics</li>
+                    <li>Equal service to all qualified leads</li>
+                    <li>Compliance with all state and local laws</li>
+                    <li>Full accountability for your professional conduct</li>
+                </ul>
+                <div class="warning-box">
+                    <p>⚠️ Violations will result in immediate account termination.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>4. Lead Usage Restrictions</h2>
+            <div class="section-card">
+                <p><span class="bold">Leads may only be used for:</span></p>
+                <ul>
+                    <li>Direct professional contact with consumers</li>
+                    <li>Marketing real estate services</li>
+                    <li>Professional follow-up and client relationship building</li>
+                </ul>
+                <p style="margin-top: 12px;"><span class="bold">Leads may NOT be used for:</span></p>
+                <ul>
+                    <li>Resale or redistribution</li>
+                    <li>Data mining or harvesting</li>
+                    <li>Non-real estate business purposes</li>
+                    <li>Sharing with unauthorized third parties</li>
+                    <li>Spam, harassment, or abusive contact</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>5. Privacy & Confidentiality</h2>
+            <div class="section-card">
+                <ul>
+                    <li>Consumer data is confidential and for your use only</li>
+                    <li>Do not share lead information with third parties without consent</li>
+                    <li>Do not sell or trade consumer contact information</li>
+                    <li>Comply with GDPR, CCPA, and all privacy laws</li>
+                    <li>Update your notification preferences in your settings</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>6. Subscription Tiers</h2>
+            <div class="section-card">
+                <div class="tier-box">
+                    <p><span class="bold">Founder Lifetime - $499</span></p>
+                    <p style="margin-top: 4px; font-size: 14px;">• 25 cities | • Real-time notifications | • Email, push, SMS | • 14-day refund</p>
+                </div>
+                <div class="tier-box">
+                    <p><span class="bold">Premium Annual - $199/year</span></p>
+                    <p style="margin-top: 4px; font-size: 14px;">• 10 cities | • Real-time notifications | • Email & push | • 30-day refund</p>
+                </div>
+                <div class="tier-box">
+                    <p><span class="bold">Basic Annual - $49/year</span></p>
+                    <p style="margin-top: 4px; font-size: 14px;">• 1 city | • Weekly digest | • Email only | • 30-day refund</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>7. Founder Capacity</h2>
+            <div class="section-card">
+                <p>To maintain lead quality, we limit Founder Lifetime subscriptions to <span class="bold">30 per city</span>. Each city has a Founder counter visible to all brokers. Once full, Founder tier cannot be selected for that city.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>8. Marketing Allocation</h2>
+            <div class="section-card">
+                <p>Monthly marketing budget is allocated based on subscription tiers:</p>
+                <ul>
+                    <li>Founder Lifetime = 3x weight</li>
+                    <li>Premium Annual = 2x weight</li>
+                    <li>Basic Annual = 1x weight</li>
+                </ul>
+                <p style="margin-top: 12px;">Your allocation determines lead volume and priority ranking in your city.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>9. Notification Preferences</h2>
+            <div class="section-card">
+                <p>You can customize:</p>
+                <ul>
+                    <li>Email notifications (on/off)</li>
+                    <li>Push notifications (on/off)</li>
+                    <li>SMS notifications (on/off, Founder only)</li>
+                    <li>Quiet hours (Founder only)</li>
+                    <li>Weekly digest time (Basic only)</li>
+                </ul>
+                <p style="margin-top: 12px;">Changes take effect immediately.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>10. Refunds & Cancellation</h2>
+            <div class="section-card">
+                <ul>
+                    <li>Cancellation available anytime with refund within the window</li>
+                    <li><span class="bold">Founder:</span> 14 days</li>
+                    <li><span class="bold">Premium/Basic:</span> 30 days</li>
+                    <li>Account closure removes all your data</li>
+                    <li>No refunds after the window closes</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>11. Professional Conduct</h2>
+            <div class="section-card">
+                <p>You agree to:</p>
+                <ul>
+                    <li>Maintain professional standards</li>
+                    <li>Respond to leads timely and respectfully</li>
+                    <li>Disclose your affiliation and business terms</li>
+                    <li>Not misrepresent services or credentials</li>
+                    <li>Maintain transparency in all communications</li>
+                    <li>Respect consumer preferences and opt-outs</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>12. Account Termination</h2>
+            <div class="section-card">
+                <p>We may terminate your account for:</p>
+                <ul>
+                    <li>Violation of fair housing laws</li>
+                    <li>Repeated consumer complaints</li>
+                    <li>Harassment, spam, or abusive conduct</li>
+                    <li>Non-payment or fraudulent payment</li>
+                    <li>Any violation of these professional terms</li>
+                </ul>
+                <p style="margin-top: 12px;">Termination is immediate with no refund.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>13. Liability & Indemnification</h2>
+            <div class="section-card">
+                <ul>
+                    <li>You are solely responsible for your professional conduct</li>
+                    <li>You indemnify Appraisal Online against claims arising from your violations</li>
+                    <li>We provide leads as-is without warranty</li>
+                    <li>Lead accuracy is guaranteed but not performance</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>14. Contact</h2>
+            <div class="contact-section">
+                <h2>Professional Inquiries</h2>
+                <p>Email: <a href="mailto:brokers@appraisalonline.com">brokers@appraisalonline.com</a></p>
+                <p>Website: <a href="https://www.appraisalonline.com">www.appraisalonline.com</a></p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Appraisal Online. All rights reserved. | <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a> | <a href="/contact">Contact</a></p>
+    </footer>
+</body>
+</html>
