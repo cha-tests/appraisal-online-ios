@@ -12,9 +12,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.appraisalonline.mobile",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We need your location to find comparable properties",
+        "NSCameraUsageDescription": "Appraisal Online uses your camera to let you scan your card during checkout.",
         "UIBackgroundModes": [
           "remote-notification"
         ],
