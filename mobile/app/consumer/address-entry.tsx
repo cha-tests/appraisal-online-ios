@@ -15,12 +15,23 @@ import {
 } from '../../utils/addressComponents';
 import { PropertyMap } from '../../components/property/PropertyMap';
 import { AUTOCOMPLETE_COUNTRIES } from '../../config/marketConfig';
+import { supabase } from '../../services/supabase';
 
-const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
 // Google's country restriction filter is capped at 5 entries — see the
 // comment on AUTOCOMPLETE_COUNTRIES for what happens past that.
 const COMPONENTS_FILTER = AUTOCOMPLETE_COUNTRIES.map((code) => `country:${code}`).join('|');
+
+// Google's Places REST API sends no CORS headers, so the web build can't
+// call it directly from the browser — only the backend proxy (routes/places.ts)
+// can reach it. Native has no such restriction, but this app calls the same
+// proxy on every platform rather than branching, so there is one code path
+// and the API key never has to live in the client bundle.
+async function authHeaders() {
+  const { data } = await supabase.auth.getSession();
+  return { Authorization: `Bearer ${data.session?.access_token}` };
+}
 
 interface PlacesPrediction {
   place_id: string;
@@ -57,19 +68,10 @@ export default function AddressEntry() {
       setLoading(true);
       setLocalError('');
 
-      const response = await axios.get(
-        'https://maps.googleapis.com/maps/api/place/autocomplete/json',
-        {
-          params: {
-            input,
-            key: GOOGLE_PLACES_API_KEY,
-            // Must be a plain string. Axios serialises an array as
-            // `types[]=address`, which Google does not recognise.
-            types: 'address',
-            components: COMPONENTS_FILTER,
-          },
-        }
-      );
+      const response = await axios.get(`${API_URL}/api/places/autocomplete`, {
+        params: { input, components: COMPONENTS_FILTER },
+        headers: await authHeaders(),
+      });
 
       // Google signals problems in a `status` field with HTTP 200, so an
       // error here is invisible unless we check it explicitly. Without this,
@@ -118,20 +120,10 @@ export default function AddressEntry() {
     setResolving(true);
 
     try {
-      const detailResponse = await axios.get(
-        'https://maps.googleapis.com/maps/api/place/details/json',
-        {
-          params: {
-            place_id: prediction.place_id,
-            key: GOOGLE_PLACES_API_KEY,
-            // Comma-separated string, not an array: axios would send
-            // `fields[]=geometry&...`, which Google ignores — and an ignored
-            // fields param means being billed for every field group rather
-            // than just these three.
-            fields: 'geometry,formatted_address,address_components',
-          },
-        }
-      );
+      const detailResponse = await axios.get(`${API_URL}/api/places/details`, {
+        params: { place_id: prediction.place_id },
+        headers: await authHeaders(),
+      });
 
       const status = detailResponse.data.status;
       if (status && status !== 'OK') {
