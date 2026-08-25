@@ -13,6 +13,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
+import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
 import { authService } from '../../services/auth.service';
 import { Report } from '../../types';
@@ -20,11 +21,14 @@ import { Report } from '../../types';
 export default function ConsumerAccount() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
+  const clearAuth = useAuthStore((state) => state.clear);
+  const setCurrentReport = useReportStore((state) => state.setCurrentReport);
+  const setCurrentProperty = useReportStore((state) => state.setCurrentProperty);
   const [reports, setReports] = useState<Report[]>([]);
   const [allowance, setAllowance] = useState({ used: 0, remaining: 3 });
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [openingReportId, setOpeningReportId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -68,10 +72,19 @@ export default function ConsumerAccount() {
           try {
             setSigningOut(true);
             const result = await authService.signout();
-            if (result.success) {
-              setUser(null);
-              router.push('/auth/login');
+            // signout() reports failure by returning success: false rather
+            // than throwing, so this needs handling here or a failed sign out
+            // leaves the user on the page with no feedback at all.
+            if (!result.success) {
+              Alert.alert('Error', result.error?.message ?? 'Failed to sign out');
+              return;
             }
+            // clear() rather than setUser(null) so the whole auth slice
+            // (session, cached profile) goes with it.
+            clearAuth();
+            // replace, not push: the signed-in screens must not stay on the
+            // history stack where Back could return to them after sign out.
+            router.replace('/auth/login');
           } catch (err) {
             Alert.alert('Error', 'Failed to sign out');
           } finally {
@@ -80,6 +93,29 @@ export default function ConsumerAccount() {
         },
       },
     ]);
+  };
+
+  const handleViewReport = async (report: Report) => {
+    try {
+      setOpeningReportId(report.id);
+
+      // report-view.tsx reads report/property from the store rather than
+      // fetching by route param, so both need to be populated before
+      // navigating there — getUserReports already returns full Report rows
+      // (comparables included), but not the associated property, which
+      // report-view.tsx needs for the comparable-sales distance unit
+      // (see marketConfig.ts's formatDistance, keyed off country_code).
+      const { success, property } = await reportService.getProperty(report.property_id);
+
+      setCurrentReport(report);
+      setCurrentProperty(success && property ? property : null);
+      router.push('/consumer/report-view');
+    } catch (err) {
+      console.error('Error opening report:', err);
+      Alert.alert('Error', 'Failed to open report');
+    } finally {
+      setOpeningReportId(null);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -154,9 +190,8 @@ export default function ConsumerAccount() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.reportCard}
-              onPress={() => {
-                // TODO: View full report
-              }}
+              onPress={() => handleViewReport(item)}
+              disabled={openingReportId === item.id}
               activeOpacity={0.7}
             >
               <View style={styles.reportCardContent}>
@@ -165,9 +200,13 @@ export default function ConsumerAccount() {
                   ${(item.estimated_value / 100).toLocaleString()}
                 </Text>
               </View>
-              <Text style={styles.reportDate}>
-                {new Date(item.created_at).toLocaleDateString()}
-              </Text>
+              {openingReportId === item.id ? (
+                <ActivityIndicator size="small" color="#9CA3AF" />
+              ) : (
+                <Text style={styles.reportDate}>
+                  {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+              )}
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}
@@ -190,7 +229,7 @@ export default function ConsumerAccount() {
       )}
 
       {/* Settings */}
-      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Settings</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Settings</Text>
 
       <TouchableOpacity
         style={styles.settingItem}

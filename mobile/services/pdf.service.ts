@@ -2,7 +2,7 @@ import { Report, ComparableSale } from '../types';
 import axios from 'axios';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { useAuthStore } from '../stores/auth.store';
+import { supabase } from './supabase';
 
 interface PDFGenerationParams {
   report: Report;
@@ -187,14 +187,21 @@ async function downloadPDFToDocuments(reportId: string, fileName: string): Promi
  *
  * The backend's authMiddleware validates this as a Supabase JWT via
  * supabase.auth.getUser(token) (see backend/src/middleware/auth.ts), so this
- * must be the live Supabase access_token, not a placeholder — an empty
- * string here sends "Authorization: Bearer " and the backend correctly
- * rejects it with 401.
+ * must be a live Supabase access_token.
+ *
+ * This reads directly from the Supabase client rather than auth.store's
+ * `session` field: that field is only ever set once, at the moment of
+ * login (see auth.service.ts), and app/_layout.tsx's rehydration on app
+ * launch restores `user` but never calls setSession — so after any reload
+ * or restart, session_token is null even though the user is clearly still
+ * logged in. supabase.auth.getSession() reads the client's own persisted,
+ * auto-refreshed session (see services/supabase.ts's `persistSession` /
+ * `autoRefreshToken` config), so it always reflects a currently-valid token.
  */
 async function getAuthToken(): Promise<string> {
-  const token = useAuthStore.getState().session?.session_token;
-  if (!token) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) {
     throw new Error('Not authenticated');
   }
-  return token;
+  return data.session.access_token;
 }

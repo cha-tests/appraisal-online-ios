@@ -261,6 +261,26 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
     }
   },
 
+  // Fetch a property by ID
+  async getProperty(propertyId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('id', propertyId)
+        .single();
+
+      if (error) throw error;
+
+      return { success: true, property: data as Property };
+    } catch (error) {
+      return {
+        success: false,
+        error: parseSupabaseError(error),
+      };
+    }
+  },
+
   // Fetch report by ID
   async getReport(reportId: string) {
     try {
