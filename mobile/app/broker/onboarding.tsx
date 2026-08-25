@@ -12,6 +12,12 @@ import { brokerService } from '../../services/broker.service';
 import { BrokerTier, City } from '../../types';
 
 const TIERS: BrokerTier[] = ['Founder Lifetime', 'Premium Annual', 'Basic Annual'];
+// PH is the primary launch market, so it's listed first when both are present.
+const COUNTRY_ORDER = ['PH', 'US'];
+const COUNTRY_LABELS: Record<string, string> = {
+  PH: '🇵🇭 Philippines',
+  US: '🇺🇸 United States',
+};
 const TIER_DETAILS = {
   'Founder Lifetime': { cities: 25, price: '$499 one-time', refund: '14 days' },
   'Premium Annual': { cities: 10, price: '$199/year', refund: '30 days' },
@@ -27,6 +33,7 @@ export default function BrokerOnboarding() {
   const [step, setStep] = useState(1);
   const [cities, setCities] = useState<City[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
@@ -49,6 +56,12 @@ export default function BrokerOnboarding() {
         const { success, cities: fetchedCities } = await brokerService.getCities();
         if (success && fetchedCities) {
           setCities(fetchedCities);
+          // Default to the broker's most likely market rather than showing
+          // every country's cities mixed together on first load.
+          const availableCountries = COUNTRY_ORDER.filter((code) =>
+            fetchedCities.some((c) => c.country === code)
+          );
+          setSelectedCountry((prev) => prev ?? availableCountries[0] ?? fetchedCities[0]?.country ?? null);
         }
       } catch (err) {
         console.error('Error fetching cities:', err);
@@ -266,8 +279,32 @@ export default function BrokerOnboarding() {
               <ActivityIndicator color="#2563EB" />
             </View>
           ) : (
-            <FlatList
-              data={cities}
+            <>
+              {COUNTRY_ORDER.filter((code) => cities.some((c) => c.country === code)).length > 1 && (
+                <View style={styles.countryTabs}>
+                  {COUNTRY_ORDER.filter((code) => cities.some((c) => c.country === code)).map((code) => (
+                    <TouchableOpacity
+                      key={code}
+                      style={[
+                        styles.countryTab,
+                        selectedCountry === code && styles.countryTabActive,
+                      ]}
+                      onPress={() => setSelectedCountry(code)}
+                    >
+                      <Text
+                        style={[
+                          styles.countryTabText,
+                          selectedCountry === code && styles.countryTabTextActive,
+                        ]}
+                      >
+                        {COUNTRY_LABELS[code] ?? code}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              <FlatList
+              data={cities.filter((c) => c.country === selectedCountry)}
               renderItem={({ item }) => {
                 const isSelected = formData.selectedCities.includes(item.id);
                 const isFull = item.founder_count_lifetime >= 30 && formData.tier === 'Founder Lifetime';
@@ -306,7 +343,8 @@ export default function BrokerOnboarding() {
               }}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
-            />
+              />
+            </>
           )}
 
           <Text style={styles.cityCount}>
@@ -467,6 +505,32 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  countryTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  countryTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  countryTabActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#DBEAFE',
+  },
+  countryTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  countryTabTextActive: {
+    color: '#2563EB',
   },
   cityItem: {
     flexDirection: 'row',
