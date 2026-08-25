@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { useReportStore } from '../../stores/report.store';
@@ -37,8 +37,19 @@ export default function LoadingScreen() {
         // Check free report allowance
         const allowance = await reportService.checkReportAllowance(user.id);
         if (!allowance.allowed) {
+          // There is no consumer paywall/upgrade screen yet — payments for
+          // consumers are intentionally deferred for the initial launch (see
+          // broker/paywall.tsx for the analogous broker flow, which does have
+          // Stripe wired up). Until a consumer paywall exists, the limit is
+          // surfaced as an alert rather than routed to a screen that isn't
+          // built, which previously produced an "Unmatched Route" crash.
           setError('You\'ve reached your monthly free report limit');
-          router.push('/consumer/paywall');
+          setIsGenerating(false);
+          Alert.alert(
+            'Monthly Limit Reached',
+            'You\'ve used all 3 free reports this month. Your allowance resets next month.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
           return;
         }
 
@@ -57,24 +68,29 @@ export default function LoadingScreen() {
         }
 
         // Generate AI valuation (mock comparables for now)
+        // sale_price is stored in cents — every screen that renders a
+        // comparable (report-view.tsx, lead-detail.tsx) divides by 100, the
+        // same convention report.estimated_value and subscriptions.price
+        // already use. These were previously plain dollar amounts (e.g.
+        // 725000 for $725,000), which displayed as $7,250 everywhere.
         const mockComparables = [
           {
             address: '456 Oak Ave',
-            sale_price: 725000,
+            sale_price: 72500000,
             sale_date: '2026-05-15',
             distance_miles: 0.3,
             similarity_score: 0.95,
           },
           {
             address: '789 Elm St',
-            sale_price: 695000,
+            sale_price: 69500000,
             sale_date: '2026-04-20',
             distance_miles: 0.5,
             similarity_score: 0.88,
           },
           {
             address: '321 Pine Rd',
-            sale_price: 750000,
+            sale_price: 75000000,
             sale_date: '2026-03-10',
             distance_miles: 0.7,
             similarity_score: 0.82,
@@ -84,7 +100,8 @@ export default function LoadingScreen() {
         const valuationResult = await reportService.generateValuation(
           currentPropertyDetails,
           currentProperty.address,
-          mockComparables
+          mockComparables,
+          currentProperty.address_components?.country_code
         );
 
         if (!valuationResult.success) {
