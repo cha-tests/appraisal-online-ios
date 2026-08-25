@@ -87,9 +87,13 @@ export const brokerService = {
   // Get all cities with founder counts
   async getCities() {
     try {
+      // Group by country before sorting by name. With more than one market
+      // seeded, a plain name sort interleaves them (Austin, Bacolod, Baguio,
+      // Caloocan, Charlotte...), which makes the picker hard to scan.
       const { data, error } = await supabase
         .from('cities')
         .select('*')
+        .order('country', { ascending: true })
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -351,6 +355,51 @@ export const brokerService = {
 
       return { success: true, profile: data };
     } catch (error) {
+      return {
+        success: false,
+        error: parseSupabaseError(error),
+      };
+    }
+  },
+
+  /**
+   * Route a newly created lead to every currently-paying broker subscribed to
+   * its city.
+   *
+   * This has to go through the route_lead_to_brokers Postgres function
+   * (migration 008) rather than querying broker_profiles/subscriptions
+   * directly: matching a lead's city against brokers means reading OTHER
+   * users' selected_cities and subscription status, and a consumer's own RLS
+   * session correctly can't do that — those tables are scoped to "a broker
+   * sees only their own row". Verified live: the same queries this function
+   * used to run directly returned HTTP 200 with an empty array under a real
+   * consumer session, even though a matching broker existed — RLS silently
+   * filters rows rather than erroring, so that version would have looked like
+   * "no brokers in this city" forever. The RPC runs the matching + insert
+   * SECURITY DEFINER, server-side, in one call.
+   *
+   * Deliberately separate from searchBrokersByCity below: that method returns
+   * every broker who selected a city, for a public directory-type view. This
+   * one gates on an active subscription, because it is the step that actually
+   * hands a paying customer's data to a broker — an unpaid or lapsed broker
+   * must not receive it. That gating lives in the SQL function, not here.
+   */
+  async routeLeadToBrokers(leadId: string, cityId: string | null) {
+    if (!cityId) {
+      return { success: true, routedCount: 0 };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('route_lead_to_brokers', {
+        p_lead_id: leadId,
+        p_city_id: cityId,
+      });
+
+      if (error) throw error;
+
+      return { success: true, routedCount: (data as number) ?? 0 };
+    } catch (error) {
+      console.error('Error routing lead to brokers:', error);
       return {
         success: false,
         error: parseSupabaseError(error),

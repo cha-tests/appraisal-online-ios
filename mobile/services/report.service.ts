@@ -1,9 +1,18 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { Report, Property, ComparableSale, ValueRange, ReportAllowance } from '../types';
 import axios from 'axios';
+import { findCityId } from '../utils/matchCity';
+import { brokerService } from './broker.service';
+import { formatDistance } from '../config/marketConfig';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+// Use the "-latest" alias rather than a pinned version. Verified live against
+// a real key: gemini-2.5-flash now 404s for new API keys/projects ("no longer
+// available to new users") — Google had already moved the recommended model
+// forward once by the time this was first wired up. An alias means the next
+// generation shift doesn't require another code change here.
+const GEMINI_API_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
 
 export const reportService = {
   // Check monthly allowance for free reports
@@ -68,7 +77,8 @@ export const reportService = {
   async generateValuation(
     propertyDetails: Record<string, any>,
     location: string,
-    comparables: ComparableSale[]
+    comparables: ComparableSale[],
+    countryCode?: string | null
   ): Promise<{
     success: boolean;
     estimatedValue?: number;
@@ -95,7 +105,16 @@ PROPERTY DETAILS:
 - Condition: ${propertyDetails.condition}
 
 COMPARABLE SALES (Recent):
-${comparables.map((c) => `- ${c.address}: $${c.sale_price} (${c.sale_date}, ${c.distance_miles} mi away)`).join('\n')}
+${comparables
+  .map(
+    (c) =>
+      // sale_price is stored in cents (see createReport); this prompt describes
+      // real dollar amounts to the model, so it's divided back out here. Distance
+      // is shown in whichever unit this property's market actually uses — a PH
+      // or AU property should read "km", not "mi".
+      `- ${c.address}: $${(c.sale_price / 100).toLocaleString()} (${c.sale_date}, ${formatDistance(c.distance_miles, countryCode)} away)`
+  )
+  .join('\n')}
 
 Provide your response as JSON with these fields:
 {
@@ -133,21 +152,34 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
         throw new Error('Failed to parse valuation response');
       }
 
+      // The prompt above asks Gemini for a plain dollar integer (natural for
+      // the model, and easy to sanity-check against the dollar-scale
+      // comparables in the same prompt) — but every screen that renders
+      // estimated_value/confidence_range divides by 100, on the assumption
+      // that the stored value is cents (the same convention
+      // subscriptions.price already uses). Converting here, once, at the
+      // boundary keeps that prompt natural while still landing in the
+      // storage unit everything downstream expects.
       return {
         success: true,
-        estimatedValue: valuationData.estimated_value,
+        estimatedValue: valuationData.estimated_value * 100,
         confidenceRange: {
-          low: valuationData.confidence_low,
-          high: valuationData.confidence_high,
+          low: valuationData.confidence_low * 100,
+          high: valuationData.confidence_high * 100,
         },
         geminiResponse: valuationData,
       };
     } catch (error) {
-      console.error('Error generating valuation:', error);
-      return {
-        success: false,
-        error: parseSupabaseError(error),
-      };
+      // Fall back to the mock valuation rather than surfacing failure to the
+      // caller. Without this, any real-API problem — no prepay credit, a rate
+      // limit, a model rename, a network blip — aborted report generation
+      // entirely: loading.tsx treats `success: false` here as a hard failure
+      // and throws, kicking the consumer back out mid-flow. A consumer asking
+      // for a home valuation should get a usable number over a broken screen;
+      // the mock result already carries `is_mock: true` in geminiResponse so
+      // this is never presented as if it were a real AI valuation.
+      console.error('Gemini valuation failed, falling back to mock valuation:', error);
+      return this.generateMockValuation(propertyDetails, comparables);
     }
   },
 
@@ -199,14 +231,26 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
     confidenceRange: ValueRange;
     geminiResponse: Record<string, any>;
   } {
-    // Calculate average price from comparables
+    // comparables[].sale_price is stored in cents; this function's math (and
+    // the "reasoning" text below, which quotes avgPrice directly) works in
+    // plain dollars throughout, converting back to cents only in the
+    // returned estimatedValue/confidenceRange — so the incoming cents value
+    // is divided down once here, at the point it enters the calculation.
     const avgPrice =
-      comparables.reduce((sum, c) => sum + c.sale_price, 0) / comparables.length;
+      comparables.reduce((sum, c) => sum + c.sale_price / 100, 0) / comparables.length;
 
     // Adjust based on property characteristics
     const sqftAdjustment =
       (propertyDetails.square_feet || 2000) / 2000; // Normalize to 2000 sqft
-    const bedroomAdjustment = 1 + (propertyDetails.bedrooms || 3 - 3) * 0.1; // ±10% per bedroom
+    // ±10% per bedroom relative to a 3-bedroom baseline. The previous
+    // `propertyDetails.bedrooms || 3 - 3` evaluated as `bedrooms || 0` (operator
+    // precedence gives `3 - 3` first, then `||`), which doesn't compare to a
+    // baseline at all — it scaled directly with bedroom count, so a 3-bedroom
+    // property got a flat +30% rather than the intended +0%. Using `??`
+    // instead of `||` for the missing-data fallback also matters here: a
+    // studio (0 bedrooms) is a real, valid value, and `||` would have treated
+    // it as "missing" and silently substituted 3.
+    const bedroomAdjustment = 1 + ((propertyDetails.bedrooms ?? 3) - 3) * 0.1;
     const conditionAdjustment =
       {
         Excellent: 1.15,
@@ -223,12 +267,18 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
     const confidencePercent = comparables.length >= 3 ? 85 : 70;
     const range = Math.round(estimatedValue * 0.1);
 
+    // estimatedValue/range above are plain dollars, matching the dollar-scale
+    // comparables.sale_price they're derived from — natural for the math and
+    // for the human-readable `reasoning` string below. But every screen that
+    // renders report.estimated_value/confidence_range divides by 100 (the
+    // same cents convention subscriptions.price already uses), so the
+    // returned, stored values need the conversion applied here, once.
     return {
       success: true,
-      estimatedValue,
+      estimatedValue: estimatedValue * 100,
       confidenceRange: {
-        low: estimatedValue - range,
-        high: estimatedValue + range,
+        low: (estimatedValue - range) * 100,
+        high: (estimatedValue + range) * 100,
       },
       geminiResponse: {
         estimated_value: estimatedValue,
@@ -366,17 +416,39 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
 
       const { data: user } = await supabase.from('users').select('email').eq('id', consumerId).single();
 
-      const { error } = await supabase.from('leads').insert({
-        report_id: reportId,
-        property_id: propertyId,
-        consumer_id: consumerId,
-        consumer_email: user?.email || '',
-        consumer_phone: report.phone_provided,
-        property_address: property.address,
-        property_value: report.estimated_value,
-      });
+      // Resolve which seeded city this property falls in, so the lead can be
+      // routed to brokers subscribed to that city below. Previously this was
+      // never set, so every lead's city_id was null and no broker — no matter
+      // which cities they'd selected — could ever match one.
+      const cityId = await findCityId(
+        property.address_components?.city,
+        property.address_components?.country_code
+      );
+
+      const { data: lead, error } = await supabase
+        .from('leads')
+        .insert({
+          report_id: reportId,
+          property_id: propertyId,
+          consumer_id: consumerId,
+          consumer_email: user?.email || '',
+          consumer_phone: report.phone_provided,
+          property_address: property.address,
+          property_value: report.estimated_value,
+          city_id: cityId,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Previously nothing ever inserted into lead_routings, so a lead existed
+      // in the database but no broker's inbox ever showed it, regardless of
+      // whether their selected_cities matched.
+      const routeResult = await brokerService.routeLeadToBrokers(lead.id, cityId);
+      if (!routeResult.success) {
+        console.error('Lead created but routing failed:', routeResult.error);
+      }
     } catch (error) {
       console.error('Error creating lead from report:', error);
     }

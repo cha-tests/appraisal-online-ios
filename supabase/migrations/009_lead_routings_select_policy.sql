@@ -1,0 +1,24 @@
+-- lead_routings had RLS enabled (001_initial_schema.sql) but was never given
+-- any policy at all — not even SELECT.
+--
+-- Verified live: after 008_lead_routing.sql successfully routed a lead to a
+-- broker (confirmed the row exists via the service key), that SAME broker's
+-- own session queried lead_routings directly and got back an empty array —
+-- HTTP 200, not an error. No policy means RLS silently filters everything.
+--
+-- This is worse than it first looks, because "Brokers can view assigned
+-- leads" on the `leads` table depends on a subquery against lead_routings:
+--
+--   EXISTS (SELECT 1 FROM lead_routings WHERE lead_id = id AND broker_id = auth.uid())
+--
+-- That subquery is itself subject to lead_routings' own RLS. With no policy
+-- there, the EXISTS check silently evaluates false for every broker, for
+-- every lead — confirmed live, the same broker session queried `leads`
+-- directly afterward and also got []. So a broker could not see their
+-- assigned leads at all, independent of anything about routing being correct.
+--
+-- One policy fixes both: it satisfies lead_routings' own SELECT directly, and
+-- lets the EXISTS subquery inside the existing leads policy actually find a
+-- match.
+CREATE POLICY "Brokers can view own lead routings" ON lead_routings
+  FOR SELECT USING (auth.uid() = broker_id);
