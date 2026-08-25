@@ -1,6 +1,8 @@
+// MUST stay first — loads .env.local before any module reads process.env
+import './env.js';
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -12,8 +14,6 @@ import emailRoutes from './routes/emails.js';
 import webhookRoutes from './routes/webhooks.js';
 import healthRoutes from './routes/health.js';
 
-dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -21,11 +21,11 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json());
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors({
-  origin: [
-    'http://localhost:8081',
-    'http://localhost:3000',
-    process.env.MOBILE_URL || 'https://appraisalonline.com',
-  ],
+  // Expo picks the next free port when 8081 is taken, so allow any
+  // localhost port in development. Production stays locked to MOBILE_URL.
+  origin: process.env.NODE_ENV === 'development'
+    ? /^http:\/\/localhost:\d+$/
+    : [process.env.MOBILE_URL || 'https://appraisalonline.com'],
   credentials: true,
 }));
 
