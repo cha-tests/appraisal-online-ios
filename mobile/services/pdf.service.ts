@@ -1,5 +1,6 @@
 import { Report, ComparableSale } from '../types';
 import axios from 'axios';
+import { useAuthStore } from '../stores/auth.store';
 
 interface PDFGenerationParams {
   report: Report;
@@ -174,11 +175,19 @@ async function savePDFFile(blob: Blob, fileName: string): Promise<string> {
 
 /**
  * Get the current authentication token for API requests
+ *
+ * The backend's authMiddleware validates this as a Supabase JWT via
+ * supabase.auth.getUser(token) (see backend/src/middleware/auth.ts), so this
+ * must be the live Supabase access_token, not a placeholder — an empty
+ * string here sends "Authorization: Bearer " and the backend correctly
+ * rejects it with 401.
  */
 async function getAuthToken(): Promise<string> {
-  // This would retrieve the stored auth token from secure storage
-  // Using a placeholder for now
-  return '';
+  const token = useAuthStore.getState().session?.session_token;
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+  return token;
 }
 
 /**
