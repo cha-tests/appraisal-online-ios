@@ -1,5 +1,7 @@
 import { Report, ComparableSale } from '../types';
 import axios from 'axios';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useAuthStore } from '../stores/auth.store';
 
 interface PDFGenerationParams {
@@ -22,20 +24,8 @@ export const pdfService = {
     reportId: string
   ): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
-      // Request PDF generation from backend
-      const response = await axios.get(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/pdf`,
-        {
-          headers: {
-            'Authorization': `Bearer ${await getAuthToken()}`,
-          },
-          responseType: 'blob',
-        }
-      );
-
-      // Convert blob to file:// URL for local storage
       const fileName = `appraisal-report-${reportId}-${Date.now()}.pdf`;
-      const fileUri = await savePDFFile(response.data, fileName);
+      const fileUri = await downloadPDFToDocuments(reportId, fileName);
 
       return {
         success: true,
@@ -51,8 +41,11 @@ export const pdfService = {
   },
 
   /**
-   * Download a PDF report to device storage
-   * Saves to Documents folder on iOS
+   * Download a PDF report to device storage, then hand it to the OS share
+   * sheet so the user can actually get it out of the app's sandbox — saved
+   * to Files, AirDropped, emailed, etc. On iOS there's no user-visible
+   * "Downloads" folder for a sandboxed app's Documents directory, so writing
+   * the file alone would leave it reachable only from inside this app.
    */
   async downloadReportPDF(
     userId: string,
@@ -60,18 +53,6 @@ export const pdfService = {
     propertyAddress: string
   ): Promise<{ success: boolean; filePath?: string; error?: string }> {
     try {
-      // Get PDF from backend
-      const response = await axios.get(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/pdf`,
-        {
-          headers: {
-            'Authorization': `Bearer ${await getAuthToken()}`,
-          },
-          responseType: 'blob',
-        }
-      );
-
-      // Generate clean filename from address
       const cleanAddress = propertyAddress
         .replace(/[^a-z0-9]/gi, '-')
         .replace(/-+/g, '-')
@@ -79,11 +60,18 @@ export const pdfService = {
         .slice(0, 40);
 
       const fileName = `appraisal-${cleanAddress}-${new Date().getFullYear()}.pdf`;
-      const filePath = await savePDFFile(response.data, fileName);
+      const fileUri = await downloadPDFToDocuments(reportId, fileName);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+        });
+      }
 
       return {
         success: true,
-        filePath,
+        filePath: fileUri,
       };
     } catch (error: any) {
       console.error('PDF download error:', error);
@@ -103,13 +91,27 @@ export const pdfService = {
     propertyAddress: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // For now, return that sharing needs platform-specific implementation
-      // In a real app, use react-native-share or expo-sharing
-      return {
-        success: false,
-        error: 'Share functionality requires platform implementation',
-      };
+      if (!(await Sharing.isAvailableAsync())) {
+        return { success: false, error: 'Sharing is not available on this device' };
+      }
+
+      const cleanAddress = propertyAddress
+        .replace(/[^a-z0-9]/gi, '-')
+        .replace(/-+/g, '-')
+        .toLowerCase()
+        .slice(0, 40);
+
+      const fileName = `appraisal-${cleanAddress}-${new Date().getFullYear()}.pdf`;
+      const fileUri = await downloadPDFToDocuments(reportId, fileName);
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'application/pdf',
+        UTI: 'com.adobe.pdf',
+      });
+
+      return { success: true };
     } catch (error: any) {
+      console.error('PDF share error:', error);
       return {
         success: false,
         error: 'Failed to share PDF',
@@ -163,14 +165,21 @@ export const pdfService = {
 };
 
 /**
- * Save PDF blob to local file system
- * Platform-specific implementation needed
+ * Download a report's PDF from the backend straight to a named file in the
+ * app's Documents directory. `FileSystem.downloadAsync` streams the response
+ * to disk itself (with the auth header attached), so there's no intermediate
+ * blob/base64 conversion to manage.
  */
-async function savePDFFile(blob: Blob, fileName: string): Promise<string> {
-  // In a real implementation, use expo-file-system or react-native-file-system
-  // to save the blob to the device's Documents folder
-  // This is a placeholder that would need platform-specific code
-  throw new Error('PDF file system operations require platform-specific implementation');
+async function downloadPDFToDocuments(reportId: string, fileName: string): Promise<string> {
+  const token = await getAuthToken();
+  const url = `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/pdf`;
+  const destination = `${FileSystem.documentDirectory}${fileName}`;
+
+  const { uri } = await FileSystem.downloadAsync(url, destination, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  return uri;
 }
 
 /**
@@ -188,16 +197,4 @@ async function getAuthToken(): Promise<string> {
     throw new Error('Not authenticated');
   }
   return token;
-}
-
-/**
- * Create a PDF from HTML content
- * Alternative approach using HTML-to-PDF conversion
- */
-async function createPDFFromHTML(
-  htmlContent: string,
-  fileName: string
-): Promise<string> {
-  // Could use html2pdf or similar library
-  throw new Error('HTML-to-PDF conversion requires additional library');
 }
