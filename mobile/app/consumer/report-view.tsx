@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { pdfService } from '../../services/pdf.service';
+import { formatDistance } from '../../config/marketConfig';
 
 export default function ReportView() {
   const router = useRouter();
@@ -135,7 +136,7 @@ export default function ReportView() {
           <View style={styles.comparableHeader}>
             <Text style={styles.comparableAddress}>{comparable.address}</Text>
             <Text style={styles.comparableDistance}>
-              {comparable.distance_miles.toFixed(1)} mi away
+              {formatDistance(comparable.distance_miles, currentProperty?.address_components?.country_code)} away
             </Text>
           </View>
           <View style={styles.comparableDetails}>

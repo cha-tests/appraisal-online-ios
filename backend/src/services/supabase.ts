@@ -35,7 +35,8 @@ export async function getReport(reportId: string) {
     .from('reports')
     .select(`
       *,
-      comparables:comparable_sales(*)
+      comparables:comparable_sales(*),
+      properties(address_components)
     `)
     .eq('id', reportId)
     .single();

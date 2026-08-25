@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
 import { logger } from '../utils/logger.js';
+import { formatDistance } from '../utils/formatDistance.js';
 import { getReport } from './supabase.js';
 
 const PDF_TEMP_DIR = process.env.PDF_TEMP_DIR || './tmp/pdfs';
@@ -126,6 +127,8 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       if (report.comparables && report.comparables.length > 0) {
         doc.fontSize(9).font('Helvetica');
 
+        const countryCode = report.properties?.[0]?.address_components?.country_code;
+
         report.comparables.forEach((comp: any, index: number) => {
           doc.text(`${index + 1}. ${comp.address}`);
           doc.text(
@@ -133,7 +136,7 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
             `Date: ${comp.sale_date} | ` +
             `Similarity: ${(comp.similarity_score * 100).toFixed(0)}%`
           );
-          doc.text(`   Distance: ${comp.distance_miles.toFixed(1)} miles`);
+          doc.text(`   Distance: ${formatDistance(comp.distance_miles, countryCode)}`);
           doc.moveDown(0.3);
         });
       } else {
