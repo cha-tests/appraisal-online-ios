@@ -191,9 +191,7 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => {
-            /* Settings */
-          }}
+          onPress={() => router.push('/broker/settings')}
         >
           <Text style={styles.actionIcon}>⚙️</Text>
           <Text style={styles.actionLabel}>Settings</Text>

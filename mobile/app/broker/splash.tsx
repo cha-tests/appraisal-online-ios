@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { brokerService } from '../../services/broker.service';
+import { signOut } from '../../services/supabase';
+import { useAuthStore } from '../../stores/auth.store';
 
 interface CityCounter {
   city: string;
@@ -52,6 +54,21 @@ export default function BrokerSplash() {
 
   const handleGetStarted = () => {
     router.push('/broker/onboarding');
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+          useAuthStore.getState().clear();
+          router.replace('/auth/login');
+        },
+      },
+    ]);
   };
 
   return (
@@ -174,6 +191,13 @@ export default function BrokerSplash() {
         <Text style={styles.footerNote}>
           Takes about 5 minutes • No commitment until payment
         </Text>
+        <Button
+          title="Sign Out"
+          variant="outline"
+          size="small"
+          onPress={handleSignOut}
+          style={{ marginTop: 20 }}
+        />
       </View>
     </SafeAreaWrapper>
   );

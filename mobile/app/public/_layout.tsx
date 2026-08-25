@@ -12,6 +12,11 @@ export default function PublicLayout() {
       <Stack.Screen name="demo" />
       <Stack.Screen name="founders" />
       <Stack.Screen name="how-we-make-money" />
+      <Stack.Screen name="how-it-works" />
+      <Stack.Screen name="privacy-policy" />
+      <Stack.Screen name="terms-of-service" />
+      <Stack.Screen name="professional-terms" />
+      <Stack.Screen name="partners" />
     </Stack>
   );
 }

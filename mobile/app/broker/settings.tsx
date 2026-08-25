@@ -17,6 +17,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
+import { signOut } from '../../services/supabase';
 import { BrokerProfile } from '../../types';
 
 const QUIET_HOURS_OPTIONS = [
@@ -108,6 +109,25 @@ export default function BrokerSettings() {
       Alert.alert('Error', 'An error occurred while saving preferences');
       setSaveStatus('idle');
     }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          try {
+            await signOut();
+            useAuthStore.getState().clear();
+            router.replace('/auth/login');
+          } catch (err) {
+            Alert.alert('Error', 'Failed to sign out. Please try again.');
+          }
+        },
+        style: 'destructive',
+      },
+    ]);
   };
 
   if (loading) {
@@ -355,6 +375,13 @@ export default function BrokerSettings() {
           size="large"
           onPress={handleSavePreferences}
           disabled={saving || saveStatus === 'saving'}
+        />
+        <Button
+          title="Sign Out"
+          variant="outline"
+          size="large"
+          onPress={handleSignOut}
+          style={{ marginTop: 12 }}
         />
       </View>
     </SafeAreaWrapper>

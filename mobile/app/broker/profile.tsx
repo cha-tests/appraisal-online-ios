@@ -7,13 +7,16 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
+import { authService } from '../../services/auth.service';
 import { BrokerProfile } from '../../types';
 
-export default function BrokerProfile() {
+export default function BrokerProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const clearAuth = useAuthStore((state) => state.clear);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [profile, setProfile] = useState<BrokerProfile | null>(null);
   const [formData, setFormData] = useState({
     company_name: '',
@@ -84,6 +87,39 @@ export default function BrokerProfile() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel', onPress: () => {} },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          try {
+            setSigningOut(true);
+            const result = await authService.signout();
+            // signout() reports failure by returning success: false rather
+            // than throwing, so this needs handling here or a failed sign out
+            // leaves the user on the page with no feedback at all.
+            if (!result.success) {
+              Alert.alert('Error', result.error?.message ?? 'Failed to sign out');
+              return;
+            }
+            // clear() rather than setUser(null) so the cached broker profile
+            // goes with it and cannot leak into the next session.
+            clearAuth();
+            // replace, not push: the signed-in screens must not stay on the
+            // history stack where Back could return to them after sign out.
+            router.replace('/auth/login');
+          } catch (err) {
+            console.error('Error signing out:', err);
+            Alert.alert('Error', 'Failed to sign out');
+          } finally {
+            setSigningOut(false);
+          }
+        },
+      },
+    ]);
   };
 
   if (loading) {
@@ -223,7 +259,7 @@ export default function BrokerProfile() {
           size="large"
           onPress={handleSave}
           loading={saving}
-          disabled={saving}
+          disabled={saving || signingOut}
           style={{ marginBottom: 12 }}
         />
         <Button
@@ -231,8 +267,22 @@ export default function BrokerProfile() {
           variant="outline"
           size="large"
           onPress={() => router.back()}
-          disabled={saving}
+          disabled={saving || signingOut}
         />
+
+        <View style={styles.signOutSection}>
+          <TouchableOpacity
+            onPress={handleSignOut}
+            disabled={saving || signingOut}
+            style={styles.signOutButton}
+          >
+            {signingOut ? (
+              <ActivityIndicator size="small" color="#DC2626" />
+            ) : (
+              <Text style={styles.signOutText}>Sign Out</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaWrapper>
   );
@@ -371,5 +421,20 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginBottom: 32,
+  },
+  signOutSection: {
+    marginTop: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  signOutButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
   },
 });

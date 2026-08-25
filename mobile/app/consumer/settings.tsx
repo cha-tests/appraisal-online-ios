@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { useAuthStore } from '../../stores/auth.store';
-import { supabase } from '../../services/supabase';
+import { supabase, signOut } from '../../services/supabase';
 
 export default function ConsumerSettings() {
   const router = useRouter();
@@ -77,6 +77,25 @@ export default function ConsumerSettings() {
       setSaveStatus('idle');
       console.error('Save error:', err);
     }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          try {
+            await signOut();
+            useAuthStore.getState().clear();
+            router.replace('/auth/login');
+          } catch (err) {
+            Alert.alert('Error', 'Failed to sign out. Please try again.');
+          }
+        },
+        style: 'destructive',
+      },
+    ]);
   };
 
   if (loading) {
@@ -249,6 +268,13 @@ export default function ConsumerSettings() {
           variant="outline"
           size="large"
           onPress={() => router.back()}
+          style={{ marginBottom: 12 }}
+        />
+        <Button
+          title="Sign Out"
+          variant="outline"
+          size="large"
+          onPress={handleSignOut}
         />
       </View>
     </SafeAreaWrapper>

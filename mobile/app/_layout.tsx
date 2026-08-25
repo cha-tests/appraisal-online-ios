@@ -1,9 +1,28 @@
+import 'react-native-url-polyfill/auto';
+import '../polyfills/alert';
 import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { initStripe } from '../lib/stripe';
 import * as SplashScreen from 'expo-splash-screen';
 import { supabase, getCurrentUser } from '../services/supabase';
 import { useAuthStore } from '../stores/auth.store';
 import { brokerService } from '../services/broker.service';
+
+// Initialize the Stripe SDK. lib/stripe is platform-split, so this is a no-op
+// on web (where the SDK has no implementation) without the web bundle ever
+// resolving the native module.
+const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (publishableKey) {
+  try {
+    initStripe({
+      publishableKey,
+      merchantIdentifier: 'merchant.com.appraisal.online', // Required on iOS
+    });
+  } catch (error) {
+    console.warn('Failed to initialize Stripe SDK:', error);
+    // Non-fatal: the app still runs, and checkout surfaces the failure.
+  }
+}
 
 SplashScreen.preventAutoHideAsync();
 

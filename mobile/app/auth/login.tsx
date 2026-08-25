@@ -10,6 +10,7 @@ import { authService } from '../../services/auth.service';
 export default function LoginScreen() {
   const router = useRouter();
   const setUser = useAuthStore((state) => state.setUser);
+  const setBrokerProfile = useAuthStore((state) => state.setBrokerProfile);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,12 +46,19 @@ export default function LoginScreen() {
         setUser(result.user);
         // Route based on user type
         if (result.user.user_type === 'broker') {
-          router.replace('/broker/splash');
+          // Established brokers go straight to their dashboard; brokers who
+          // haven't completed onboarding yet see the application splash.
+          const brokerProfile = result.session?.broker_profile;
+          setBrokerProfile(brokerProfile ?? null);
+          router.replace(brokerProfile ? '/broker/dashboard' : '/broker/splash');
         } else {
           router.replace('/consumer/home');
         }
       } else {
-        Alert.alert('Login Failed', result.error || 'Invalid email or password');
+        const errorMessage = typeof result.error === 'object' && result.error?.message
+          ? result.error.message
+          : result.error || 'Invalid email or password';
+        Alert.alert('Login Failed', errorMessage);
       }
     } catch (err) {
       console.error('Login error:', err);
