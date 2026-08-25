@@ -17,7 +17,8 @@
         "NSLocationWhenInUseUsageDescription": "We need your location to find comparable properties",
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
