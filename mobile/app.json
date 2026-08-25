@@ -10,7 +10,7 @@
       "**/*"
     ],
     "ios": {
-      "supportsTabletMode": true,
+      "supportsTablet": true,
       "bundleIdentifier": "com.appraisalonline.mobile",
       "buildNumber": "1",
       "infoPlist": {
@@ -28,6 +28,21 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.INTERNET"
       ]
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d2a1906f-3e0a-43b8-be81-301f159d0c80"
+      }
+    },
+    "owner": "chatests-team",
+    "plugins": [
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.appraisal.online",
+          "enableGooglePay": false
+        }
+      ]
+    ]
   }
 }
