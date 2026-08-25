@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { TextInput } from '../../components/ui/TextInput';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { paymentService } from '../../services/payment.service';
+
+// lib/stripe is platform-split: the real SDK on native, inert stubs on web.
+// Importing through it keeps the native-only module out of the web bundle.
+import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
 
 const TIER_PRICING = {
   'Founder Lifetime': { price: 49900, currency: 'USD' },
@@ -21,16 +24,12 @@ export default function Checkout() {
   const user = useAuthStore((state) => state.user);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
   const [loading, setLoading] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [error, setError] = useState('');
-
-  const [cardData, setCardData] = useState({
-    name: '',
-    email: user?.email || '',
-    cardNumber: '',
-    expiryMonth: '',
-    expiryYear: '',
-    cvc: '',
-  });
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  // Resolved at bundle time by the platform-split lib/stripe module.
+  const stripeAvailable = isStripeAvailable;
 
   if (!selectedTier) {
     return (
@@ -43,87 +42,111 @@ export default function Checkout() {
     );
   }
 
+  if (!stripeAvailable) {
+    return (
+      <SafeAreaWrapper>
+        <View style={styles.container}>
+          <Card variant="outlined" style={styles.noticeCard}>
+            <Text style={styles.noticeIcon}>📱</Text>
+            <Text style={styles.noticeTitle}>Web Checkout Not Available</Text>
+            <Text style={styles.noticeText}>
+              Stripe checkout only works on physical devices running Expo Go.
+              Open this app on your iPhone to complete your purchase.
+            </Text>
+          </Card>
+          <Button title="Go Back" onPress={() => router.back()} style={{ marginTop: 16 }} />
+        </View>
+      </SafeAreaWrapper>
+    );
+  }
+
   const pricing = TIER_PRICING[selectedTier];
   const priceInDollars = pricing.price / 100;
 
-  const validateForm = (): boolean => {
-    if (!cardData.name.trim()) {
-      setError('Name is required');
-      return false;
-    }
-    if (!cardData.email.trim()) {
-      setError('Email is required');
-      return false;
-    }
-    if (!cardData.cardNumber.replace(/\s/g, '').match(/^\d{16}$/)) {
-      setError('Card number must be 16 digits');
-      return false;
-    }
-    if (!cardData.expiryMonth || !cardData.expiryYear) {
-      setError('Expiry date is required');
-      return false;
-    }
-    if (!cardData.cvc.match(/^\d{3,4}$/)) {
-      setError('CVC must be 3-4 digits');
-      return false;
-    }
-    return true;
-  };
-
-  const handlePayment = async () => {
+  const createPaymentIntent = useCallback(async () => {
     try {
       setError('');
-
-      if (!validateForm()) {
-        return;
-      }
+      setLoading(true);
 
       if (!user?.id) {
         setError('User not authenticated');
         return;
       }
 
-      setLoading(true);
-
-      // Step 1: Create payment intent
+      // Step 1: Create payment intent on the backend
       const intentResponse = await paymentService.createPaymentIntent(
         pricing.price,
-        'USD'
+        selectedTier
       );
 
-      // Step 2: Process payment with card details
-      const paymentResult = await paymentService.processPayment(
-        cardData,
-        intentResponse.clientSecret
-      );
-
-      if (!paymentResult.success) {
-        setError(paymentResult.error?.message || 'Payment failed');
-        // Report failure to backend
-        if (paymentResult.paymentIntentId) {
-          await paymentService.handlePaymentFailure(
-            paymentResult.paymentIntentId,
-            paymentResult.error?.message || 'Unknown error'
-          );
-        }
+      if (!intentResponse.clientSecret) {
+        setError('Failed to create payment intent');
         return;
       }
 
-      // Step 3: Confirm payment
-      const confirmResult = await paymentService.confirmPayment(
-        paymentResult.paymentIntentId || ''
-      );
+      setClientSecret(intentResponse.clientSecret);
+      setPaymentIntentId(intentResponse.paymentIntentId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create payment');
+      console.error('Payment intent error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, pricing.price, selectedTier]);
+
+  // Called unconditionally: the web shim provides a hook-shaped no-op, so this
+  // obeys the rules of hooks on every platform. The previous conditional call
+  // would have broken hook ordering.
+  const { confirmPayment: stripeConfirmPayment } = useConfirmPayment();
+
+  const confirmPayment = useCallback(async () => {
+    try {
+      setError('');
+      setProcessingPayment(true);
+
+      if (!paymentIntentId || !user?.id || !clientSecret) {
+        setError('Payment setup incomplete');
+        return;
+      }
+
+      // Step 1: Confirm the card with Stripe using the native SDK
+      // This handles 3D Secure and other authentication flows
+      if (stripeConfirmPayment) {
+        const { paymentIntent, error: confirmError } = await stripeConfirmPayment(clientSecret, {
+          type: 'Card',
+        });
+
+        if (confirmError) {
+          setError(confirmError.message || 'Card confirmation failed');
+          return;
+        }
+
+        if (!paymentIntent) {
+          setError('Payment did not complete');
+          return;
+        }
+
+        // The card was confirmed; now tell the backend to create the subscription
+        if (paymentIntent.status !== 'Succeeded') {
+          setError(`Payment failed: ${paymentIntent.status}`);
+          return;
+        }
+      }
+
+      // Step 2: Confirm the payment with the backend
+      // This creates the subscription record in the database
+      const confirmResult = await paymentService.confirmPayment(paymentIntentId);
 
       if (!confirmResult.success) {
         setError(confirmResult.error?.message || 'Payment confirmation failed');
         return;
       }
 
-      // Step 4: Create subscription in database
+      // Step 3: Create subscription in the database
       const subscriptionResult = await subscriptionService.createSubscription(
         user.id,
-        `cus_${paymentResult.paymentIntentId}`, // Stripe customer ID
-        paymentResult.paymentIntentId || '', // Stripe subscription ID
+        paymentIntentId,
+        paymentIntentId,
         selectedTier,
         selectedTier.includes('Lifetime') ? 'lifetime' : 'annual'
       );
@@ -136,20 +159,23 @@ export default function Checkout() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Payment error:', err);
+      console.error('Payment confirmation error:', err);
     } finally {
-      setLoading(false);
+      setProcessingPayment(false);
     }
-  };
+  }, [paymentIntentId, clientSecret, user?.id, stripeConfirmPayment]);
+
+  // Step 1: Create intent when component mounts
+  useEffect(() => {
+    createPaymentIntent();
+  }, [createPaymentIntent]);
 
   return (
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Complete Your Purchase</Text>
-        <Text style={styles.subtitle}>
-          Secure payment powered by Stripe
-        </Text>
+        <Text style={styles.subtitle}>Secure payment powered by Stripe</Text>
       </View>
 
       {/* Order Summary */}
@@ -160,130 +186,94 @@ export default function Checkout() {
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel} style={{ fontWeight: '700' }}>Total</Text>
+          <Text style={[styles.summaryLabel, { fontWeight: '700' }]}>Total</Text>
           <Text style={styles.summaryTotal}>${priceInDollars.toFixed(2)}</Text>
         </View>
       </Card>
 
-      {/* Cardholder Info */}
-      <Text style={styles.sectionTitle}>Cardholder Information</Text>
-
-      <TextInput
-        label="Full Name"
-        placeholder="John Doe"
-        value={cardData.name}
-        onChangeText={(val) => setCardData((prev) => ({ ...prev, name: val }))}
-      />
-
-      <TextInput
-        label="Email"
-        placeholder="john@example.com"
-        keyboardType="email-address"
-        value={cardData.email}
-        onChangeText={(val) => setCardData((prev) => ({ ...prev, email: val }))}
-      />
-
-      {/* Card Details */}
-      <Text style={styles.sectionTitle}>Card Details</Text>
-
-      <TextInput
-        label="Card Number"
-        placeholder="1234 5678 9012 3456"
-        keyboardType="numeric"
-        value={cardData.cardNumber}
-        onChangeText={(val) => {
-          // Format with spaces
-          const cleaned = val.replace(/\s/g, '').slice(0, 16);
-          const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
-          setCardData((prev) => ({ ...prev, cardNumber: formatted }));
-        }}
-        maxLength={19}
-      />
-
-      <View style={styles.cardDetailsRow}>
-        <View style={{ flex: 1, marginRight: 8 }}>
-          <TextInput
-            label="Expiry (MM/YY)"
-            placeholder="MM/YY"
-            keyboardType="numeric"
-            value={
-              cardData.expiryMonth && cardData.expiryYear
-                ? `${cardData.expiryMonth}/${cardData.expiryYear}`
-                : ''
-            }
-            onChangeText={(val) => {
-              const cleaned = val.replace(/\D/g, '').slice(0, 4);
-              if (cleaned.length >= 2) {
-                setCardData((prev) => ({
-                  ...prev,
-                  expiryMonth: cleaned.slice(0, 2),
-                  expiryYear: cleaned.slice(2, 4),
-                }));
-              } else {
-                setCardData((prev) => ({
-                  ...prev,
-                  expiryMonth: cleaned,
-                  expiryYear: '',
-                }));
-              }
-            }}
-            maxLength={5}
-          />
+      {/* Payment Status */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Setting up secure payment...</Text>
         </View>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <TextInput
-            label="CVC"
-            placeholder="123"
-            keyboardType="numeric"
-            value={cardData.cvc}
-            onChangeText={(val) => setCardData((prev) => ({ ...prev, cvc: val.slice(0, 4) }))}
-            maxLength={4}
-          />
-        </View>
-      </View>
+      ) : clientSecret && paymentIntentId ? (
+        <>
+          {/* Instructions for Stripe */}
+          <Card variant="outlined" style={styles.instructionCard}>
+            <Text style={styles.instructionIcon}>💳</Text>
+            <Text style={styles.instructionTitle}>Enter Your Card Details</Text>
+            <Text style={styles.instructionText}>
+              Your card information is collected securely by Stripe and never touches our servers.
+            </Text>
+          </Card>
 
-      {/* Security Notice */}
-      <Card variant="outlined" style={styles.securityCard}>
-        <Text style={styles.securityIcon}>🔒</Text>
-        <Text style={styles.securityText}>
-          Your payment is secure and encrypted. We never store your full card details.
-        </Text>
-      </Card>
+          {/* Card Entry Field - Stripe SDK handles this securely */}
+          {CardField ? (
+            <View style={styles.cardFieldContainer}>
+              <CardField
+                postalCodeEnabled={false}
+                placeholder={{
+                  number: '4242 4242 4242 4242',
+                }}
+                onCardChange={(cardDetails) => {
+                  // Update state if needed for validation
+                  if (cardDetails.expiryMonth) {
+                    // Card details are available
+                  }
+                }}
+                style={styles.cardField}
+              />
+            </View>
+          ) : (
+            <Card variant="outlined" style={styles.errorCard}>
+              <Text style={styles.errorText}>
+                Stripe SDK not initialized. Please restart the app or update Stripe configuration.
+              </Text>
+            </Card>
+          )}
+
+          {/* Security Notice */}
+          <Card variant="outlined" style={styles.securityCard}>
+            <Text style={styles.securityIcon}>🔒</Text>
+            <Text style={styles.securityText}>
+              Your payment is secure and encrypted. Stripe is trusted by millions worldwide.
+            </Text>
+          </Card>
+
+          {/* Terms */}
+          <Card variant="default" style={styles.termsCard}>
+            <Text style={styles.termsText}>
+              By clicking "Complete Purchase," you agree to our Terms of Service and authorize the
+              charge to your card. Refunds are available within {selectedTier === 'Founder Lifetime'
+                ? '14'
+                : '30'}{' '}
+              days.
+            </Text>
+          </Card>
+        </>
+      ) : null}
 
       {/* Error Message */}
       {error && <Text style={styles.errorMessage}>{error}</Text>}
 
-      {/* Terms */}
-      <Card variant="default" style={styles.termsCard}>
-        <Text style={styles.termsText}>
-          By clicking "Complete Purchase," you agree to our Terms of Service and authorize the charge to your card.
-        </Text>
-      </Card>
-
       {/* Action Buttons */}
       <View style={styles.footer}>
         <Button
-          title={loading ? 'Processing...' : `Pay $${priceInDollars.toFixed(2)}`}
+          title={processingPayment ? 'Processing...' : 'Complete Purchase'}
           size="large"
-          onPress={handlePayment}
-          loading={loading}
-          disabled={loading}
+          onPress={confirmPayment}
+          loading={processingPayment}
+          disabled={loading || processingPayment || !clientSecret}
           style={{ marginBottom: 12 }}
         />
         <Button
-          title="Back"
+          title="Cancel"
           variant="outline"
           size="large"
           onPress={() => router.back()}
-          disabled={loading}
+          disabled={processingPayment}
         />
-      </View>
-
-      {/* Test Card Notice */}
-      <View style={styles.testModeNotice}>
-        <Text style={styles.testModeText}>
-          TEST MODE: Use card 4242 4242 4242 4242, any future date, and any 3-digit CVC
-        </Text>
       </View>
     </SafeAreaWrapper>
   );
@@ -294,11 +284,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  error: {
-    fontSize: 16,
-    color: '#EF4444',
-    marginBottom: 16,
+    paddingHorizontal: 16,
   },
   header: {
     marginBottom: 24,
@@ -310,92 +296,143 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6B7280',
   },
   summaryCard: {
     marginBottom: 24,
-    backgroundColor: '#F9FAFB',
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6B7280',
   },
   summaryPrice: {
-    fontSize: 14,
-    color: '#1F2937',
+    fontSize: 16,
     fontWeight: '600',
-  },
-  summaryTotal: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2563EB',
+    color: '#1F2937',
   },
   summaryDivider: {
     height: 1,
     backgroundColor: '#E5E7EB',
     marginVertical: 12,
   },
-  sectionTitle: {
+  summaryTotal: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+  },
+  noticeCard: {
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FBBF24',
+  },
+  noticeIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  noticeTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 12,
-    marginTop: 16,
-  },
-  cardDetailsRow: {
-    flexDirection: 'row',
-  },
-  securityCard: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#BBDFD4',
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  securityIcon: {
-    fontSize: 24,
     marginBottom: 8,
   },
-  securityText: {
+  noticeText: {
     fontSize: 14,
-    color: '#065F46',
+    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
   },
-  errorMessage: {
-    color: '#EF4444',
-    fontSize: 14,
+  instructionCard: {
     marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  instructionIcon: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  instructionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  securityCard: {
+    marginBottom: 24,
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBFBBA',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  securityIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  securityText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    flex: 1,
   },
   termsCard: {
-    backgroundColor: '#F3F4F6',
     marginBottom: 24,
+    backgroundColor: '#F9FAFB',
   },
   termsText: {
     fontSize: 13,
     color: '#6B7280',
     lineHeight: 18,
   },
-  footer: {
-    marginBottom: 24,
-  },
-  testModeNotice: {
+  errorMessage: {
+    backgroundColor: '#FEE2E2',
+    borderLeftColor: '#DC2626',
+    borderLeftWidth: 4,
+    color: '#991B1B',
     padding: 12,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 8,
-    marginBottom: 32,
+    fontSize: 14,
+    marginBottom: 16,
+    borderRadius: 4,
   },
-  testModeText: {
-    fontSize: 12,
-    color: '#78350F',
+  cardFieldContainer: {
+    marginBottom: 24,
+    height: 50,
+    borderRadius: 8,
+  },
+  cardField: {
+    backgroundColor: '#FFFFFF',
+    textColor: '#1F2937',
+    borderColor: '#E5E7EB',
+  },
+  errorCard: {
+    marginBottom: 24,
+    backgroundColor: '#FEE2E2',
+    borderColor: '#DC2626',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#991B1B',
+    lineHeight: 20,
+  },
+  footer: {
+    marginBottom: 32,
   },
 });

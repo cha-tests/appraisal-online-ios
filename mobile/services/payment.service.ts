@@ -1,17 +1,8 @@
-import { CardFieldInput } from '@stripe/stripe-react-native';
 import axios from 'axios';
-
-interface PaymentMethodData {
-  cardNumber: string;
-  expiryMonth: string;
-  expiryYear: string;
-  cvc: string;
-  name: string;
-  email: string;
-}
 
 interface CreatePaymentIntentResponse {
   clientSecret: string;
+  paymentIntentId: string;
   amount: number;
   currency: string;
 }
@@ -26,29 +17,42 @@ interface PaymentResult {
 }
 
 /**
- * Payment service for handling Stripe payments
- * In production, use the official Stripe React Native SDK for secure tokenization
+ * Payment service for handling Stripe payments via the official Stripe SDK
+ *
+ * This service:
+ * 1. Creates a PaymentIntent on the backend (returns clientSecret)
+ * 2. Lets Stripe's mobile SDK handle card entry and confirmation
+ * 3. Confirms the payment result back on the backend
+ *
+ * Raw card details never pass through this app or the backend — they go
+ * directly from the device to Stripe's servers via their official SDK.
  */
 export const paymentService = {
   /**
    * Create a payment intent on the backend
-   * This should be called before charging the card
+   *
+   * The backend derives the amount from the tier (so the client cannot
+   * request a $1 charge for a $499 product).
    */
   async createPaymentIntent(
     amount: number,
-    currency: string = 'USD'
+    tier: 'Founder Lifetime' | 'Premium Annual' | 'Basic Annual'
   ): Promise<CreatePaymentIntentResponse> {
     try {
       const response = await axios.post(
         `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/intent`,
         {
-          amount,
-          currency,
+          tier,
         }
       );
 
+      if (!response.data.success) {
+        throw new Error('Failed to create payment intent');
+      }
+
       return {
         clientSecret: response.data.clientSecret,
+        paymentIntentId: response.data.paymentIntentId,
         amount: response.data.amount,
         currency: response.data.currency,
       };
@@ -61,79 +65,14 @@ export const paymentService = {
   },
 
   /**
-   * Process a payment with card details
-   * In production, use Stripe's official SDK to tokenize the card first
-   * Never send raw card data to your server
-   */
-  async processPayment(
-    paymentData: PaymentMethodData,
-    clientSecret: string
-  ): Promise<PaymentResult> {
-    try {
-      // Validate card data
-      const validationError = validateCardData(paymentData);
-      if (validationError) {
-        return {
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: validationError,
-          },
-        };
-      }
-
-      // In production, tokenize the card using Stripe's official SDK first
-      // This ensures raw card data never touches your server
-      // For now, we'll send to backend which should use Stripe's API
-
-      const response = await axios.post(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/charge`,
-        {
-          clientSecret,
-          cardData: {
-            // In production, use Stripe token instead of raw card
-            number: paymentData.cardNumber.replace(/\s/g, ''),
-            exp_month: parseInt(paymentData.expiryMonth, 10),
-            exp_year: 2000 + parseInt(paymentData.expiryYear, 10),
-            cvc: paymentData.cvc,
-          },
-          metadata: {
-            name: paymentData.name,
-            email: paymentData.email,
-          },
-        }
-      );
-
-      if (response.data.success) {
-        return {
-          success: true,
-          paymentIntentId: response.data.paymentIntentId,
-        };
-      } else {
-        return {
-          success: false,
-          error: {
-            code: response.data.error?.code || 'PAYMENT_FAILED',
-            message: response.data.error?.message || 'Payment processing failed',
-          },
-        };
-      }
-    } catch (error: any) {
-      console.error('Payment error:', error);
-
-      return {
-        success: false,
-        error: {
-          code: 'PAYMENT_ERROR',
-          message: error.response?.data?.message || 'An error occurred while processing your payment',
-        },
-      };
-    }
-  },
-
-  /**
    * Confirm a payment with the backend
-   * This verifies the payment was successful
+   *
+   * At this point, the Stripe SDK on the device has already:
+   * 1. Collected the card details from the user
+   * 2. Confirmed the card against Stripe
+   * 3. The server has verified the payment succeeded
+   *
+   * This call creates the subscription record in the database.
    */
   async confirmPayment(paymentIntentId: string): Promise<PaymentResult> {
     try {
@@ -159,6 +98,7 @@ export const paymentService = {
         };
       }
     } catch (error: any) {
+      console.error('Payment confirmation error:', error);
       return {
         success: false,
         error: {
@@ -168,92 +108,4 @@ export const paymentService = {
       };
     }
   },
-
-  /**
-   * Handle a failed payment
-   */
-  async handlePaymentFailure(
-    paymentIntentId: string,
-    reason: string
-  ): Promise<void> {
-    try {
-      await axios.post(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/failure`,
-        {
-          paymentIntentId,
-          reason,
-        }
-      );
-    } catch (error) {
-      console.error('Failed to report payment failure:', error);
-    }
-  },
 };
-
-/**
- * Validate card data format
- */
-function validateCardData(data: PaymentMethodData): string | null {
-  if (!data.name?.trim()) {
-    return 'Cardholder name is required';
-  }
-
-  if (!data.email?.trim()) {
-    return 'Email is required';
-  }
-
-  const cardNumber = data.cardNumber.replace(/\s/g, '');
-  if (!cardNumber.match(/^\d{16}$/)) {
-    return 'Card number must be 16 digits';
-  }
-
-  // Luhn check for card validity
-  if (!luhnCheck(cardNumber)) {
-    return 'Card number is invalid';
-  }
-
-  const expiryMonth = parseInt(data.expiryMonth, 10);
-  const expiryYear = parseInt(data.expiryYear, 10);
-
-  if (expiryMonth < 1 || expiryMonth > 12) {
-    return 'Expiry month must be between 01 and 12';
-  }
-
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
-  const fullYear = 2000 + expiryYear;
-
-  if (fullYear < currentYear || (fullYear === currentYear && expiryMonth < currentMonth)) {
-    return 'Card has expired';
-  }
-
-  if (!data.cvc.match(/^\d{3,4}$/)) {
-    return 'CVC must be 3 or 4 digits';
-  }
-
-  return null;
-}
-
-/**
- * Luhn algorithm for card validation
- */
-function luhnCheck(cardNumber: string): boolean {
-  let sum = 0;
-  let isEven = false;
-
-  for (let i = cardNumber.length - 1; i >= 0; i--) {
-    let digit = parseInt(cardNumber[i], 10);
-
-    if (isEven) {
-      digit *= 2;
-      if (digit > 9) {
-        digit -= 9;
-      }
-    }
-
-    sum += digit;
-    isEven = !isEven;
-  }
-
-  return sum % 10 === 0;
-}

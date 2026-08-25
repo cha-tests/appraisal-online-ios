@@ -1,33 +1,48 @@
 import Stripe from 'stripe';
 import { logger } from '../utils/logger.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Stripe constructor auto-selects a compatible API version
 
 /**
- * Tier pricing in cents
+ * Tier pricing in cents. This is the single source of truth for what a tier
+ * costs — the amount is never accepted from the client, or a caller could ask
+ * for a $1 intent against the $499 tier and get a Founder subscription for it.
  */
-const TIER_PRICING = {
+export const TIER_PRICING = {
   'Founder Lifetime': 49900,
   'Premium Annual': 19900,
   'Basic Annual': 4900,
+} as const;
+
+export type Tier = keyof typeof TIER_PRICING;
+
+/** Refund window in days, by tier. Mirrors the published terms. */
+export const TIER_REFUND_DAYS: Record<Tier, number> = {
+  'Founder Lifetime': 14,
+  'Premium Annual': 30,
+  'Basic Annual': 30,
 };
 
+export const isTier = (value: unknown): value is Tier =>
+  typeof value === 'string' && value in TIER_PRICING;
+
 /**
- * Create a payment intent
+ * Create a payment intent for a tier.
+ *
+ * The amount is derived from the tier server-side, and the tier is recorded in
+ * the intent's metadata so that confirmation can read back which tier was
+ * actually paid for without trusting the client.
  */
-export async function createPaymentIntent(
-  amount: number,
-  currency: string = 'USD',
-  metadata: any = {}
-) {
+export async function createPaymentIntent(tier: Tier, metadata: any = {}) {
   try {
+    const amount = TIER_PRICING[tier];
+
     const intent = await stripe.paymentIntents.create({
       amount,
-      currency: currency.toLowerCase(),
+      currency: 'usd',
       payment_method_types: ['card'],
-      metadata,
+      metadata: { ...metadata, tier },
     });
 
     return {
@@ -42,67 +57,18 @@ export async function createPaymentIntent(
   }
 }
 
-/**
- * Process payment with card details
- * In production, tokenize card first using Stripe.js
- */
-export async function processPayment(
-  clientSecret: string,
-  cardData: any,
-  metadata: any = {}
-) {
-  try {
-    // Confirm the payment intent
-    const intent = await stripe.paymentIntents.confirm(clientSecret, {
-      payment_method: {
-        type: 'card',
-        card: {
-          number: cardData.number,
-          exp_month: cardData.exp_month,
-          exp_year: cardData.exp_year,
-          cvc: cardData.cvc,
-        },
-        billing_details: {
-          name: cardData.name,
-          email: cardData.email,
-        },
-      },
-      metadata,
-    });
-
-    if (intent.status === 'succeeded') {
-      return {
-        success: true,
-        paymentIntentId: intent.id,
-        amount: intent.amount,
-        currency: intent.currency,
-      };
-    }
-
-    if (intent.status === 'requires_action') {
-      return {
-        success: false,
-        requiresAction: true,
-        clientSecret: intent.client_secret,
-        error: 'Payment requires additional authentication',
-      };
-    }
-
-    return {
-      success: false,
-      error: 'Payment failed',
-      status: intent.status,
-    };
-  } catch (error: any) {
-    logger.error('Error processing payment:', error);
-
-    return {
-      success: false,
-      error: error.message,
-      code: error.code,
-    };
-  }
-}
+// NOTE: There is deliberately no processPayment() here any more.
+//
+// The previous implementation accepted a raw card number, expiry and CVC and
+// passed them to Stripe from this server. That had two problems: Stripe rejects
+// raw card data from accounts not explicitly approved for it, and routing card
+// numbers through our own infrastructure pulls the whole backend into PCI-DSS
+// scope (SAQ D rather than SAQ A).
+//
+// Cards are now entered into Stripe's own SDK component on the device and
+// confirmed directly against Stripe, so no card data ever reaches this server.
+// The backend's only jobs are creating the intent (above) and verifying the
+// outcome (below).
 
 /**
  * Retrieve payment intent
@@ -116,6 +82,10 @@ export async function getPaymentIntent(intentId: string) {
       amount: intent.amount,
       currency: intent.currency,
       clientSecret: intent.client_secret,
+      // Set by createPaymentIntent. Trustworthy because it was written
+      // server-side, so confirmation can rely on it rather than on the client
+      // telling us which tier was purchased.
+      metadata: intent.metadata,
     };
   } catch (error) {
     logger.error('Error retrieving payment intent:', error);

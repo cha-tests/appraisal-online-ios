@@ -9,23 +9,11 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-// Schema validation
+// Schema validation.
+// Note there is no `amount` here: the price is looked up from the tier
+// server-side, so a client cannot choose what it pays.
 const CreateIntentSchema = z.object({
-  amount: z.number().int().positive(),
-  currency: z.string().default('USD'),
-  tier: z.enum(['Founder Lifetime', 'Premium Annual', 'Basic Annual']).optional(),
-});
-
-const ProcessPaymentSchema = z.object({
-  clientSecret: z.string(),
-  cardData: z.object({
-    number: z.string(),
-    exp_month: z.number(),
-    exp_year: z.number(),
-    cvc: z.string(),
-    name: z.string(),
-    email: z.string().email(),
-  }),
+  tier: z.enum(['Founder Lifetime', 'Premium Annual', 'Basic Annual']),
 });
 
 const ConfirmPaymentSchema = z.object({
@@ -40,14 +28,9 @@ router.post('/intent', authMiddleware, brokerOnly, async (req: Request, res: Res
   try {
     const validated = CreateIntentSchema.parse(req.body);
 
-    const intent = await stripeService.createPaymentIntent(
-      validated.amount,
-      validated.currency,
-      {
-        brokerId: req.user?.id,
-        tier: validated.tier,
-      }
-    );
+    const intent = await stripeService.createPaymentIntent(validated.tier, {
+      brokerId: req.user?.id,
+    });
 
     res.json({
       success: true,
@@ -79,59 +62,12 @@ router.post('/intent', authMiddleware, brokerOnly, async (req: Request, res: Res
   }
 });
 
-/**
- * POST /api/payments/charge
- * Process a payment
- */
-router.post('/charge', authMiddleware, brokerOnly, async (req: Request, res: Response) => {
-  try {
-    const validated = ProcessPaymentSchema.parse(req.body);
-
-    const result = await stripeService.processPayment(
-      validated.clientSecret,
-      validated.cardData,
-      {
-        brokerId: req.user?.id,
-      }
-    );
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: result.code || 'PAYMENT_FAILED',
-          message: result.error || 'Payment processing failed',
-        },
-      });
-    }
-
-    res.json({
-      success: true,
-      paymentIntentId: result.paymentIntentId,
-      amount: result.amount,
-      currency: result.currency,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid request data',
-        },
-      });
-    }
-
-    logger.error('Error processing payment:', error);
-    res.status(500).json({
-      success: false,
-      error: {
-        code: 'PAYMENT_ERROR',
-        message: 'Payment processing failed',
-      },
-    });
-  }
-});
+// POST /api/payments/charge has been removed.
+//
+// It accepted raw card details and confirmed the payment from this server.
+// Confirmation now happens on the device against Stripe directly, using the
+// clientSecret handed out by /intent, so no endpoint here ever sees a card.
+// See the note in services/stripe.ts for the full reasoning.
 
 /**
  * POST /api/payments/confirm
@@ -141,7 +77,8 @@ router.post('/confirm', authMiddleware, brokerOnly, async (req: Request, res: Re
   try {
     const validated = ConfirmPaymentSchema.parse(req.body);
 
-    // Verify payment intent
+    // Verify the payment against Stripe rather than trusting the client's word
+    // that it succeeded.
     const intent = await stripeService.getPaymentIntent(validated.paymentIntentId);
 
     if (intent.status !== 'succeeded') {
@@ -154,12 +91,48 @@ router.post('/confirm', authMiddleware, brokerOnly, async (req: Request, res: Re
       });
     }
 
-    // Create subscription record in database
+    // The intent must belong to the caller. Without this, a broker who learns
+    // another broker's payment intent ID could confirm it and grant themselves
+    // a subscription off someone else's payment.
+    if (intent.metadata?.brokerId && intent.metadata.brokerId !== req.user?.id) {
+      logger.warn(
+        `Broker ${req.user?.id} tried to confirm intent ${validated.paymentIntentId} belonging to ${intent.metadata.brokerId}`
+      );
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'INTENT_OWNER_MISMATCH',
+          message: 'This payment does not belong to your account',
+        },
+      });
+    }
+
+    // Read the tier back from the intent metadata, which createPaymentIntent
+    // set server-side. Previously this was hardcoded to 'Premium Annual', so a
+    // Founder Lifetime purchase was recorded — and refunded — as the wrong plan.
+    const tier = intent.metadata?.tier;
+    if (!stripeService.isTier(tier)) {
+      logger.error(
+        `Intent ${validated.paymentIntentId} has no usable tier metadata: ${String(tier)}`
+      );
+      return res.status(422).json({
+        success: false,
+        error: {
+          code: 'TIER_UNKNOWN',
+          message: 'Could not determine which plan this payment was for',
+        },
+      });
+    }
+
+    // Create subscription record in database.
+    // TODO: Create a real Stripe customer once a payment completes, and store
+    // its ID for future lookups (refunds, account changes, etc). For now,
+    // we use a synthetic ID to keep the schema happy.
     const subscription = await supabaseService.createSubscription(
       req.user?.id || '',
-      `cus_${validated.paymentIntentId}`,
+      `stripe_cus_${validated.paymentIntentId}`, // Placeholder; refactor when customer creation is added
       validated.paymentIntentId,
-      'Premium Annual' // TODO: Get from request
+      tier
     );
 
     // Send welcome email
@@ -169,8 +142,8 @@ router.post('/confirm', authMiddleware, brokerOnly, async (req: Request, res: Re
         await emailService.sendBrokerWelcomeEmail(
           user.email,
           user.company_name || 'Broker',
-          'Premium Annual',
-          30
+          tier,
+          stripeService.TIER_REFUND_DAYS[tier]
         );
       } catch (emailError) {
         logger.error('Failed to send welcome email:', emailError);
