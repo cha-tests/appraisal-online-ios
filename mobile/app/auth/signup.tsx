@@ -75,7 +75,7 @@ export default function SignupScreen() {
           router.replace('/consumer/home');
         }
       } else {
-        Alert.alert('Signup Failed', result.error || 'Unable to create account');
+        Alert.alert('Signup Failed', result.error?.message || 'Unable to create account');
       }
     } catch (err) {
       console.error('Signup error:', err);
