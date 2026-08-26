@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -18,16 +18,21 @@ import { AUTOCOMPLETE_COUNTRIES } from '../../config/marketConfig';
 import { supabase } from '../../services/supabase';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
 
 // Google's country restriction filter is capped at 5 entries — see the
 // comment on AUTOCOMPLETE_COUNTRIES for what happens past that.
 const COMPONENTS_FILTER = AUTOCOMPLETE_COUNTRIES.map((code) => `country:${code}`).join('|');
 
-// Google's Places REST API sends no CORS headers, so the web build can't
-// call it directly from the browser — only the backend proxy (routes/places.ts)
-// can reach it. Native has no such restriction, but this app calls the same
-// proxy on every platform rather than branching, so there is one code path
-// and the API key never has to live in the client bundle.
+// Google's Places REST API sends no CORS headers, so the web build can't call
+// it directly from the browser — it has to go through the backend proxy
+// (routes/places.ts) instead. Native has no such restriction and calls
+// Google directly, same as before: routing native through the backend too
+// would make address search depend on EXPO_PUBLIC_API_URL being reachable
+// from the device, which for a real (TestFlight/production) build it is
+// not — that env var is this dev machine's LAN IP, useful for same-Wi-Fi
+// Expo Go testing but meaningless once the app is running on a device that
+// isn't on that network, which broke autocomplete for real device testing.
 async function authHeaders() {
   const { data } = await supabase.auth.getSession();
   return { Authorization: `Bearer ${data.session?.access_token}` };
@@ -68,10 +73,21 @@ export default function AddressEntry() {
       setLoading(true);
       setLocalError('');
 
-      const response = await axios.get(`${API_URL}/api/places/autocomplete`, {
-        params: { input, components: COMPONENTS_FILTER },
-        headers: await authHeaders(),
-      });
+      const response = Platform.OS === 'web'
+        ? await axios.get(`${API_URL}/api/places/autocomplete`, {
+            params: { input, components: COMPONENTS_FILTER },
+            headers: await authHeaders(),
+          })
+        : await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+            params: {
+              input,
+              key: GOOGLE_PLACES_API_KEY,
+              // Must be a plain string. Axios serialises an array as
+              // `types[]=address`, which Google does not recognise.
+              types: 'address',
+              components: COMPONENTS_FILTER,
+            },
+          });
 
       // Google signals problems in a `status` field with HTTP 200, so an
       // error here is invisible unless we check it explicitly. Without this,
@@ -120,10 +136,22 @@ export default function AddressEntry() {
     setResolving(true);
 
     try {
-      const detailResponse = await axios.get(`${API_URL}/api/places/details`, {
-        params: { place_id: prediction.place_id },
-        headers: await authHeaders(),
-      });
+      const detailResponse = Platform.OS === 'web'
+        ? await axios.get(`${API_URL}/api/places/details`, {
+            params: { place_id: prediction.place_id },
+            headers: await authHeaders(),
+          })
+        : await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
+            params: {
+              place_id: prediction.place_id,
+              key: GOOGLE_PLACES_API_KEY,
+              // Comma-separated string, not an array: axios would send
+              // `fields[]=geometry&...`, which Google ignores — and an ignored
+              // fields param means being billed for every field group rather
+              // than just these three.
+              fields: 'geometry,formatted_address,address_components',
+            },
+          });
 
       const status = detailResponse.data.status;
       if (status && status !== 'OK') {
