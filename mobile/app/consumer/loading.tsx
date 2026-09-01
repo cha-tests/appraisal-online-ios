@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
+import { generateMockComparableSales } from '../../config/marketConfig';
 
 const LOADING_MESSAGES = [
   'Analyzing property details...',
@@ -67,35 +68,14 @@ export default function LoadingScreen() {
           throw new Error('Failed to create property record');
         }
 
-        // Generate AI valuation (mock comparables for now)
-        // sale_price is stored in cents — every screen that renders a
-        // comparable (report-view.tsx, lead-detail.tsx) divides by 100, the
-        // same convention report.estimated_value and subscriptions.price
-        // already use. These were previously plain dollar amounts (e.g.
-        // 725000 for $725,000), which displayed as $7,250 everywhere.
-        const mockComparables = [
-          {
-            address: '456 Oak Ave',
-            sale_price: 72500000,
-            sale_date: '2026-05-15',
-            distance_miles: 0.3,
-            similarity_score: 0.95,
-          },
-          {
-            address: '789 Elm St',
-            sale_price: 69500000,
-            sale_date: '2026-04-20',
-            distance_miles: 0.5,
-            similarity_score: 0.88,
-          },
-          {
-            address: '321 Pine Rd',
-            sale_price: 75000000,
-            sale_date: '2026-03-10',
-            distance_miles: 0.7,
-            similarity_score: 0.82,
-          },
-        ];
+        // Generate AI valuation (mock comparables for now — see
+        // marketConfig.ts's generateMockComparableSales for why these are
+        // scaled per market instead of a flat number reused for every
+        // property everywhere).
+        const mockComparables = generateMockComparableSales(
+          currentPropertyDetails.square_feet,
+          currentProperty.address_components?.country_code
+        );
 
         const valuationResult = await reportService.generateValuation(
           currentPropertyDetails,
@@ -121,6 +101,12 @@ export default function LoadingScreen() {
         if (!reportResult.success) {
           throw new Error('Failed to create report');
         }
+
+        // Fire-and-forget: emails the branded PDF in the background while
+        // the consumer moves on to report-view. Not awaited on purpose —
+        // see deliverReportEmail's comment for why it must never block or
+        // fail this flow.
+        reportService.deliverReportEmail(reportResult.report.id);
 
         setCurrentReport(reportResult.report);
         setIsGenerating(false);

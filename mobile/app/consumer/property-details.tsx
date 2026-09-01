@@ -7,7 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useReportStore } from '../../stores/report.store';
 import { PropertyDetailsFormData } from '../../types';
-import { getMarketConfig, type SizeUnit } from '../../config/marketConfig';
+import { getMarketConfig, sqftToSqm, sqmToSqft, type SizeUnit } from '../../config/marketConfig';
 
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
 
@@ -15,9 +15,6 @@ const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
 // fed into the valuation prompt — the same field the DB column and
 // PropertyDetailsFormData type already use. The toggle only changes how that
 // number is entered and displayed; it never changes what gets saved.
-const SQFT_PER_SQM = 10.7639;
-const sqftToSqm = (sqft: number) => sqft / SQFT_PER_SQM;
-const sqmToSqft = (sqm: number) => sqm * SQFT_PER_SQM;
 
 export default function PropertyDetails() {
   const router = useRouter();

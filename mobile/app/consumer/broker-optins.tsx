@@ -82,6 +82,16 @@ export default function BrokerOptins() {
         </Text>
       </View>
 
+      {/* Licensing Reminder */}
+      <Card variant="outlined" style={styles.licenseCard}>
+        <Text style={styles.licenseTitle}>⚠️ Verify Before You Engage</Text>
+        <Text style={styles.licenseText}>
+          Only work with licensed real estate brokers, agencies, and appraisers. Ask for
+          proof of license and verify it with your local regulatory authority before
+          sharing personal information or signing anything.
+        </Text>
+      </Card>
+
       {/* Opt-in Card */}
       <Card variant="elevated" style={styles.optInCard}>
         <View style={styles.checkboxRow}>
@@ -178,6 +188,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     lineHeight: 24,
+  },
+  licenseCard: {
+    marginBottom: 24,
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FCD34D',
+  },
+  licenseTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  licenseText: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
   },
   optInCard: {
     marginBottom: 24,
