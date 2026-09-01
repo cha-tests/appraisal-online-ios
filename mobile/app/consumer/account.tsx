@@ -17,6 +17,7 @@ import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
 import { authService } from '../../services/auth.service';
 import { Report } from '../../types';
+import { formatCurrency } from '../../config/marketConfig';
 
 export default function ConsumerAccount() {
   const router = useRouter();
@@ -149,6 +150,13 @@ export default function ConsumerAccount() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
+        <Button
+          title="← Back"
+          variant="outline"
+          size="small"
+          onPress={() => router.back()}
+          style={{ alignSelf: 'flex-start', marginBottom: 16 }}
+        />
         <Text style={styles.title}>Your Account</Text>
         <Text style={styles.email}>{user?.email}</Text>
       </View>
@@ -197,7 +205,7 @@ export default function ConsumerAccount() {
               <View style={styles.reportCardContent}>
                 <Text style={styles.reportAddress}>Report</Text>
                 <Text style={styles.reportValue}>
-                  ${(item.estimated_value / 100).toLocaleString()}
+                  {formatCurrency(item.estimated_value, item.gemini_response?.country_code)}
                 </Text>
               </View>
               {openingReportId === item.id ? (

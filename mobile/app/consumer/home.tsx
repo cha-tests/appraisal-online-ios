@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, FlatList, Dimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, FlatList, useWindowDimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
@@ -27,19 +27,31 @@ const SLIDES = [
   },
 ];
 
-const { width } = Dimensions.get('window');
-
 export default function ConsumerHome() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [activeSlide, setActiveSlide] = useState(0);
   const scrollViewRef = useRef<FlatList>(null);
+  // Reactive, unlike Dimensions.get('window') — that reads the size once at
+  // module load and never updates, so the carousel never adjusted to a
+  // window resize, device rotation, or (on web) a viewport that didn't match
+  // whatever size was current the moment the JS bundle first evaluated.
+  const { width } = useWindowDimensions();
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const currentIndex = Math.round(contentOffsetX / width);
     setActiveSlide(currentIndex);
   };
+
+  // FlatList measures each page in absolute pixels at render time; it doesn't
+  // re-measure on its own when `width` changes later (e.g. a browser resize,
+  // or rotating the device), which would otherwise leave the current slide
+  // sitting at the wrong offset — no longer aligned to a page boundary at
+  // the new width. Re-snapping to the same logical slide keeps it aligned.
+  useEffect(() => {
+    scrollViewRef.current?.scrollToOffset({ offset: activeSlide * width, animated: false });
+  }, [width]);
 
   const handleGetStarted = () => {
     router.push('/consumer/address-entry');
