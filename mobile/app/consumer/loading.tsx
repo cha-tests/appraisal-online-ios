@@ -68,11 +68,12 @@ export default function LoadingScreen() {
           throw new Error('Failed to create property record');
         }
 
-        // Generate AI valuation (mock comparables for now — see
-        // marketConfig.ts's generateMockComparableSales for why these are
-        // scaled per market instead of a flat number reused for every
-        // property everywhere).
-        const mockComparables = generateMockComparableSales(
+        // Fallback comparables, used only if Gemini is unavailable or its
+        // own generated ones (see report.service.ts's buildValuationPrompt)
+        // come back malformed — see marketConfig.ts's
+        // generateMockComparableSales for why these are scaled per market
+        // instead of a flat number reused for every property everywhere.
+        const fallbackComparables = generateMockComparableSales(
           currentPropertyDetails.square_feet,
           currentProperty.address_components?.country_code
         );
@@ -80,7 +81,7 @@ export default function LoadingScreen() {
         const valuationResult = await reportService.generateValuation(
           currentPropertyDetails,
           currentProperty.address,
-          mockComparables,
+          fallbackComparables,
           currentProperty.address_components?.country_code
         );
 
@@ -94,7 +95,7 @@ export default function LoadingScreen() {
           propertyResult.property.id,
           valuationResult.estimatedValue!,
           valuationResult.confidenceRange!,
-          mockComparables,
+          valuationResult.comparables || fallbackComparables,
           valuationResult.geminiResponse || {}
         );
 

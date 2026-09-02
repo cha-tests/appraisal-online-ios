@@ -3,7 +3,7 @@ import { Report, Property, ComparableSale, ValueRange, ReportAllowance } from '.
 import axios from 'axios';
 import { findCityId } from '../utils/matchCity';
 import { brokerService } from './broker.service';
-import { formatDistance } from '../config/marketConfig';
+import { formatCurrency, getMarketConfig } from '../config/marketConfig';
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
 // Use the "-latest" alias rather than a pinned version. Verified live against
@@ -84,50 +84,16 @@ export const reportService = {
     estimatedValue?: number;
     confidenceRange?: ValueRange;
     geminiResponse?: Record<string, any>;
+    comparables?: ComparableSale[];
     error?: any;
   }> {
     try {
       // If no API key, use mock valuation based on comparables
       if (!GEMINI_API_KEY) {
-        return this.generateMockValuation(propertyDetails, comparables);
+        return this.generateMockValuation(propertyDetails, comparables, countryCode);
       }
 
-      const prompt = `
-You are a real estate valuation expert. Based on the following property details and comparable sales, provide an AI-generated property valuation estimate.
-
-PROPERTY DETAILS:
-- Address: ${location}
-- Bedrooms: ${propertyDetails.bedrooms}
-- Bathrooms: ${propertyDetails.bathrooms}
-- Square Feet: ${propertyDetails.square_feet}
-- Year Built: ${propertyDetails.year_built}
-- Property Type: ${propertyDetails.property_type}
-- Condition: ${propertyDetails.condition}
-
-COMPARABLE SALES (Recent):
-${comparables
-  .map(
-    (c) =>
-      // sale_price is stored in cents (see createReport); this prompt describes
-      // real dollar amounts to the model, so it's divided back out here. Distance
-      // is shown in whichever unit this property's market actually uses — a PH
-      // or AU property should read "km", not "mi".
-      `- ${c.address}: $${(c.sale_price / 100).toLocaleString()} (${c.sale_date}, ${formatDistance(c.distance_miles, countryCode)} away)`
-  )
-  .join('\n')}
-
-Provide your response as JSON with these fields:
-{
-  "estimated_value": <integer>,
-  "confidence_low": <integer>,
-  "confidence_high": <integer>,
-  "confidence_percentage": <0-100>,
-  "reasoning": "<brief explanation>",
-  "market_trends": "<local market context>"
-}
-
-IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Banks, courts, and government agencies do not accept this as a formal valuation.
-      `;
+      const prompt = buildValuationPrompt(propertyDetails, location, countryCode);
 
       const response = await axios.post(
         `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
@@ -141,25 +107,56 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
               ],
             },
           ],
+          generationConfig: {
+            // The 10-section narrative report runs long; the default max
+            // easily truncates it mid-section, which then fails JSON/marker
+            // parsing below.
+            maxOutputTokens: 8192,
+          },
         }
       );
 
       const textContent = response.data.candidates[0].content.parts[0].text;
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+
+      // The model is asked for two parts separated by a literal marker line
+      // (see buildValuationPrompt) rather than one big JSON blob — asking it
+      // to JSON-escape an entire multi-paragraph markdown report as a string
+      // value is exactly the kind of thing models render just plausibly
+      // enough to pass a glance and then break on real content (embedded
+      // quotes, newlines). Splitting on the marker sidesteps that.
+      const [jsonPart, reportPart] = splitOnReportMarker(textContent);
+      const jsonMatch = jsonPart.match(/\{[\s\S]*\}/);
       const valuationData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
 
       if (!valuationData) {
         throw new Error('Failed to parse valuation response');
       }
 
-      // The prompt above asks Gemini for a plain dollar integer (natural for
-      // the model, and easy to sanity-check against the dollar-scale
-      // comparables in the same prompt) — but every screen that renders
+      valuationData.full_report_markdown = reportPart || null;
+      // Stashed so any screen/PDF/email that only has the `reports` row (no
+      // property join) can still pick the right currency to display in —
+      // see marketConfig.ts's formatCurrency and its callers.
+      valuationData.country_code = countryCode || null;
+
+      // Gemini generates its own comparables now (see buildValuationPrompt —
+      // it's asked for locally-plausible ones, since it has no real
+      // MLS/transaction data to draw from). Falls back to the caller-supplied
+      // placeholder comparables if the model's output is missing or
+      // malformed, rather than failing the whole report over one bad field.
+      const generatedComparables = parseGeneratedComparables(
+        valuationData.comparable_sales,
+        countryCode
+      );
+
+      // The prompt above asks Gemini for a plain integer in the property's
+      // *local* currency (see buildValuationPrompt — it's told explicitly
+      // which currency to use) — but every screen that renders
       // estimated_value/confidence_range divides by 100, on the assumption
-      // that the stored value is cents (the same convention
-      // subscriptions.price already uses). Converting here, once, at the
-      // boundary keeps that prompt natural while still landing in the
-      // storage unit everything downstream expects.
+      // that the stored value is the currency's minor unit (cents/centavos/
+      // fils/...), the same convention subscriptions.price already uses for
+      // USD. Converting here, once, at the boundary keeps that prompt
+      // natural while still landing in the storage unit everything
+      // downstream expects.
       return {
         success: true,
         estimatedValue: valuationData.estimated_value * 100,
@@ -168,6 +165,7 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
           high: valuationData.confidence_high * 100,
         },
         geminiResponse: valuationData,
+        comparables: generatedComparables || comparables,
       };
     } catch (error) {
       // Fall back to the mock valuation rather than surfacing failure to the
@@ -179,7 +177,7 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
       // the mock result already carries `is_mock: true` in geminiResponse so
       // this is never presented as if it were a real AI valuation.
       console.error('Gemini valuation failed, falling back to mock valuation:', error);
-      return this.generateMockValuation(propertyDetails, comparables);
+      return this.generateMockValuation(propertyDetails, comparables, countryCode);
     }
   },
 
@@ -221,10 +219,32 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
     }
   },
 
+  // Ask the backend to generate the branded PDF and email it to the
+  // consumer, mirroring the old Apps Script's auto-send-on-submit behavior.
+  // Deliberately swallows its own errors — callers (loading.tsx) fire this
+  // without awaiting so a slow or failing email (e.g. Postmark not
+  // configured yet) never blocks or breaks the report-view navigation the
+  // consumer is actually waiting on.
+  async deliverReportEmail(reportId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) return;
+
+      await axios.post(
+        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/deliver`,
+        {},
+        { headers: { Authorization: `Bearer ${data.session.access_token}` } }
+      );
+    } catch (error) {
+      console.error('Error emailing report (non-blocking):', error);
+    }
+  },
+
   // Generate a mock valuation based on comparables (fallback when API key not set)
   generateMockValuation(
     propertyDetails: Record<string, any>,
-    comparables: ComparableSale[]
+    comparables: ComparableSale[],
+    countryCode?: string | null
   ): {
     success: boolean;
     estimatedValue: number;
@@ -285,10 +305,16 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
         confidence_low: estimatedValue - range,
         confidence_high: estimatedValue + range,
         confidence_percentage: confidencePercent,
-        reasoning: `Mock valuation based on ${comparables.length} comparable sales. Average sale price: $${Math.round(avgPrice).toLocaleString()}. Adjusted for property size (${propertyDetails.square_feet} sqft), bedrooms (${propertyDetails.bedrooms}), and condition (${propertyDetails.condition}).`,
+        reasoning: `Mock valuation based on ${comparables.length} comparable sales. Average sale price: ${formatCurrency(avgPrice * 100, countryCode)}. Adjusted for property size (${propertyDetails.square_feet} sqft), bedrooms (${propertyDetails.bedrooms}), and condition (${propertyDetails.condition}).`,
         market_trends: 'Local market shows stable pricing with slight appreciation.',
         is_mock: true,
         note: 'This is a demonstration valuation. For real valuations, configure EXPO_PUBLIC_GEMINI_API_KEY.',
+        country_code: countryCode || null,
+        // The PDF/email pipeline always reads gemini_response.full_report_markdown
+        // (see pdf.ts's renderNarrativeReport) — this keeps that path working
+        // even when Gemini is unavailable, instead of the PDF silently
+        // dropping the entire narrative section for mock reports.
+        full_report_markdown: buildMockReportMarkdown(estimatedValue, comparables, propertyDetails, countryCode),
       },
     };
   },
@@ -477,3 +503,216 @@ IMPORTANT: This is a computer estimate only. It is not a licensed appraisal. Ban
     }
   },
 };
+
+// Literal marker the prompt instructs the model to emit between the JSON
+// block and the narrative report. Kept as a constant so the prompt text and
+// the parser can't drift out of sync.
+const REPORT_MARKER = '===FULL_REPORT===';
+
+// Names used only to spell the currency out unambiguously in the prompt
+// text below — Gemini otherwise defaults to reasoning in USD regardless of
+// the property's actual market, which is exactly the bug this fixes (a
+// Philippine home was coming back valued at literal millions of US
+// dollars). Intl.NumberFormat elsewhere just needs the ISO code, but a
+// bare 3-letter code in prose is easy for a model to skim past.
+const CURRENCY_NAMES: Record<string, string> = {
+  USD: 'US Dollars',
+  PHP: 'Philippine Pesos',
+  AUD: 'Australian Dollars',
+  GBP: 'British Pounds',
+  SGD: 'Singapore Dollars',
+  AED: 'UAE Dirhams',
+  CAD: 'Canadian Dollars',
+  EUR: 'Euros',
+};
+
+function buildValuationPrompt(
+  propertyDetails: Record<string, any>,
+  location: string,
+  countryCode?: string | null
+): string {
+  const { currency, distanceUnit } = getMarketConfig(countryCode);
+  const currencyName = CURRENCY_NAMES[currency] || currency;
+  const distanceUnitName = distanceUnit === 'km' ? 'kilometers' : 'miles';
+
+  return `You are a professional real estate analyst AI. Based on the following property details, produce (1) a structured valuation JSON block — including comparable sales you identify or plausibly estimate for this specific area, using your knowledge of the location — and (2) a full narrative valuation report.
+
+PROPERTY DETAILS:
+- Address: ${location}
+- Bedrooms: ${propertyDetails.bedrooms}
+- Bathrooms: ${propertyDetails.bathrooms}
+- Square Feet: ${propertyDetails.square_feet}
+- Year Built: ${propertyDetails.year_built}
+- Property Type: ${propertyDetails.property_type}
+- Condition: ${propertyDetails.condition}
+
+COMPARABLE SALES: You do not have live MLS/transaction data, so you cannot cite verified real sales. Instead, generate exactly 3 plausible comparable sales for streets or areas actually near this address — use real, specific local street/neighborhood names for this location rather than generic placeholders (e.g. real streets in the same subdivision, suburb, or district), with sale prices realistic for that specific area, not just the country as a whole. These represent your best local-market estimate, not verified transactions — do not claim or imply they are confirmed real sales.
+
+IMPORTANT — CURRENCY: This property is in a ${currencyName} (${currency}) market. Every monetary figure you produce — estimated_value, confidence_low, confidence_high, every comparable sale price, and every price mentioned anywhere in the narrative report — MUST be a realistic ${currency} amount for this specific location, not a US-dollar figure.
+
+Respond in EXACTLY this format — the JSON object first, then the literal line "${REPORT_MARKER}", then the narrative report. Do not add anything before the JSON or after the marker besides what's specified.
+
+{
+  "estimated_value": <integer, in ${currency}>,
+  "confidence_low": <integer, in ${currency}>,
+  "confidence_high": <integer, in ${currency}>,
+  "confidence_percentage": <0-100>,
+  "reasoning": "<brief explanation>",
+  "market_trends": "<local market context>",
+  "comparable_sales": [
+    {
+      "address": "<a specific, real-sounding local street/area name near this property — not a generic placeholder>",
+      "sale_price": <integer, in ${currency}>,
+      "sale_date": "<YYYY-MM-DD, within the last 6 months>",
+      "distance": <number, straight-line distance from the subject property in ${distanceUnitName.toUpperCase()} (this market's local unit), e.g. 0.5>,
+      "similarity_score": <number between 0 and 1, e.g. 0.92>
+    }
+    // exactly 3 entries, ordered by distance ascending
+  ]
+}
+${REPORT_MARKER}
+## 1. Executive Summary
+Brief overview of the property, its estimated value range, and the key factors influencing the valuation.
+
+## 2. Property Description
+Describe the property based on the provided details: type, size, rooms, age, notable features.
+
+## 3. Location Analysis
+Analyze the location based on the address. Discuss general market conditions, neighborhood characteristics, accessibility, and proximity to amenities.
+
+## 4. Market Analysis
+Overview of the current real estate market in the area: trends in property values, supply and demand dynamics, comparable sales context.
+
+## 5. Valuation Methodology
+Explain the approaches used: Sales Comparison Approach, Income Approach (if applicable), Cost Approach, and how each applies here.
+
+## 6. Estimated Value Range
+Low, mid, and high estimate for the property value, with the reasoning behind each.
+
+## 7. Value Influencing Factors
+Positive and negative factors affecting the property value: condition, location, market trends, renovations, risks.
+
+## 8. Investment Potential
+Rental yield estimates, appreciation potential, risks or opportunities.
+
+## 9. Recommendations
+Actionable recommendations tailored to a homeowner checking their property's value.
+
+## 10. Disclaimer
+Include this exact disclaimer: "This report is generated by an AI system and is intended for informational purposes only. It does not constitute a formal appraisal, professional valuation, or financial advice. The estimated values are based on publicly available data and AI analysis, and may not reflect actual market conditions. For legally binding valuations, please consult a licensed appraiser or real estate professional. Appraisal Online is operated by Digital Ventures, UAE."
+
+FORMATTING RULES:
+- Use markdown with ## for section headers
+- Use bullet points for lists, **bold** for emphasis on key figures
+- Use a markdown table for the estimated value range in section 6
+- Keep language professional but accessible; provide specific numbers, not just qualitative descriptions
+- Do NOT include images or links`;
+}
+
+/**
+ * Splits the model's raw response into the leading JSON block and the
+ * narrative report that follows REPORT_MARKER. Falls back to treating the
+ * whole response as the JSON part (and no report) if the model didn't
+ * follow the marker format — generateValuation's caller already falls back
+ * to a mock valuation if JSON parsing then fails too.
+ */
+function splitOnReportMarker(text: string): [string, string | null] {
+  const markerIndex = text.indexOf(REPORT_MARKER);
+  if (markerIndex === -1) {
+    return [text, null];
+  }
+  return [text.slice(0, markerIndex), text.slice(markerIndex + REPORT_MARKER.length).trim()];
+}
+
+const KM_TO_MILES = 1 / 1.60934;
+
+/**
+ * Validates and converts Gemini's self-generated `comparable_sales` into the
+ * app's internal ComparableSale shape. Returns null on anything malformed
+ * (wrong shape, non-array, empty) so the caller can fall back to the
+ * placeholder comparables instead of storing garbage.
+ *
+ * Gemini is asked for `sale_price` in the property's local currency's major
+ * unit and `distance` in the market's own local unit (km or mi — see
+ * buildValuationPrompt) — both converted here to this app's internal storage
+ * convention (minor units, always miles) at this one boundary, the same
+ * "ask naturally, store canonically" approach used for currency/size
+ * elsewhere in this file.
+ */
+function parseGeneratedComparables(
+  raw: unknown,
+  countryCode?: string | null
+): ComparableSale[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+
+  const { distanceUnit } = getMarketConfig(countryCode);
+
+  const parsed: ComparableSale[] = [];
+  for (const entry of raw) {
+    if (
+      !entry ||
+      typeof entry.address !== 'string' ||
+      typeof entry.sale_price !== 'number' ||
+      typeof entry.sale_date !== 'string' ||
+      typeof entry.distance !== 'number' ||
+      typeof entry.similarity_score !== 'number'
+    ) {
+      return null;
+    }
+
+    parsed.push({
+      address: entry.address,
+      sale_price: Math.round(entry.sale_price * 100),
+      sale_date: entry.sale_date,
+      distance_miles: distanceUnit === 'km' ? entry.distance * KM_TO_MILES : entry.distance,
+      similarity_score: entry.similarity_score,
+    });
+  }
+
+  return parsed;
+}
+
+function buildMockReportMarkdown(
+  estimatedValue: number,
+  comparables: ComparableSale[],
+  propertyDetails: Record<string, any>,
+  countryCode?: string | null
+): string {
+  // estimatedValue arrives in the currency's major unit (matches
+  // generateMockValuation's local variable before its *100 conversion),
+  // so it's scaled back up here to match formatCurrency's minor-unit input.
+  const formatted = formatCurrency(estimatedValue * 100, countryCode);
+  return `## 1. Executive Summary
+This is a **demonstration report** generated without a live AI valuation. The estimated value shown (${formatted}) is calculated directly from the comparable sales below, not from AI analysis.
+
+## 2. Property Description
+${propertyDetails.property_type || 'Property'} with ${propertyDetails.bedrooms ?? 'N/A'} bedrooms, ${propertyDetails.bathrooms ?? 'N/A'} bathrooms, approximately ${propertyDetails.square_feet ?? 'N/A'} sqft, built ${propertyDetails.year_built ?? 'N/A'}, in **${propertyDetails.condition || 'unspecified'}** condition.
+
+## 3. Location Analysis
+Not available in demonstration mode.
+
+## 4. Market Analysis
+Based on ${comparables.length} comparable sale(s) in the area.
+
+## 5. Valuation Methodology
+Sales Comparison Approach — average of comparable sale prices, adjusted for size, bedroom count, and condition.
+
+## 6. Estimated Value Range
+| Estimate | Value |
+|---|---|
+| Low | ${formatted} |
+| Mid | ${formatted} |
+| High | ${formatted} |
+
+## 7. Value Influencing Factors
+Not available in demonstration mode.
+
+## 8. Investment Potential
+Not available in demonstration mode.
+
+## 9. Recommendations
+Configure a live Gemini API key to receive full AI-generated analysis.
+
+## 10. Disclaimer
+This report is generated by an AI system and is intended for informational purposes only. It does not constitute a formal appraisal, professional valuation, or financial advice. The estimated values are based on publicly available data and AI analysis, and may not reflect actual market conditions. For legally binding valuations, please consult a licensed appraiser or real estate professional. Appraisal Online is operated by Digital Ventures, UAE.`;
+}
