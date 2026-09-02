@@ -7,12 +7,19 @@ import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { Toggle } from '../../components/ui/Toggle';
 import { useReportStore } from '../../stores/report.store';
+import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
 
 export default function BrokerOptins() {
   const router = useRouter();
   const report = useReportStore((state) => state.currentReport);
+  // Collected once at signup (see auth/signup.tsx) so it doesn't need to be
+  // re-typed here — this screen's opt-in toggle is what actually gates
+  // whether it ever gets shared, not whether it's on file.
+  const savedPhone = useAuthStore((state) => state.user?.phone);
   const [optedIn, setOptedIn] = useState(false);
+  // Fallback manual entry only for accounts that predate phone-at-signup
+  // (savedPhone is empty) — new consumers never see this field.
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,14 +41,19 @@ export default function BrokerOptins() {
       setError('');
 
       let phoneToSave: string | undefined;
-      if (optedIn && phone) {
-        // Validate phone format (basic)
-        const phoneRegex = /^\d{10}$/;
-        if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
-          setError('Please enter a valid 10-digit phone number');
-          return;
+      if (optedIn) {
+        if (savedPhone) {
+          // Already validated at signup — nothing to re-check here.
+          phoneToSave = savedPhone;
+        } else if (phone) {
+          // Legacy-account fallback path only (see savedPhone comment above).
+          const digitCount = phone.replace(/\D/g, '').length;
+          if (digitCount < 7 || digitCount > 15) {
+            setError('Please enter a valid mobile number');
+            return;
+          }
+          phoneToSave = phone;
         }
-        phoneToSave = phone;
       }
 
       // Update report with opt-in status
@@ -102,20 +114,33 @@ export default function BrokerOptins() {
         </View>
       </Card>
 
-      {/* Phone Input (conditional) */}
+      {/* Phone: saved-at-signup number shown read-only, or a fallback entry
+          field for accounts created before phone-at-signup existed. */}
       {optedIn && (
         <View style={styles.phoneSection}>
-          <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
-          <TextInput
-            placeholder="(555) 123-4567"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-            error={error && error.includes('phone') ? error : undefined}
-          />
-          <Text style={styles.phoneHelper}>
-            We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
-          </Text>
+          {savedPhone ? (
+            <>
+              <Text style={styles.phoneLabel}>We'll share this number</Text>
+              <Text style={styles.savedPhoneValue}>{savedPhone}</Text>
+              <Text style={styles.phoneHelper}>
+                Only shared with a professional because you're opting in here.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
+              <TextInput
+                placeholder="(555) 123-4567"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+                error={error && error.includes('mobile number') ? error : undefined}
+              />
+              <Text style={styles.phoneHelper}>
+                We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
+              </Text>
+            </>
+          )}
         </View>
       )}
 
@@ -143,7 +168,7 @@ export default function BrokerOptins() {
       </Card>
 
       {/* Error Message */}
-      {error && !error.includes('phone') && (
+      {error && !error.includes('mobile number') && (
         <Text style={styles.errorMessage}>{error}</Text>
       )}
 
@@ -227,6 +252,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 12,
+  },
+  savedPhoneValue: {
+    fontSize: 16,
+    color: '#1F2937',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   phoneHelper: {
     fontSize: 13,

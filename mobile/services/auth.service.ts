@@ -3,7 +3,11 @@ import { User, AuthSession, AuthCredentials, BrokerProfile } from '../types';
 
 export const authService = {
   // Sign up with email
-  async signup(email: string, password: string, metadata?: { full_name?: string; user_type?: string }) {
+  async signup(
+    email: string,
+    password: string,
+    metadata?: { full_name?: string; user_type?: string; phone?: string }
+  ) {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -12,6 +16,10 @@ export const authService = {
           data: {
             full_name: metadata?.full_name || '',
             user_type: metadata?.user_type || 'consumer',
+            // Captured once here so a consumer never has to re-enter it when
+            // opting in for professional contact later — see the phone
+            // comment on the User type for the actual sharing rule.
+            phone: metadata?.phone || null,
           },
         },
       });
@@ -20,7 +28,8 @@ export const authService = {
       if (!authData.user?.id) throw new Error('User creation failed');
 
       // The public.users row is created automatically by the
-      // on_auth_user_created DB trigger (see 005_auto_create_user_on_signup.sql).
+      // on_auth_user_created DB trigger (see 005_auto_create_user_on_signup.sql
+      // and 013_add_user_phone.sql, which extended it to also capture phone).
       // Inserting it here too would race the trigger and fail (RLS rejects the
       // insert before email confirmation grants a session; duplicate-key error after).
       return {
@@ -29,6 +38,7 @@ export const authService = {
           id: authData.user.id,
           email,
           user_type: metadata?.user_type || 'consumer',
+          phone: metadata?.phone || undefined,
           created_at: authData.user.created_at,
           updated_at: authData.user.updated_at || authData.user.created_at,
         } as User,

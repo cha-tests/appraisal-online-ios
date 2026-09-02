@@ -17,6 +17,10 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  // Consumer-only — see the phone comment on the User type. Brokers already
+  // provide a phone number during broker/onboarding.tsx, so asking again
+  // here would be a duplicate prompt for that account type.
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -29,6 +33,21 @@ export default function SignupScreen() {
 
     if (!fullName.trim()) {
       newErrors.fullName = 'Full name is required';
+    }
+
+    if (userType === 'consumer') {
+      if (!phone.trim()) {
+        newErrors.phone = 'Mobile number is required';
+      } else {
+        // 7-15 digits accepts PH's 11-digit mobile format (09XXXXXXXXX),
+        // US/CA's 10-digit format, and other international lengths —
+        // matches the E.164 international max of 15 digits rather than
+        // assuming one country's convention.
+        const digitCount = phone.replace(/\D/g, '').length;
+        if (digitCount < 7 || digitCount > 15) {
+          newErrors.phone = 'Please enter a valid mobile number';
+        }
+      }
     }
 
     if (!email) {
@@ -59,6 +78,9 @@ export default function SignupScreen() {
       const result = await authService.signup(email, password, {
         full_name: fullName,
         user_type: userType!,
+        // Brokers provide their phone during onboarding instead — see the
+        // field's own comment above for why it's consumer-only here.
+        phone: userType === 'consumer' ? phone : undefined,
       });
 
       if (result.success && result.user) {
@@ -168,6 +190,23 @@ export default function SignupScreen() {
           error={errors.fullName}
         />
 
+        {userType === 'consumer' && (
+          <>
+            <TextInput
+              placeholder="Mobile Number"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              editable={!loading}
+              error={errors.phone}
+              style={{ marginTop: 12 }}
+            />
+            <Text style={styles.phoneHelper}>
+              Only shared with a professional if you opt in to be contacted on a report.
+            </Text>
+          </>
+        )}
+
         <TextInput
           placeholder="Email"
           value={email}
@@ -261,6 +300,11 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 24,
+  },
+  phoneHelper: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 6,
   },
   termsCard: {
     backgroundColor: '#F0F9FF',
