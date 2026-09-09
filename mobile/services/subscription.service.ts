@@ -1,24 +1,15 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { Subscription, RefundLogEntry, BrokerTier } from '../types';
+import { BROKER_TIER_PRICING, BROKER_TIER_FEATURES } from '../config/brokerTiers';
 
-const TIER_PRICING = {
-  'Founder Lifetime': { price: 49900, currency: 'USD', refundWindow: 14 }, // $499, 14 days
-  'Premium Annual': { price: 19900, currency: 'USD', refundWindow: 30 }, // $199/year, 30 days
-  'Basic Annual': { price: 4900, currency: 'USD', refundWindow: 30 }, // $49/year, 30 days
-};
-
-const TIER_CITIES = {
-  'Founder Lifetime': 25,
-  'Premium Annual': 10,
-  'Basic Annual': 1,
-};
+const TIER_PRICING = BROKER_TIER_PRICING;
 
 export const subscriptionService = {
   // Get tier pricing and details
   getTierInfo(tier: BrokerTier) {
     return {
       ...TIER_PRICING[tier],
-      cities: TIER_CITIES[tier],
+      cities: BROKER_TIER_FEATURES[tier].cities,
     };
   },
 
@@ -43,25 +34,43 @@ export const subscriptionService = {
         renewalAt = new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
       }
 
+      // upsert, not insert: broker_id is unique, and a broker upgrading from
+      // Free already has a row here (created at free signup — see
+      // createFreeSubscription) that this needs to replace rather than
+      // collide with.
       const { data, error } = await supabase
         .from('subscriptions')
-        .insert({
-          broker_id: brokerId,
-          stripe_customer_id: stripeCustomerId,
-          stripe_subscription_id: stripeSubscriptionId,
-          tier,
-          price: tierInfo.price,
-          currency: tierInfo.currency,
-          billing_cycle: billingCycle,
-          started_at: startedAt,
-          renewal_at: renewalAt,
-          refund_eligible_until: refundEligibleUntil,
-          status: 'active',
-        })
+        .upsert(
+          {
+            broker_id: brokerId,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: stripeSubscriptionId,
+            tier,
+            price: tierInfo.price,
+            currency: tierInfo.currency,
+            billing_cycle: billingCycle,
+            started_at: startedAt,
+            renewal_at: renewalAt,
+            refund_eligible_until: refundEligibleUntil,
+            status: 'active',
+          },
+          { onConflict: 'broker_id' }
+        )
         .select()
         .single();
 
       if (error) throw error;
+
+      // broker_profiles.tier is a separate column (set once at signup —
+      // see broker.service.ts's createProfile) that nothing else updates on
+      // its own, so it would keep reporting the pre-upgrade tier forever.
+      const { error: profileError } = await supabase
+        .from('broker_profiles')
+        .update({ tier })
+        .eq('user_id', brokerId);
+      if (profileError) {
+        console.error('Failed to sync broker_profiles.tier after subscription change:', profileError.message);
+      }
 
       return { success: true, subscription: data as Subscription };
     } catch (error) {
@@ -70,6 +79,13 @@ export const subscriptionService = {
         error: parseSupabaseError(error),
       };
     }
+  },
+
+  // Activate the Free tier — no Stripe involved, so this never goes through
+  // checkout.tsx. stripe_customer_id is NOT NULL in the schema even though
+  // there's no real Stripe customer here, hence the sentinel value.
+  async createFreeSubscription(brokerId: string) {
+    return this.createSubscription(brokerId, 'free_tier', null as unknown as string, 'Basic Annual', 'annual');
   },
 
   // Get subscription for a broker

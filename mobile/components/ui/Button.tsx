@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import { theme } from '../../theme';
 
 interface ButtonProps {
   onPress: () => void;
@@ -32,7 +33,7 @@ export function Button({
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' ? '#2563EB' : '#FFFFFF'} />
+        <ActivityIndicator color={variant === 'outline' ? theme.color.accent : theme.color.onAccent} />
       ) : (
         <Text style={[styles.text, styles[`text_${variant}`], styles[`text_${size}`], textStyle]}>
           {title}
@@ -44,68 +45,70 @@ export function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
+    borderRadius: theme.radius.full,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
   },
-  // Variants
+  // Variants — no colour left to distinguish primary/secondary/danger, so
+  // fill vs. outline vs. wash is what carries the difference (see theme.ts's
+  // note that state is carried by weight and ring width, not colour).
   primary: {
-    backgroundColor: '#2563EB',
+    backgroundColor: theme.color.accent,
   },
   secondary: {
-    backgroundColor: '#10B981',
+    backgroundColor: theme.color.accentWash,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: '#2563EB',
+    borderColor: theme.color.accent,
   },
   danger: {
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.color.danger,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   // Sizes
   size_small: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    minHeight: 32,
+    paddingVertical: theme.space.sm,
+    paddingHorizontal: theme.space.md,
+    minHeight: theme.size.tapMin,
   },
   size_medium: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minHeight: 44,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.lg,
+    minHeight: theme.size.control,
   },
   size_large: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    minHeight: 56,
+    paddingVertical: theme.space.lg,
+    paddingHorizontal: theme.space.xl,
+    minHeight: theme.size.cta,
   },
   // Text
   text: {
-    fontWeight: '600',
+    fontFamily: theme.font.bodySemibold,
   },
   text_primary: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
   },
   text_secondary: {
-    color: '#FFFFFF',
+    color: theme.color.accentInk,
   },
   text_outline: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   text_danger: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
   },
   text_small: {
-    fontSize: 14,
+    fontSize: theme.type.meta.fontSize,
   },
   text_medium: {
-    fontSize: 16,
+    fontSize: theme.type.label.fontSize,
   },
   text_large: {
-    fontSize: 18,
+    fontSize: theme.type.body.fontSize,
   },
 });

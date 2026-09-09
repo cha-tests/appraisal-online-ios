@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SectionList,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -16,12 +17,22 @@ import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/auth.store';
 import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
+import { formatCurrency } from '../../config/marketConfig';
+import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 
 interface LeadWithRouting extends Lead {
   delivery_status?: string;
   delivery_channel?: string;
   delivery_timestamp?: string;
+  property?: { address_components?: { country_code?: string } };
+  // Only present when the consumer opted in AND attached a title — see
+  // Clause 5/6 of the Sep 1 spec. A self-reported flag, never verified by
+  // the platform itself (see BROKER_DISCLAIMER_TEXT).
+  report?: { title_url?: string };
 }
+
+const showTitleBadgeInfo = () =>
+  Alert.alert('About the title badge', BROKER_DISCLAIMER_TEXT);
 
 export default function LeadInbox() {
   const router = useRouter();
@@ -42,7 +53,9 @@ export default function LeadInbox() {
         // Fetch leads routed to this broker
         const { data: leadRoutings } = await supabase
           .from('lead_routings')
-          .select('*, lead:lead_id(*)')
+          .select(
+            '*, lead:lead_id(*, property:property_id(address_components), report:report_id(title_url))'
+          )
           .eq('broker_id', user.id)
           .order('created_at', { ascending: false });
 
@@ -133,10 +146,19 @@ export default function LeadInbox() {
         <View>
           <Text style={styles.leadItemAddress}>{item.property_address}</Text>
           <Text style={styles.leadItemEmail}>{item.consumer_email}</Text>
+          {item.report?.title_url ? (
+            <TouchableOpacity style={styles.titleBadge} onPress={showTitleBadgeInfo}>
+              <Text style={styles.titleBadgeText}>✓ Title on file</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.titleBadgeMuted}>
+              <Text style={styles.titleBadgeMutedText}>No title yet</Text>
+            </View>
+          )}
         </View>
         <View style={styles.leadItemRight}>
           <Text style={styles.leadItemValue}>
-            ${(item.property_value ? item.property_value / 100 : 0).toLocaleString()}
+            {formatCurrency(item.property_value || 0, item.property?.address_components?.country_code)}
           </Text>
           <View
             style={[
@@ -314,6 +336,34 @@ const styles = StyleSheet.create({
   leadItemEmail: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  titleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 6,
+  },
+  titleBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  titleBadgeMuted: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#E5E7EB',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 6,
+  },
+  titleBadgeMutedText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
   },
   leadItemRight: {
     alignItems: 'flex-end',

@@ -7,6 +7,9 @@ import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { useAuthStore } from '../../stores/auth.store';
 import { supabase, signOut } from '../../services/supabase';
+import { reportService } from '../../services/report.service';
+import { Report } from '../../types';
+import { beginSignOut } from '../../utils/signOutGuard';
 
 export default function ConsumerSettings() {
   const router = useRouter();
@@ -15,9 +18,15 @@ export default function ConsumerSettings() {
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
-    brokerContact: true,
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Broker contact is opted in per report (see broker-optins.tsx), not one
+  // global preference, so "manage" means listing the reports it's currently
+  // on and letting each be revoked individually — not a single switch.
+  const [connectedReports, setConnectedReports] = useState<Report[]>([]);
+  const [loadingConnected, setLoadingConnected] = useState(true);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -48,6 +57,55 @@ export default function ConsumerSettings() {
 
     loadPreferences();
   }, [user?.id]);
+
+  useEffect(() => {
+    const loadConnectedReports = async () => {
+      try {
+        if (!user?.id) return;
+
+        setLoadingConnected(true);
+        const { success, reports } = await reportService.getUserReports(user.id);
+        if (success && reports) {
+          setConnectedReports(reports.filter((r) => r.broker_contact_opted_in));
+        }
+      } catch (err) {
+        console.error('Error loading connected reports:', err);
+      } finally {
+        setLoadingConnected(false);
+      }
+    };
+
+    loadConnectedReports();
+  }, [user?.id]);
+
+  const handleRevoke = (report: Report) => {
+    Alert.alert(
+      'Revoke Broker Contact',
+      `Professionals will no longer be able to reach out about ${report.property?.address || 'this property'}. This can't be undone from here — you'd need to opt in again from the report.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRevokingId(report.id);
+              const result = await reportService.updateBrokerOptIn(report.id, false);
+              if (result.success) {
+                setConnectedReports((prev) => prev.filter((r) => r.id !== report.id));
+              } else {
+                Alert.alert('Error', result.error?.message || 'Failed to revoke broker contact');
+              }
+            } catch (err) {
+              Alert.alert('Error', 'Failed to revoke broker contact');
+            } finally {
+              setRevokingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleSave = async () => {
     try {
@@ -86,9 +144,10 @@ export default function ConsumerSettings() {
         text: 'Sign Out',
         onPress: async () => {
           try {
+            beginSignOut();
             await signOut();
             useAuthStore.getState().clear();
-            router.replace('/auth/login');
+            router.replace('/welcome');
           } catch (err) {
             Alert.alert('Error', 'Failed to sign out. Please try again.');
           }
@@ -152,18 +211,46 @@ export default function ConsumerSettings() {
         </View>
       </Card>
 
-      <Card variant="default" style={styles.preferencesCard}>
-        <View style={styles.preferenceRow}>
-          <View>
-            <Text style={styles.preferenceLabel}>Broker Contact</Text>
-            <Text style={styles.preferenceHelper}>Allow professionals to reach you</Text>
-          </View>
-          <Toggle
-            value={notifications.brokerContact}
-            onToggle={(val) => setNotifications((prev) => ({ ...prev, brokerContact: val }))}
-          />
-        </View>
-      </Card>
+      {/* Broker Contact — per report, not a single global switch, since
+          that's how it was opted into in the first place (see
+          broker-optins.tsx). */}
+      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Broker Contact</Text>
+
+      {loadingConnected ? (
+        <ActivityIndicator color="#2563EB" style={{ marginVertical: 12 }} />
+      ) : connectedReports.length > 0 ? (
+        <>
+          <Text style={styles.brokerContactHelper}>
+            Professionals can currently reach out about these properties. Revoke access anytime.
+          </Text>
+          {connectedReports.map((report) => (
+            <Card key={report.id} variant="default" style={styles.connectedReportCard}>
+              <View style={styles.connectedReportRow}>
+                <View style={styles.connectedReportInfo}>
+                  <Text style={styles.connectedReportAddress} numberOfLines={1}>
+                    {report.property?.address || 'Property'}
+                  </Text>
+                  <Text style={styles.connectedReportStatus}>✓ Connected</Text>
+                </View>
+                <Button
+                  title="Revoke"
+                  variant="outline"
+                  size="small"
+                  onPress={() => handleRevoke(report)}
+                  loading={revokingId === report.id}
+                  disabled={revokingId !== null}
+                />
+              </View>
+            </Card>
+          ))}
+        </>
+      ) : (
+        <Card variant="outlined" style={styles.emptyConnectedCard}>
+          <Text style={styles.emptyConnectedText}>
+            You haven't opted in to broker contact on any report.
+          </Text>
+        </Card>
+      )}
 
       {/* Privacy */}
       <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Privacy & Data</Text>
@@ -326,6 +413,45 @@ const styles = StyleSheet.create({
   preferenceHelper: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  brokerContactHelper: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  connectedReportCard: {
+    marginBottom: 10,
+    paddingVertical: 12,
+  },
+  connectedReportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  connectedReportInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  connectedReportAddress: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  connectedReportStatus: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
+  },
+  emptyConnectedCard: {
+    backgroundColor: '#F9FAFB',
+    marginBottom: 12,
+  },
+  emptyConnectedText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
   },
   privacyCard: {
     backgroundColor: '#F0F9FF',

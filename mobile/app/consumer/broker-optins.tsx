@@ -1,28 +1,90 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
+import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Toggle } from '../../components/ui/Toggle';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
+import { useRequireAccount } from '../../hooks/useRequireAccount';
+import { disclaimerService } from '../../services/disclaimer.service';
+import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { CLIENT_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_VERSION } from '../../config/disclaimers';
+
+/** A compact Yes/No pair for the ownership/selling-intent questions. */
+function YesNoRow({
+  value,
+  onChange,
+}: {
+  value: boolean | null;
+  onChange: (val: boolean) => void;
+}) {
+  return (
+    <View style={styles.yesNoRow}>
+      <TouchableOpacity
+        style={[styles.yesNoOption, value === true && styles.yesNoOptionActive]}
+        onPress={() => onChange(true)}
+      >
+        <Text style={[styles.yesNoText, value === true && styles.yesNoTextActive]}>Yes</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.yesNoOption, value === false && styles.yesNoOptionActive]}
+        onPress={() => onChange(false)}
+      >
+        <Text style={[styles.yesNoText, value === false && styles.yesNoTextActive]}>No</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export default function BrokerOptins() {
   const router = useRouter();
+  useRequireAccount();
   const report = useReportStore((state) => state.currentReport);
-  // Collected once at signup (see auth/signup.tsx) so it doesn't need to be
-  // re-typed here — this screen's opt-in toggle is what actually gates
-  // whether it ever gets shared, not whether it's on file.
+  const setCurrentReport = useReportStore((state) => state.setCurrentReport);
+  // Collected at signup (see auth/signup.tsx) as a starting value — shown
+  // here as an editable field (not read-only) so a wrong number or a
+  // different country code can be corrected before sharing it with a
+  // professional. This screen's opt-in toggle is what actually gates whether
+  // it ever gets shared, not whether it's on file.
   const savedPhone = useAuthStore((state) => state.user?.phone);
   const [optedIn, setOptedIn] = useState(false);
-  // Fallback manual entry only for accounts that predate phone-at-signup
-  // (savedPhone is empty) — new consumers never see this field.
-  const [phone, setPhone] = useState('');
+  // Gates "Yes, Connect Me" only — declining doesn't involve a broker, so it
+  // isn't required on that path. See config/disclaimers.ts for the text.
+  const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
+  const userId = useAuthStore((state) => state.user?.id);
+  // Optional — Clause 5 of the Sep 1 spec doesn't require a phone number to
+  // connect with a broker (email is always on file). Pre-filled from
+  // savedPhone when it exists, blank for accounts that predate phone-at-signup.
+  const [phone, setPhone] = useState(savedPhone || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Only ever asked here, alongside the broker opt-in — never on the
+  // initial appraisal flow. All optional: none of these gate "Yes, Connect
+  // Me" the way the disclaimer checkbox does (see Clause 5 of the Sep 1
+  // spec — "don't require that yet... it's only for serious sellers").
+  const [isOwner, setIsOwner] = useState<boolean | null>(null);
+  const [intendsToSell, setIntendsToSell] = useState<boolean | null>(null);
+  const [titleUri, setTitleUri] = useState<string | null>(null);
+
+  const pickTitlePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Photo library access is needed to attach your title.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+    if (!result.canceled && result.assets?.[0]) {
+      setTitleUri(result.assets[0].uri);
+    }
+  };
 
   if (!report) {
     return (
@@ -35,18 +97,61 @@ export default function BrokerOptins() {
     );
   }
 
+  // Already decided for this report (e.g. navigating back here after
+  // continuing) — show what they agreed to rather than the toggle again.
+  // Withdrawing stays possible, just not from this one-time signup step;
+  // see account.tsx settings.
+  if (report.broker_contact_opted_in) {
+    return (
+      <SafeAreaWrapper scrollable>
+        <BackButton onPress={() => router.push('/consumer/report-view')} />
+        <View style={styles.header}>
+          <Text style={styles.title}>Want professional help?</Text>
+        </View>
+
+        <Card variant="elevated" style={styles.connectedCard}>
+          <Text style={styles.connectedTitle}>✓ You're Connected</Text>
+          <Text style={styles.connectedText}>
+            You opted in to have local professionals contact you about this property. A
+            qualified professional will reach out within 24-48 hours.
+          </Text>
+          <Text style={styles.connectedHelper}>
+            Want to change this? You can manage broker contact anytime from your account
+            settings.
+          </Text>
+        </Card>
+
+        <View style={styles.footer}>
+          <Button
+            title="Continue"
+            size="large"
+            onPress={() => router.push('/consumer/report-view')}
+          />
+        </View>
+      </SafeAreaWrapper>
+    );
+  }
+
   const handleContinue = async () => {
     try {
-      setLoading(true);
       setError('');
+
+      if (optedIn && !disclaimerAcknowledged) {
+        setError('Please acknowledge the notice above before connecting with a broker.');
+        return;
+      }
+
+      setLoading(true);
 
       let phoneToSave: string | undefined;
       if (optedIn) {
-        if (savedPhone) {
-          // Already validated at signup — nothing to re-check here.
-          phoneToSave = savedPhone;
-        } else if (phone) {
-          // Legacy-account fallback path only (see savedPhone comment above).
+        if (userId) {
+          await disclaimerService.acceptDisclaimer(userId, 'client', CLIENT_DISCLAIMER_VERSION, {
+            report_id: report.id,
+          });
+        }
+        if (phone) {
+          // Optional — only validated when they've actually entered something.
           const digitCount = phone.replace(/\D/g, '').length;
           if (digitCount < 7 || digitCount > 15) {
             setError('Please enter a valid mobile number');
@@ -56,11 +161,34 @@ export default function BrokerOptins() {
         }
       }
 
+      // Title upload is optional and never blocks continuing — if it fails,
+      // the opt-in itself should still go through.
+      let titleUrl: string | undefined;
+      if (optedIn && titleUri && userId) {
+        const uploaded = await reportService.uploadTitleDocument(userId, report.id, titleUri);
+        if (uploaded.success && uploaded.path) {
+          titleUrl = uploaded.path;
+        } else {
+          console.error('Title upload failed (non-blocking):', uploaded.error);
+        }
+      }
+
       // Update report with opt-in status
-      const result = await reportService.updateBrokerOptIn(report.id, optedIn, phoneToSave);
+      const result = await reportService.updateBrokerOptIn(
+        report.id,
+        optedIn,
+        phoneToSave,
+        optedIn ? isOwner ?? undefined : undefined,
+        optedIn ? intendsToSell ?? undefined : undefined,
+        titleUrl
+      );
 
       if (result.success) {
-        router.push('/consumer/confirmation');
+        // Without this, confirmation.tsx (and anywhere else reading
+        // currentReport) keeps showing the stale pre-opt-in state — the
+        // store was never told the update actually happened.
+        if (result.report) setCurrentReport(result.report);
+        router.push('/consumer/report-view');
       } else {
         setError(result.error?.message || 'Failed to save preferences');
       }
@@ -75,8 +203,9 @@ export default function BrokerOptins() {
     try {
       setLoading(true);
       // Update report with opt-out
-      await reportService.updateBrokerOptIn(report.id, false);
-      router.push('/consumer/confirmation');
+      const result = await reportService.updateBrokerOptIn(report.id, false);
+      if (result.report) setCurrentReport(result.report);
+      router.push('/consumer/report-view');
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -86,6 +215,7 @@ export default function BrokerOptins() {
 
   return (
     <SafeAreaWrapper scrollable>
+      <BackButton onPress={() => router.push('/consumer/report-view')} />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Want professional help?</Text>
@@ -93,16 +223,6 @@ export default function BrokerOptins() {
           Optionally connect with local real estate professionals who can provide guidance on your property.
         </Text>
       </View>
-
-      {/* Licensing Reminder */}
-      <Card variant="outlined" style={styles.licenseCard}>
-        <Text style={styles.licenseTitle}>⚠️ Verify Before You Engage</Text>
-        <Text style={styles.licenseText}>
-          Only work with licensed real estate brokers, agencies, and appraisers. Ask for
-          proof of license and verify it with your local regulatory authority before
-          sharing personal information or signing anything.
-        </Text>
-      </Card>
 
       {/* Opt-in Card */}
       <Card variant="elevated" style={styles.optInCard}>
@@ -114,34 +234,63 @@ export default function BrokerOptins() {
         </View>
       </Card>
 
-      {/* Phone: saved-at-signup number shown read-only, or a fallback entry
-          field for accounts created before phone-at-signup existed. */}
+      {/* Editable so a wrong number or country code (from signup) can be
+          corrected here — optional, so leaving it blank doesn't block
+          continuing (see handleContinue). */}
       {optedIn && (
         <View style={styles.phoneSection}>
-          {savedPhone ? (
-            <>
-              <Text style={styles.phoneLabel}>We'll share this number</Text>
-              <Text style={styles.savedPhoneValue}>{savedPhone}</Text>
-              <Text style={styles.phoneHelper}>
-                Only shared with a professional because you're opting in here.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
-              <TextInput
-                placeholder="(555) 123-4567"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-                error={error && error.includes('mobile number') ? error : undefined}
-              />
-              <Text style={styles.phoneHelper}>
-                We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
-              </Text>
-            </>
-          )}
+          <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
+          <PhoneInput
+            value={phone}
+            onChangeText={setPhone}
+            error={error && error.includes('mobile number') ? error : undefined}
+          />
+          <Text style={styles.phoneHelper}>
+            We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
+          </Text>
         </View>
+      )}
+
+      {/* Ownership, selling intent, and an optional title upload — Clause 5
+          of the Sep 1 spec. None of these gate continuing; the title in
+          particular is purely an incentive ("brokers prioritize properties
+          with titles"), not a requirement. */}
+      {optedIn && (
+        <View style={styles.qualifySection}>
+          <View style={styles.qualifyRow}>
+            <Text style={styles.qualifyLabel}>Are you the owner of this property?</Text>
+            <YesNoRow value={isOwner} onChange={setIsOwner} />
+          </View>
+
+          <View style={styles.qualifyRow}>
+            <Text style={styles.qualifyLabel}>Are you selling this property?</Text>
+            <YesNoRow value={intendsToSell} onChange={setIntendsToSell} />
+          </View>
+
+          <Text style={styles.titleLabel}>Land Title (Optional)</Text>
+          <TouchableOpacity style={styles.titleUploadBox} onPress={pickTitlePhoto}>
+            {titleUri ? (
+              <Image source={{ uri: titleUri }} style={styles.titlePreview} />
+            ) : (
+              <Text style={styles.titleUploadPrompt}>Tap to attach a photo of your land title</Text>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.titleHelper}>
+            Not required — but properties with a title on file are prioritized by our broker
+            network. We don't verify titles ourselves; brokers review what's submitted.
+          </Text>
+        </View>
+      )}
+
+      {/* Required before "Yes, Connect Me" — see handleContinue. */}
+      {optedIn && (
+        <DisclaimerNotice
+          title="⚠️ Before You Connect"
+          text={CLIENT_DISCLAIMER_TEXT}
+          showPrcLink
+          acknowledged={disclaimerAcknowledged}
+          onToggleAcknowledged={setDisclaimerAcknowledged}
+        />
       )}
 
       {/* Benefits Card */}
@@ -168,7 +317,7 @@ export default function BrokerOptins() {
       </Card>
 
       {/* Error Message */}
-      {error && !error.includes('mobile number') && (
+      {!!error && !error.includes('mobile number') && (
         <Text style={styles.errorMessage}>{error}</Text>
       )}
 
@@ -214,24 +363,30 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     lineHeight: 24,
   },
-  licenseCard: {
-    marginBottom: 24,
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FCD34D',
-  },
-  licenseTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#92400E',
-    marginBottom: 6,
-  },
-  licenseText: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
-  },
   optInCard: {
     marginBottom: 24,
+  },
+  connectedCard: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBDFD4',
+    marginBottom: 24,
+  },
+  connectedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#047857',
+    marginBottom: 10,
+  },
+  connectedText: {
+    fontSize: 14,
+    color: '#065F46',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  connectedHelper: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -253,21 +408,81 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 12,
   },
-  savedPhoneValue: {
-    fontSize: 16,
-    color: '#1F2937',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
   phoneHelper: {
     fontSize: 13,
     color: '#6B7280',
     marginTop: 8,
     lineHeight: 18,
+  },
+  qualifySection: {
+    marginBottom: 24,
+  },
+  qualifyRow: {
+    marginBottom: 16,
+  },
+  qualifyLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 10,
+  },
+  yesNoRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  yesNoOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  yesNoOptionActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#DBEAFE',
+  },
+  yesNoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  yesNoTextActive: {
+    color: '#2563EB',
+  },
+  titleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 10,
+  },
+  titleUploadBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    minHeight: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  titleUploadPrompt: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  titlePreview: {
+    width: '100%',
+    height: 140,
+  },
+  titleHelper: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 8,
+    lineHeight: 17,
   },
   benefitsTitle: {
     fontSize: 16,

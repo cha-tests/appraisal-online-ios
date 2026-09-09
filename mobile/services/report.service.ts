@@ -380,16 +380,19 @@ export const reportService = {
   // Fetch all reports for a user
   async getUserReports(userId: string, limit = 20, offset = 0) {
     try {
+      // account.tsx lists these by address, not just value — the reports
+      // table itself has no address column, so it lives on the joined
+      // property row instead (see properties.address).
       const { data, error } = await supabase
         .from('reports')
-        .select('*')
+        .select('*, property:property_id(address, address_components)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (error) throw error;
 
-      return { success: true, reports: data as Report[] };
+      return { success: true, reports: data as unknown as Report[] };
     } catch (error) {
       return {
         success: false,
@@ -398,24 +401,80 @@ export const reportService = {
     }
   },
 
-  // Update broker contact opt-in
-  async updateBrokerOptIn(reportId: string, optedIn: boolean, phone?: string) {
+  /**
+   * Uploads an optional land-title photo to the private 'property-documents'
+   * bucket at <user_id>/<report_id>/title.jpg — RLS (migration 017) scopes
+   * read access to the owning consumer and, separately, to a broker with an
+   * actual lead_routings row for this report. Returns the storage path
+   * (not a public URL, since the bucket is private) for updateBrokerOptIn.
+   */
+  async uploadTitleDocument(
+    userId: string,
+    reportId: string,
+    fileUri: string
+  ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
+      const response = await fetch(fileUri);
+      const blob = await response.blob();
+      const path = `${userId}/${reportId}/title.jpg`;
+
+      const { error } = await supabase.storage.from('property-documents').upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+      if (error) throw error;
+      return { success: true, path };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload title document',
+      };
+    }
+  },
+
+  // Update broker contact opt-in. isOwner/intendsToSell/titleUrl are only
+  // ever asked alongside this opt-in (see broker-optins.tsx) — never on the
+  // initial appraisal — and are all optional; omitting them leaves the
+  // corresponding column untouched rather than clearing it.
+  async updateBrokerOptIn(
+    reportId: string,
+    optedIn: boolean,
+    phone?: string,
+    isOwner?: boolean,
+    intendsToSell?: boolean,
+    titleUrl?: string
+  ) {
+    try {
+      const updates: Record<string, unknown> = {
+        broker_contact_opted_in: optedIn,
+        phone_provided: phone || null,
+      };
+      if (isOwner !== undefined) updates.is_owner = isOwner;
+      if (intendsToSell !== undefined) updates.intends_to_sell = intendsToSell;
+      if (titleUrl) {
+        updates.title_url = titleUrl;
+        updates.title_submitted_at = new Date().toISOString();
+      }
+
       const { data, error } = await supabase
         .from('reports')
-        .update({
-          broker_contact_opted_in: optedIn,
-          phone_provided: phone || null,
-        })
+        .update(updates)
         .eq('id', reportId)
         .select()
         .single();
 
       if (error) throw error;
 
-      // If opted in, create a lead
       if (optedIn && data.property_id) {
+        // If opted in, create a lead
         await this.createLeadFromReport(reportId, data.user_id, data.property_id);
+      } else if (!optedIn) {
+        // Revoking (or declining outright) — archive any lead already
+        // created for this report so a broker who was routed to it stops
+        // seeing it as active. A no-op if none exists yet (the initial
+        // decline path, before any lead was ever created).
+        await supabase.from('leads').update({ status: 'archived' }).eq('report_id', reportId);
       }
 
       return { success: true, report: data as Report };
@@ -535,6 +594,20 @@ function buildValuationPrompt(
   const currencyName = CURRENCY_NAMES[currency] || currency;
   const distanceUnitName = distanceUnit === 'km' ? 'kilometers' : 'miles';
 
+  const parkingLine =
+    propertyDetails.parking_spaces !== undefined && propertyDetails.parking_spaces !== null
+      ? `\n- Parking Spaces: ${propertyDetails.parking_spaces}`
+      : '';
+
+  // Optional for vacant land (see property-details.tsx's isLand) — 0 is that
+  // field's "left blank" placeholder, not a real year, so it must not reach
+  // the prompt as a literal year (Gemini would otherwise read "Year Built:
+  // 0" as a real, very strange fact about the property).
+  const yearBuiltLine =
+    propertyDetails.year_built && propertyDetails.year_built > 0
+      ? `- Year Built: ${propertyDetails.year_built}\n`
+      : '- Year Built: Not applicable / not provided (vacant land)\n';
+
   return `You are a professional real estate analyst AI. Based on the following property details, produce (1) a structured valuation JSON block — including comparable sales you identify or plausibly estimate for this specific area, using your knowledge of the location — and (2) a full narrative valuation report.
 
 PROPERTY DETAILS:
@@ -542,9 +615,10 @@ PROPERTY DETAILS:
 - Bedrooms: ${propertyDetails.bedrooms}
 - Bathrooms: ${propertyDetails.bathrooms}
 - Square Feet: ${propertyDetails.square_feet}
-- Year Built: ${propertyDetails.year_built}
-- Property Type: ${propertyDetails.property_type}
-- Condition: ${propertyDetails.condition}
+${yearBuiltLine}- Property Type: ${propertyDetails.property_type}
+- Condition: ${propertyDetails.condition}${parkingLine}
+
+CONSISTENCY — READ THIS CAREFULLY: The PROPERTY DETAILS above are the actual, user-provided facts about this specific property. Every part of your response — the JSON block and every section of the narrative report, especially "Property Description" — MUST restate these exact same figures (bedrooms, bathrooms, square footage, year built, property type, condition, parking) with no substitutions, rounding, or invented alternatives. Do not describe a different, generic, or "typical" property for the area instead of the one actually described above — this is the single most common mistake to avoid. If the address itself is hard to place precisely (e.g. a Plus Code or an area with limited data), reason about the neighborhood/location using the address text, but the property's own physical facts always come from PROPERTY DETAILS above, never from assumptions about what's "typical" for that location.
 
 COMPARABLE SALES: You do not have live MLS/transaction data, so you cannot cite verified real sales. Instead, generate exactly 3 plausible comparable sales for streets or areas actually near this address — use real, specific local street/neighborhood names for this location rather than generic placeholders (e.g. real streets in the same subdivision, suburb, or district), with sale prices realistic for that specific area, not just the country as a whole. These represent your best local-market estimate, not verified transactions — do not claim or imply they are confirmed real sales.
 
@@ -686,7 +760,7 @@ function buildMockReportMarkdown(
 This is a **demonstration report** generated without a live AI valuation. The estimated value shown (${formatted}) is calculated directly from the comparable sales below, not from AI analysis.
 
 ## 2. Property Description
-${propertyDetails.property_type || 'Property'} with ${propertyDetails.bedrooms ?? 'N/A'} bedrooms, ${propertyDetails.bathrooms ?? 'N/A'} bathrooms, approximately ${propertyDetails.square_feet ?? 'N/A'} sqft, built ${propertyDetails.year_built ?? 'N/A'}, in **${propertyDetails.condition || 'unspecified'}** condition.
+${propertyDetails.property_type || 'Property'} with ${propertyDetails.bedrooms ?? 'N/A'} bedrooms, ${propertyDetails.bathrooms ?? 'N/A'} bathrooms, approximately ${propertyDetails.square_feet ?? 'N/A'} sqft, built ${propertyDetails.year_built ? propertyDetails.year_built : 'N/A'}, in **${propertyDetails.condition || 'unspecified'}** condition.
 
 ## 3. Location Analysis
 Not available in demonstration mode.

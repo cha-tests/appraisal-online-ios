@@ -8,7 +8,10 @@ import { authService } from '../../services/auth.service';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email?: string }>();
+  const { email, hasPendingValuation } = useLocalSearchParams<{
+    email?: string;
+    hasPendingValuation?: string;
+  }>();
   const [resending, setResending] = useState(false);
 
   const handleResend = async () => {
@@ -44,7 +47,9 @@ export default function VerifyEmailScreen() {
 
       <Card variant="outlined" style={styles.infoCard}>
         <Text style={styles.infoText}>
-          Click the link in that email to activate your account, then come back and sign in.
+          {hasPendingValuation === '1'
+            ? "Click the link in that email to activate your account, then sign in — your valuation is saved and will be waiting for you."
+            : 'Click the link in that email to activate your account, then come back and sign in.'}
         </Text>
       </Card>
 

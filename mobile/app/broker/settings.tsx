@@ -19,6 +19,14 @@ import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { signOut } from '../../services/supabase';
 import { BrokerProfile } from '../../types';
+import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+
+const KYC_STATUS_LABEL: Record<string, string> = {
+  pending: '⏳ Under review',
+  approved: '✅ Verified',
+  rejected: '⚠️ Needs another submission',
+};
 
 const QUIET_HOURS_OPTIONS = [
   '6:00 PM - 8:00 AM',
@@ -317,27 +325,6 @@ export default function BrokerSettings() {
         style={{ marginBottom: 12 }}
       />
 
-      <Button
-        title="Delete My Account"
-        variant="outline"
-        size="medium"
-        onPress={() => {
-          Alert.alert(
-            'Delete Account',
-            'This will permanently delete your account and all data. This cannot be undone.',
-            [
-              { text: 'Cancel' },
-              {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: () =>
-                  Alert.alert('Submitted', 'Your deletion request has been submitted.'),
-              },
-            ]
-          );
-        }}
-      />
-
       {/* Account Information */}
       <Text style={styles.sectionTitle}>ℹ️ Account Information</Text>
 
@@ -349,7 +336,11 @@ export default function BrokerSettings() {
         <View style={styles.infoDivider} />
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Account Type</Text>
-          <Text style={styles.infoValue}>{selectedTier || 'Broker'}</Text>
+          {/* profile?.tier (persisted) rather than selectedTier (only ever
+              set during the live onboarding session, so it reads back as
+              null and falls back to the generic label after any app
+              reload — e.g. right after signing in on a new session). */}
+          <Text style={styles.infoValue}>{profile?.tier || 'Broker'}</Text>
         </View>
         <View style={styles.infoDivider} />
         <View style={styles.infoRow}>
@@ -361,6 +352,58 @@ export default function BrokerSettings() {
           </Text>
         </View>
       </Card>
+
+      {/* Verification status */}
+      <Card variant="default" style={{ marginBottom: 16 }}>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Verification Status</Text>
+          <Text style={styles.infoValue}>
+            {KYC_STATUS_LABEL[profile?.kyc_status || 'pending']}
+          </Text>
+        </View>
+      </Card>
+
+      {/* Upgrade path for a broker who signed up on the Free plan — reuses
+          the same paywall/checkout screens as signup, just entered from
+          here instead. */}
+      {profile?.tier === 'Basic Annual' && (
+        <Card variant="outlined" style={styles.upgradeCard}>
+          <Text style={styles.upgradeTitle}>You're on the Free plan</Text>
+          <Text style={styles.upgradeText}>
+            Upgrade to Premium for real-time lead notifications, an enhanced profile, and
+            quarterly market reports.
+          </Text>
+          <Button
+            title="Upgrade to Premium"
+            size="medium"
+            onPress={() => {
+              useSubscriptionStore.getState().setSelectedTier('Premium Annual');
+              router.push('/broker/paywall');
+            }}
+            style={{ marginTop: 12 }}
+          />
+        </Card>
+      )}
+
+      {/* Standing proof of the founding-member rate lock — the onboarding
+          Alert is a one-time "congratulations" moment; this is the lasting
+          record so it's never just forgotten. Only ever shown when the
+          claim actually succeeded (see migration 015 / claimFoundingMemberSlot). */}
+      {profile?.is_founding_member && (
+        <Card variant="outlined" style={styles.founderCard}>
+          <View style={styles.infoRow}>
+            <Text style={styles.founderLabel}>
+              🎉 Founding Member #{profile.founding_member_number}
+            </Text>
+            <Text style={styles.founderValue}>₱5,000/yr — locked in</Text>
+          </View>
+        </Card>
+      )}
+
+      {/* Re-viewable per the broker disclaimer's placement requirement —
+          read-only here, so no checkbox: that gate already happened once
+          at signup (see broker/onboarding.tsx). */}
+      <DisclaimerNotice title="Platform Disclaimer" text={BROKER_DISCLAIMER_TEXT} />
 
       {/* Save Button */}
       <View style={styles.footer}>
@@ -509,6 +552,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
+  },
+  upgradeCard: {
+    marginBottom: 16,
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  upgradeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  upgradeText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  founderCard: {
+    marginBottom: 16,
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+  },
+  founderLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  founderValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
   },
   infoDivider: {
     height: 1,

@@ -6,11 +6,29 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
+import { formatCurrency } from '../../config/marketConfig';
+import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 
 interface LeadDetail extends Lead {
   property_comparables?: any[];
   consumer_phone?: string;
+  // Populated by loadLeadDetail's join below (property:property_id(*, ...)).
+  property?: {
+    comparables?: any[];
+    address_components?: { country_code?: string };
+  };
+  // Clause 5/6 of the Sep 1 spec — only ever set if the consumer opted in
+  // and answered/attached these. A self-reported flag, never verified by
+  // the platform itself (see BROKER_DISCLAIMER_TEXT).
+  report?: {
+    title_url?: string;
+    is_owner?: boolean;
+    intends_to_sell?: boolean;
+  };
 }
+
+const yesNoLabel = (val: boolean | undefined) =>
+  val === true ? 'Yes' : val === false ? 'No' : 'Not answered';
 
 export default function LeadDetail() {
   const router = useRouter();
@@ -20,6 +38,7 @@ export default function LeadDetail() {
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [openingTitle, setOpeningTitle] = useState(false);
 
   useEffect(() => {
     const loadLeadDetail = async () => {
@@ -30,10 +49,17 @@ export default function LeadDetail() {
 
         setLoading(true);
 
-        // Fetch lead with property and report details
+        // Fetch lead with property and report details. report:report_id(...)
+        // is the correct join (leads.report_id -> reports.id) for the
+        // title/ownership fields — kept separate from the existing
+        // property:property_id(*, report:id(...)) embed above, which reads
+        // comparables/estimated_value through a different (pre-existing)
+        // path this change doesn't touch.
         const { data, error } = await supabase
           .from('leads')
-          .select('*, property:property_id(*, report:id(comparables, estimated_value))')
+          .select(
+            '*, property:property_id(*, report:id(comparables, estimated_value)), report:report_id(title_url, is_owner, intends_to_sell)'
+          )
           .eq('id', leadId)
           .single();
 
@@ -88,6 +114,29 @@ export default function LeadDetail() {
     }
   };
 
+  // The bucket is private, so viewing the file means signing a short-lived
+  // URL on demand rather than storing/using a public one. RLS (migration
+  // 017) only allows this for a broker with an actual lead_routings row for
+  // this report, matching the same scoping the badge itself relies on.
+  const handleViewTitle = async () => {
+    if (!lead?.report?.title_url) return;
+    try {
+      setOpeningTitle(true);
+      const { data, error } = await supabase.storage
+        .from('property-documents')
+        .createSignedUrl(lead.report.title_url, 300);
+      if (error || !data?.signedUrl) throw error || new Error('No signed URL returned');
+      Linking.openURL(data.signedUrl);
+    } catch (err) {
+      console.error('Error opening title document:', err);
+      Alert.alert('Error', 'Failed to open the title document');
+    } finally {
+      setOpeningTitle(false);
+    }
+  };
+
+  const showTitleBadgeInfo = () => Alert.alert('About the title badge', BROKER_DISCLAIMER_TEXT);
+
   if (loading) {
     return (
       <SafeAreaWrapper>
@@ -132,7 +181,7 @@ export default function LeadDetail() {
       <Card variant="elevated" style={styles.propertyCard}>
         <Text style={styles.propertyAddress}>{lead.property_address}</Text>
         <Text style={styles.propertyValue}>
-          ${(lead.property_value ? lead.property_value / 100 : 0).toLocaleString()}
+          {formatCurrency(lead.property_value || 0, lead.property?.address_components?.country_code)}
         </Text>
         <Text style={styles.propertyMeta}>
           Estimated valuation based on comparable sales
@@ -162,6 +211,41 @@ export default function LeadDetail() {
           <Text style={styles.infoValue}>
             {new Date(lead.created_at).toLocaleDateString()}
           </Text>
+        </View>
+      </Card>
+
+      {/* Seller Details — Clause 5/6 of the Sep 1 spec. Only ever set if
+          the consumer opted in to broker contact; otherwise every field
+          here reads "Not answered" / no title. */}
+      <View style={styles.sectionTitleRow}>
+        <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Seller Details</Text>
+        <TouchableOpacity onPress={showTitleBadgeInfo}>
+          <Text style={styles.infoIcon}>ⓘ</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Card variant="default" style={styles.infoCard}>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Owner of property</Text>
+          <Text style={styles.infoValue}>{yesNoLabel(lead.report?.is_owner)}</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Selling</Text>
+          <Text style={styles.infoValue}>{yesNoLabel(lead.report?.intends_to_sell)}</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Land title</Text>
+          {lead.report?.title_url ? (
+            <TouchableOpacity onPress={handleViewTitle} disabled={openingTitle}>
+              <Text style={styles.titleLink}>
+                {openingTitle ? 'Opening…' : '✓ On file — View'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.infoValueMuted}>Not provided</Text>
+          )}
         </View>
       </Card>
 
@@ -197,7 +281,7 @@ export default function LeadDetail() {
                 <View style={styles.comparableDetail}>
                   <Text style={styles.comparableDetailLabel}>Sale Price</Text>
                   <Text style={styles.comparableDetailValue}>
-                    ${(comp.sale_price / 100).toLocaleString()}
+                    {formatCurrency(comp.sale_price, lead.property?.address_components?.country_code)}
                   </Text>
                 </View>
                 <View style={styles.comparableDetail}>
@@ -346,6 +430,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 20,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  infoIcon: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    fontWeight: '700',
+  },
   infoCard: {
     marginBottom: 24,
   },
@@ -364,6 +460,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1F2937',
     fontWeight: '600',
+  },
+  infoValueMuted: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '600',
+  },
+  titleLink: {
+    fontSize: 14,
+    color: '#166534',
+    fontWeight: '700',
   },
   divider: {
     height: 1,

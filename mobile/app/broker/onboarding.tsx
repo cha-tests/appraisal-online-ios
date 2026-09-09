@@ -1,27 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
+import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
+import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
-import { BrokerTier, City } from '../../types';
+import { disclaimerService } from '../../services/disclaimer.service';
+import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
+import { BrokerTier, BrokerRole, City } from '../../types';
 
-const TIERS: BrokerTier[] = ['Founder Lifetime', 'Premium Annual', 'Basic Annual'];
+const TOTAL_STEPS = 5;
+// Only these two are offered at signup for now, per the Sep 1 pricing
+// decision (₱5,000/year flat, no city cap yet) — 'Founder Lifetime' still
+// exists as a BrokerTier value (other screens reference it) but isn't
+// offered here until the founder-tier mechanics are actually built.
+const TIERS: BrokerTier[] = ['Basic Annual', 'Premium Annual'];
 // PH is the primary launch market, so it's listed first when both are present.
 const COUNTRY_ORDER = ['PH', 'US'];
 const COUNTRY_LABELS: Record<string, string> = {
   PH: '🇵🇭 Philippines',
   US: '🇺🇸 United States',
 };
+// 'Basic Annual' and 'Premium Annual' are the stored tier values (unchanged,
+// so this needs no database migration) — only their signup-time label and
+// price are repurposed here for the Free / ₱5,000-a-year plan.
 const TIER_DETAILS = {
-  'Founder Lifetime': { cities: 25, price: '$499 one-time', refund: '14 days' },
-  'Premium Annual': { cities: 10, price: '$199/year', refund: '30 days' },
-  'Basic Annual': { cities: 1, price: '$49/year', refund: '30 days' },
+  'Founder Lifetime': { label: 'Founder Lifetime', price: '$499 one-time', refund: '14 days' },
+  'Premium Annual': { label: '₱5,000 Annually', price: '₱5,000/year', refund: '30 days' },
+  'Basic Annual': { label: 'Free', price: 'Free', refund: '30 days' },
 };
 
 export default function BrokerOnboarding() {
@@ -37,6 +50,7 @@ export default function BrokerOnboarding() {
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
+    role: 'broker' as BrokerRole,
     company_name: '',
     license_number: '',
     phone: '',
@@ -46,6 +60,15 @@ export default function BrokerOnboarding() {
     emailEnabled: true,
     pushEnabled: true,
   });
+
+  // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo, held as
+  // local URIs until submit, then uploaded to the private 'kyc-documents'
+  // bucket. disclaimerAcknowledged gates progressing past this step —
+  // brokers can't reach lead access without accepting the broker disclaimer.
+  const [kycIdUri, setKycIdUri] = useState<string | null>(null);
+  const [kycSelfieUri, setKycSelfieUri] = useState<string | null>(null);
+  const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -70,7 +93,7 @@ export default function BrokerOnboarding() {
       }
     };
 
-    if (step === 3) {
+    if (step === 4) {
       fetchCities();
     }
   }, [step]);
@@ -81,7 +104,11 @@ export default function BrokerOnboarding() {
     if (stepNum === 1) {
       if (!formData.company_name.trim()) newErrors.company_name = 'Company name is required';
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
-    } else if (stepNum === 3) {
+    } else if (stepNum === 2) {
+      if (!kycIdUri) newErrors.kycId = 'Upload a photo of a valid ID';
+      if (!kycSelfieUri) newErrors.kycSelfie = 'Take a selfie to verify it matches your ID';
+      if (!disclaimerAcknowledged) newErrors.disclaimer = 'Please acknowledge the notice before continuing';
+    } else if (stepNum === 4) {
       if (formData.selectedCities.length === 0) {
         newErrors.cities = 'Select at least one city';
       }
@@ -89,6 +116,34 @@ export default function BrokerOnboarding() {
 
     setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const pickKycImage = async (kind: 'id' | 'selfie') => {
+    const permission =
+      kind === 'selfie'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        'Permission needed',
+        kind === 'selfie'
+          ? 'Camera access is needed to take a verification selfie.'
+          : 'Photo library access is needed to upload your ID.'
+      );
+      return;
+    }
+
+    const result =
+      kind === 'selfie'
+        ? await ImagePicker.launchCameraAsync({ quality: 0.7, cameraType: ImagePicker.CameraType.front })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+
+    if (!result.canceled && result.assets?.[0]) {
+      if (kind === 'id') setKycIdUri(result.assets[0].uri);
+      else setKycSelfieUri(result.assets[0].uri);
+      setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
+    }
   };
 
   const handleNext = () => {
@@ -101,32 +156,17 @@ export default function BrokerOnboarding() {
     setStep(step - 1);
   };
 
-  const handleCityToggle = async (cityId: string) => {
+  // No per-tier city cap for now ("Lead coverage = no limit for now") — a
+  // broker can select as many cities as they want regardless of plan.
+  const handleCityToggle = (cityId: string) => {
     const currentCities = formData.selectedCities;
-    const tierLimit = TIER_DETAILS[formData.tier].cities;
 
     if (currentCities.includes(cityId)) {
-      // Remove city
       setFormData((prev) => ({
         ...prev,
         selectedCities: prev.selectedCities.filter((c) => c !== cityId),
       }));
     } else {
-      // Check tier limit
-      if (currentCities.length >= tierLimit) {
-        setError(`${formData.tier} allows up to ${tierLimit} ${tierLimit === 1 ? 'city' : 'cities'}`);
-        return;
-      }
-
-      // Check founder capacity (Lifetime only)
-      if (formData.tier === 'Founder Lifetime') {
-        const { available } = await brokerService.checkFounderCapacity(cityId);
-        if (!available) {
-          setError('This city has reached the maximum Founder members. Choose another.');
-          return;
-        }
-      }
-
       setError('');
       setFormData((prev) => ({
         ...prev,
@@ -136,28 +176,74 @@ export default function BrokerOnboarding() {
   };
 
   const handleSubmit = async () => {
-    if (validateStep(4)) {
-      try {
-        // Save selections to Zustand
-        setSelectedTier(formData.tier);
-        setSelectedCities(formData.selectedCities);
+    if (!validateStep(5)) return;
 
-        // Create broker profile if needed
-        const { profile } = await brokerService.getProfile(user?.id || '');
-        if (!profile) {
-          await brokerService.createProfile(
-            user?.id || '',
-            formData.company_name,
-            formData.license_number,
-            formData.phone,
-            formData.website
-          );
+    const userId = user?.id || '';
+    try {
+      setSubmitting(true);
+      setError('');
+
+      // Save selections to Zustand
+      setSelectedTier(formData.tier);
+      setSelectedCities(formData.selectedCities);
+
+      // Create broker profile if needed
+      const { profile } = await brokerService.getProfile(userId);
+      if (!profile) {
+        const created = await brokerService.createProfile(
+          userId,
+          formData.company_name,
+          formData.license_number,
+          formData.phone,
+          formData.website,
+          formData.role,
+          formData.tier
+        );
+        if (!created.success) {
+          throw new Error(created.error?.message || 'Failed to create broker profile');
         }
-
-        router.push('/broker/value-reveal');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
       }
+
+      // KYC — uploads should already exist by the time step 2 was passed,
+      // but re-check defensively rather than trust component state alone.
+      if (!kycIdUri || !kycSelfieUri) {
+        throw new Error('Missing ID or selfie photo — please go back and add both');
+      }
+      const idUpload = await brokerService.uploadKycDocument(userId, kycIdUri, 'id');
+      if (!idUpload.success || !idUpload.path) {
+        throw new Error(idUpload.error || 'Failed to upload ID photo');
+      }
+      const selfieUpload = await brokerService.uploadKycDocument(userId, kycSelfieUri, 'selfie');
+      if (!selfieUpload.success || !selfieUpload.path) {
+        throw new Error(selfieUpload.error || 'Failed to upload selfie');
+      }
+      const kycResult = await brokerService.submitKyc(userId, idUpload.path, selfieUpload.path);
+      if (!kycResult.success) {
+        throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
+      }
+
+      await disclaimerService.acceptDisclaimer(userId, 'broker', BROKER_DISCLAIMER_VERSION);
+
+      // Founding-member rate lock only applies to the paid (₱5,000/year)
+      // plan — the Free plan has nothing to lock. See migration 015.
+      if (formData.tier === 'Premium Annual') {
+        const founding = await brokerService.claimFoundingMemberSlot(userId);
+        if (founding.success && founding.founding_member_number) {
+          await new Promise<void>((resolve) => {
+            Alert.alert(
+              '🎉 You’re a Founding Member!',
+              `You're founding member #${founding.founding_member_number} of 1,000 — your ₱5,000/year rate is locked in for life, even if pricing goes up later.`,
+              [{ text: 'Continue', onPress: () => resolve() }]
+            );
+          });
+        }
+      }
+
+      router.push('/broker/value-reveal');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -171,13 +257,13 @@ export default function BrokerOnboarding() {
             style={[
               styles.progressFill,
               {
-                width: `${(step / 4) * 100}%`,
+                width: `${(step / TOTAL_STEPS) * 100}%`,
               },
             ]}
           />
         </View>
         <Text style={styles.stepIndicator}>
-          Step {step} of 4
+          Step {step} of {TOTAL_STEPS}
         </Text>
       </View>
 
@@ -185,6 +271,26 @@ export default function BrokerOnboarding() {
       {step === 1 && (
         <View>
           <Text style={styles.sectionTitle}>Your Information</Text>
+
+          <Text style={styles.fieldLabel}>I am a</Text>
+          <View style={styles.roleRow}>
+            {(['broker', 'salesperson'] as BrokerRole[]).map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.roleOption, formData.role === r && styles.roleOptionActive]}
+                onPress={() => setFormData((prev) => ({ ...prev, role: r }))}
+              >
+                <Text style={[styles.roleOptionText, formData.role === r && styles.roleOptionTextActive]}>
+                  {r === 'broker' ? 'Broker' : 'Salesperson'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {formData.role === 'broker' ? (
+            <Text style={styles.roleHelper}>You hold a PRC broker license.</Text>
+          ) : (
+            <View style={styles.roleSpacer} />
+          )}
 
           <TextInput
             label="Company Name"
@@ -201,10 +307,8 @@ export default function BrokerOnboarding() {
             onChangeText={(val) => setFormData((prev) => ({ ...prev, license_number: val }))}
           />
 
-          <TextInput
+          <PhoneInput
             label="Phone Number"
-            placeholder="(555) 123-4567"
-            keyboardType="phone-pad"
             value={formData.phone}
             onChangeText={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
             error={formErrors.phone}
@@ -219,8 +323,55 @@ export default function BrokerOnboarding() {
         </View>
       )}
 
-      {/* Step 2: Tier Selection */}
+      {/* Step 2: Identity Verification (KYC) */}
       {step === 2 && (
+        <View>
+          <Text style={styles.sectionTitle}>Verify Your Identity</Text>
+          <Text style={styles.stepDescription}>
+            Every new member goes through a quick verification check before their account is approved for leads.
+          </Text>
+
+          <Text style={styles.fieldLabel}>Valid ID</Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
+            {kycIdUri ? (
+              <Image source={{ uri: kycIdUri }} style={styles.uploadPreview} />
+            ) : (
+              <Text style={styles.uploadPrompt}>Tap to attach a photo of a government ID</Text>
+            )}
+          </TouchableOpacity>
+          {formErrors.kycId ? <Text style={styles.errorMessage}>{formErrors.kycId}</Text> : null}
+
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie</Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
+            {kycSelfieUri ? (
+              <Image source={{ uri: kycSelfieUri }} style={styles.uploadPreview} />
+            ) : (
+              <Text style={styles.uploadPrompt}>Tap to take a selfie</Text>
+            )}
+          </TouchableOpacity>
+          {formErrors.kycSelfie ? <Text style={styles.errorMessage}>{formErrors.kycSelfie}</Text> : null}
+
+          <View style={{ marginTop: 16 }}>
+            <DisclaimerNotice
+              title="⚠️ Before You Get Leads"
+              text={BROKER_DISCLAIMER_TEXT}
+              acknowledged={disclaimerAcknowledged}
+              onToggleAcknowledged={(val) => {
+                setDisclaimerAcknowledged(val);
+                setFormErrors((prev) => ({ ...prev, disclaimer: '' }));
+              }}
+            />
+            {formErrors.disclaimer ? <Text style={styles.errorMessage}>{formErrors.disclaimer}</Text> : null}
+          </View>
+
+          <Text style={styles.kycStatusNote}>
+            A person on our team reviews every submission — approval isn't instant, but you can finish signing up now.
+          </Text>
+        </View>
+      )}
+
+      {/* Step 3: Tier Selection */}
+      {step === 3 && (
         <View>
           <Text style={styles.sectionTitle}>Choose Your Plan</Text>
           <Text style={styles.stepDescription}>
@@ -237,20 +388,20 @@ export default function BrokerOnboarding() {
               }}
             >
               <View style={styles.tierHeader}>
-                <Text style={styles.tierName}>{tier}</Text>
+                <Text style={styles.tierName}>{TIER_DETAILS[tier].label}</Text>
                 <Text style={styles.tierPrice}>{TIER_DETAILS[tier].price}</Text>
               </View>
 
               <View style={styles.tierFeatures}>
+                <Text style={styles.tierFeature}>📍 No limit on lead coverage cities</Text>
                 <Text style={styles.tierFeature}>
-                  📍 Up to {TIER_DETAILS[tier].cities} {TIER_DETAILS[tier].cities === 1 ? 'city' : 'cities'}
+                  💬 {tier === 'Premium Annual' ? 'Real-time' : 'Weekly'} leads
                 </Text>
-                <Text style={styles.tierFeature}>
-                  💬 {tier.includes('Founder') || tier.includes('Premium') ? 'Real-time' : 'Weekly'} leads
-                </Text>
-                <Text style={styles.tierFeature}>
-                  💰 {TIER_DETAILS[tier].refund} money-back guarantee
-                </Text>
+                {tier === 'Premium Annual' && (
+                  <Text style={styles.tierFeature}>
+                    💰 {TIER_DETAILS[tier].refund} money-back guarantee
+                  </Text>
+                )}
               </View>
 
               <View
@@ -264,15 +415,15 @@ export default function BrokerOnboarding() {
         </View>
       )}
 
-      {/* Step 3: City Selection */}
-      {step === 3 && (
+      {/* Step 4: City Selection */}
+      {step === 4 && (
         <View>
           <Text style={styles.sectionTitle}>Select Your Cities</Text>
           <Text style={styles.stepDescription}>
-            Choose up to {TIER_DETAILS[formData.tier].cities} {TIER_DETAILS[formData.tier].cities === 1 ? 'city' : 'cities'} for lead coverage
+            Choose the cities where you'd like lead coverage.
           </Text>
 
-          {error && <Text style={styles.errorMessage}>{error}</Text>}
+          {!!error && <Text style={styles.errorMessage}>{error}</Text>}
 
           {loadingCities ? (
             <View style={styles.loadingContainer}>
@@ -307,35 +458,18 @@ export default function BrokerOnboarding() {
               data={cities.filter((c) => c.country === selectedCountry)}
               renderItem={({ item }) => {
                 const isSelected = formData.selectedCities.includes(item.id);
-                const isFull = item.founder_count_lifetime >= 30 && formData.tier === 'Founder Lifetime';
 
                 return (
                   <TouchableOpacity
-                    style={[
-                      styles.cityItem,
-                      isSelected && styles.cityItemSelected,
-                      isFull && formData.tier === 'Founder Lifetime' && styles.cityItemDisabled,
-                    ]}
+                    style={[styles.cityItem, isSelected && styles.cityItemSelected]}
                     onPress={() => handleCityToggle(item.id)}
-                    disabled={isFull && formData.tier === 'Founder Lifetime'}
                   >
                     <View style={styles.cityItemContent}>
                       <Text style={[styles.cityItemName, isSelected && styles.cityItemNameSelected]}>
                         {item.name}{item.state ? `, ${item.state}` : ''}
                       </Text>
-                      {formData.tier === 'Founder Lifetime' && (
-                        <Text style={styles.cityItemCapacity}>
-                          {item.founder_count_lifetime}/30 founders
-                        </Text>
-                      )}
                     </View>
-                    <View
-                      style={[
-                        styles.cityCheckbox,
-                        isSelected && styles.cityCheckboxActive,
-                        isFull && styles.cityCheckboxDisabled,
-                      ]}
-                    >
+                    <View style={[styles.cityCheckbox, isSelected && styles.cityCheckboxActive]}>
                       {isSelected && <Text style={styles.checkmark}>✓</Text>}
                     </View>
                   </TouchableOpacity>
@@ -348,13 +482,13 @@ export default function BrokerOnboarding() {
           )}
 
           <Text style={styles.cityCount}>
-            Selected: {formData.selectedCities.length} of {TIER_DETAILS[formData.tier].cities}
+            Selected: {formData.selectedCities.length} {formData.selectedCities.length === 1 ? 'city' : 'cities'}
           </Text>
         </View>
       )}
 
-      {/* Step 4: Notifications */}
-      {step === 4 && (
+      {/* Step 5: Notifications */}
+      {step === 5 && (
         <View>
           <Text style={styles.sectionTitle}>Notification Preferences</Text>
 
@@ -404,10 +538,11 @@ export default function BrokerOnboarding() {
             style={{ marginBottom: 12 }}
           />
         )}
-        {step < 4 ? (
+        {error && step === TOTAL_STEPS ? <Text style={styles.errorMessage}>{error}</Text> : null}
+        {step < TOTAL_STEPS ? (
           <Button title="Next" size="large" onPress={handleNext} />
         ) : (
-          <Button title="Review & Continue" size="large" onPress={handleSubmit} />
+          <Button title="Review & Continue" size="large" onPress={handleSubmit} loading={submitting} />
         )}
       </View>
     </SafeAreaWrapper>
@@ -451,6 +586,73 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 16,
     lineHeight: 20,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  roleSpacer: {
+    marginBottom: 20,
+  },
+  roleOption: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  roleOptionActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#DBEAFE',
+  },
+  roleOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  roleOptionTextActive: {
+    color: '#2563EB',
+  },
+  roleHelper: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 20,
+  },
+  uploadBox: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    minHeight: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  uploadPrompt: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  uploadPreview: {
+    width: '100%',
+    height: 160,
+  },
+  kycStatusNote: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 16,
+    textAlign: 'center',
   },
   tierCard: {
     borderWidth: 1,

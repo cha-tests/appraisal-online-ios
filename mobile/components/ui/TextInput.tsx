@@ -1,5 +1,6 @@
 import React from 'react';
-import { TextInput as RNTextInput, StyleSheet, View, Text, ViewStyle } from 'react-native';
+import { TextInput as RNTextInput, StyleSheet, View, Text, StyleProp, ViewStyle } from 'react-native';
+import { theme } from '../../theme';
 
 interface TextInputProps {
   label?: string;
@@ -7,13 +8,14 @@ interface TextInputProps {
   value: string;
   onChangeText: (text: string) => void;
   error?: string;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad';
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad' | 'number-pad';
   secureTextEntry?: boolean;
   maxLength?: number;
   editable?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   multiline?: boolean;
   numberOfLines?: number;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }
 
 export function TextInput({
@@ -29,6 +31,7 @@ export function TextInput({
   style,
   multiline = false,
   numberOfLines = 1,
+  autoCapitalize,
 }: TextInputProps) {
   return (
     <View style={[styles.container, style]}>
@@ -36,7 +39,7 @@ export function TextInput({
       <RNTextInput
         style={[styles.input, error && styles.inputError, !editable && styles.disabled]}
         placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor={theme.color.textFaint}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -45,42 +48,44 @@ export function TextInput({
         editable={editable}
         multiline={multiline}
         numberOfLines={numberOfLines}
+        autoCapitalize={autoCapitalize}
       />
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: theme.space.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 6,
+    ...theme.type.label,
+    color: theme.color.text,
+    marginBottom: theme.space.xs + 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#1F2937',
-    backgroundColor: '#FFFFFF',
+    borderColor: theme.color.border,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.space.md + 2,
+    paddingVertical: theme.space.md,
+    minHeight: theme.size.control,
+    fontFamily: theme.font.body,
+    fontSize: theme.type.body.fontSize,
+    color: theme.color.text,
+    backgroundColor: theme.color.surface,
   },
   inputError: {
-    borderColor: '#EF4444',
+    borderColor: theme.color.danger,
   },
   disabled: {
-    backgroundColor: '#F3F4F6',
-    color: '#9CA3AF',
+    backgroundColor: theme.color.accentWash,
+    color: theme.color.textFaint,
   },
   errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
+    ...theme.type.caption,
+    color: theme.color.danger,
+    marginTop: theme.space.xs,
   },
 });

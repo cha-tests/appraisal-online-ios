@@ -1,66 +1,40 @@
-import { Report, ComparableSale } from '../types';
-import axios from 'axios';
+import { Report, Property } from '../types';
+import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { supabase } from './supabase';
-
-interface PDFGenerationParams {
-  report: Report;
-  comparables: ComparableSale[];
-  propertyAddress: string;
-}
+import { formatCurrency, formatDistance } from '../config/marketConfig';
+import { CLIENT_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
 
 /**
- * PDF generation service for creating downloadable reports
- * Uses server-side PDF generation for security and reliability
+ * PDF generation service. Renders the report entirely on-device (via
+ * expo-print, which turns an HTML string into a real PDF locally) rather
+ * than asking a backend server to build one.
+ *
+ * This used to call a backend endpoint (`GET /api/reports/:id/pdf`), which
+ * meant the phone had to reach whatever machine was running the Express
+ * server — fine on the same Wi-Fi as a dev machine, but a hard stall (no
+ * error, no timeout, just a spinner forever) for anyone testing over
+ * TestFlight from their own network, since that backend was never deployed
+ * anywhere public. Generating locally removes that dependency entirely: the
+ * report data is already fetched from Supabase by the time the user is on
+ * this screen, so there's nothing left to fetch.
  */
 export const pdfService = {
   /**
-   * Generate a PDF report from valuation data
-   * The actual PDF generation happens on the backend
-   */
-  async generateReportPDF(
-    userId: string,
-    reportId: string
-  ): Promise<{ success: boolean; url?: string; error?: string }> {
-    try {
-      const fileName = `appraisal-report-${reportId}-${Date.now()}.pdf`;
-      const fileUri = await downloadPDFToDocuments(reportId, fileName);
-
-      return {
-        success: true,
-        url: fileUri,
-      };
-    } catch (error: any) {
-      console.error('PDF generation error:', error);
-      return {
-        success: false,
-        error: error.response?.data?.message || 'Failed to generate PDF report',
-      };
-    }
-  },
-
-  /**
-   * Download a PDF report to device storage, then hand it to the OS share
+   * Generate a PDF, save it to Documents, then hand it to the OS share
    * sheet so the user can actually get it out of the app's sandbox — saved
    * to Files, AirDropped, emailed, etc. On iOS there's no user-visible
-   * "Downloads" folder for a sandboxed app's Documents directory, so writing
-   * the file alone would leave it reachable only from inside this app.
+   * "Downloads" folder for a sandboxed app's Documents directory, so
+   * writing the file alone would leave it reachable only from inside this
+   * app.
    */
   async downloadReportPDF(
-    userId: string,
-    reportId: string,
+    report: Report,
+    property: Property | null,
     propertyAddress: string
   ): Promise<{ success: boolean; filePath?: string; error?: string }> {
     try {
-      const cleanAddress = propertyAddress
-        .replace(/[^a-z0-9]/gi, '-')
-        .replace(/-+/g, '-')
-        .toLowerCase()
-        .slice(0, 40);
-
-      const fileName = `appraisal-${cleanAddress}-${new Date().getFullYear()}.pdf`;
-      const fileUri = await downloadPDFToDocuments(reportId, fileName);
+      const fileUri = await generateLocalPdf(report, property, propertyAddress);
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
@@ -69,25 +43,25 @@ export const pdfService = {
         });
       }
 
-      return {
-        success: true,
-        filePath: fileUri,
-      };
+      return { success: true, filePath: fileUri };
     } catch (error: any) {
       console.error('PDF download error:', error);
       return {
         success: false,
-        error: error.response?.data?.message || 'Failed to download PDF report',
+        error: error?.message || 'Failed to generate PDF report',
       };
     }
   },
 
   /**
-   * Share a PDF report via system share sheet
+   * Share a PDF report via system share sheet — same generation path as
+   * downloadReportPDF, kept as a separate entry point for a future "Share
+   * PDF" affordance distinct from the plain-text share already on the
+   * report screen.
    */
   async shareReportPDF(
-    userId: string,
-    reportId: string,
+    report: Report,
+    property: Property | null,
     propertyAddress: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -95,15 +69,7 @@ export const pdfService = {
         return { success: false, error: 'Sharing is not available on this device' };
       }
 
-      const cleanAddress = propertyAddress
-        .replace(/[^a-z0-9]/gi, '-')
-        .replace(/-+/g, '-')
-        .toLowerCase()
-        .slice(0, 40);
-
-      const fileName = `appraisal-${cleanAddress}-${new Date().getFullYear()}.pdf`;
-      const fileUri = await downloadPDFToDocuments(reportId, fileName);
-
+      const fileUri = await generateLocalPdf(report, property, propertyAddress);
       await Sharing.shareAsync(fileUri, {
         mimeType: 'application/pdf',
         UTI: 'com.adobe.pdf',
@@ -112,96 +78,243 @@ export const pdfService = {
       return { success: true };
     } catch (error: any) {
       console.error('PDF share error:', error);
-      return {
-        success: false,
-        error: 'Failed to share PDF',
-      };
-    }
-  },
-
-  /**
-   * Get download URL for a report PDF
-   * Returns a signed URL that can be used for sharing or opening in browser
-   */
-  async getReportPDFURL(
-    userId: string,
-    reportId: string
-  ): Promise<{ success: boolean; url?: string; expiresIn?: number; error?: string }> {
-    try {
-      const response = await axios.get(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/pdf-url`,
-        {
-          headers: {
-            'Authorization': `Bearer ${await getAuthToken()}`,
-          },
-        }
-      );
-
-      return {
-        success: true,
-        url: response.data.url,
-        expiresIn: response.data.expiresIn,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: 'Failed to get PDF URL',
-      };
-    }
-  },
-
-  /**
-   * Check if a PDF report is already cached locally
-   */
-  async getCachedPDF(reportId: string): Promise<string | null> {
-    try {
-      // Implementation would check local file system
-      // For now, return null to indicate no cache
-      return null;
-    } catch (error) {
-      return null;
+      return { success: false, error: error?.message || 'Failed to share PDF' };
     }
   },
 };
 
-/**
- * Download a report's PDF from the backend straight to a named file in the
- * app's Documents directory. `FileSystem.downloadAsync` streams the response
- * to disk itself (with the auth header attached), so there's no intermediate
- * blob/base64 conversion to manage.
- */
-async function downloadPDFToDocuments(reportId: string, fileName: string): Promise<string> {
-  const token = await getAuthToken();
-  const url = `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/${reportId}/pdf`;
+async function generateLocalPdf(
+  report: Report,
+  property: Property | null,
+  propertyAddress: string
+): Promise<string> {
+  const html = buildReportHtml(report, property, propertyAddress);
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+  const cleanAddress = propertyAddress
+    .replace(/[^a-z0-9]/gi, '-')
+    .replace(/-+/g, '-')
+    .toLowerCase()
+    .slice(0, 40);
+  const fileName = `appraisal-${cleanAddress}-${new Date().getFullYear()}.pdf`;
   const destination = `${FileSystem.documentDirectory}${fileName}`;
 
-  const { uri } = await FileSystem.downloadAsync(url, destination, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  await FileSystem.copyAsync({ from: uri, to: destination });
+  return destination;
+}
 
-  return uri;
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
- * Get the current authentication token for API requests
- *
- * The backend's authMiddleware validates this as a Supabase JWT via
- * supabase.auth.getUser(token) (see backend/src/middleware/auth.ts), so this
- * must be a live Supabase access_token.
- *
- * This reads directly from the Supabase client rather than auth.store's
- * `session` field: that field is only ever set once, at the moment of
- * login (see auth.service.ts), and app/_layout.tsx's rehydration on app
- * launch restores `user` but never calls setSession — so after any reload
- * or restart, session_token is null even though the user is clearly still
- * logged in. supabase.auth.getSession() reads the client's own persisted,
- * auto-refreshed session (see services/supabase.ts's `persistSession` /
- * `autoRefreshToken` config), so it always reflects a currently-valid token.
+ * Converts the constrained markdown subset the AI valuation prompt asks
+ * Gemini to produce (headers, bullets, numbered lists, **bold**, pipe
+ * tables — see report.service.ts's buildValuationPrompt) into HTML. Not a
+ * general markdown renderer, deliberately — it only needs to cover what
+ * that prompt actually generates, mirroring the backend's PDFKit-based
+ * renderNarrativeReport (backend/src/services/pdf.ts) which covers the
+ * same subset.
  */
-async function getAuthToken(): Promise<string> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session) {
-    throw new Error('Not authenticated');
+function renderNarrativeHtml(markdown: string): string {
+  const lines = markdown.split('\n');
+  let html = '';
+  let tableLines: string[] = [];
+  let listBuffer: { type: 'ul' | 'ol'; items: string[] } | null = null;
+
+  const inline = (text: string) =>
+    escapeHtml(text).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  const flushList = () => {
+    if (!listBuffer) return;
+    const tag = listBuffer.type;
+    html += `<${tag}>${listBuffer.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${tag}>`;
+    listBuffer = null;
+  };
+
+  const flushTable = () => {
+    if (tableLines.length < 2) {
+      tableLines = [];
+      return;
+    }
+    const parseRow = (line: string) =>
+      line
+        .split('|')
+        .map((c) => c.trim())
+        .filter((c, i, arr) => !(i === 0 && c === '') && !(i === arr.length - 1 && c === ''));
+
+    const dataStart = tableLines[1]?.includes('---') ? 2 : 1;
+    const headers = parseRow(tableLines[0]);
+    const rows = tableLines.slice(dataStart).map(parseRow).filter((r) => r.length > 0);
+
+    html += '<table class="comp-table"><thead><tr>';
+    headers.forEach((h) => (html += `<th>${inline(h)}</th>`));
+    html += '</tr></thead><tbody>';
+    rows.forEach((row) => {
+      html += '<tr>';
+      row.forEach((cell) => (html += `<td>${inline(cell)}</td>`));
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    tableLines = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+    if (line.trim().startsWith('|')) {
+      tableLines.push(line);
+      continue;
+    }
+    if (tableLines.length) flushTable();
+
+    if (line.trim() === '') continue;
+
+    if (/^###\s/.test(line)) {
+      flushList();
+      html += `<h4>${inline(line.replace(/^###\s*/, ''))}</h4>`;
+      continue;
+    }
+    if (/^##\s/.test(line)) {
+      flushList();
+      html += `<h3>${inline(line.replace(/^##\s*/, ''))}</h3>`;
+      continue;
+    }
+    if (/^#\s/.test(line)) {
+      flushList();
+      html += `<h2>${inline(line.replace(/^#\s*/, ''))}</h2>`;
+      continue;
+    }
+    if (/^\s*[-*]\s/.test(line)) {
+      if (listBuffer?.type !== 'ul') {
+        flushList();
+        listBuffer = { type: 'ul', items: [] };
+      }
+      listBuffer.items.push(line.replace(/^\s*[-*]\s/, ''));
+      continue;
+    }
+    if (/^\s*\d+\.\s/.test(line)) {
+      if (listBuffer?.type !== 'ol') {
+        flushList();
+        listBuffer = { type: 'ol', items: [] };
+      }
+      listBuffer.items.push(line.replace(/^\s*\d+\.\s/, ''));
+      continue;
+    }
+
+    flushList();
+    html += `<p>${inline(line)}</p>`;
   }
-  return data.session.access_token;
+  flushList();
+  flushTable();
+
+  return html;
+}
+
+function buildReportHtml(report: Report, property: Property | null, propertyAddress: string): string {
+  const countryCode =
+    property?.address_components?.country_code ?? (report.gemini_response as any)?.country_code;
+
+  const valueFormatted = formatCurrency(report.estimated_value, countryCode);
+  const lowFormatted = formatCurrency(report.confidence_range.low, countryCode);
+  const highFormatted = formatCurrency(report.confidence_range.high, countryCode);
+  const fullReportMarkdown = (report.gemini_response as any)?.full_report_markdown as string | undefined;
+  const isMock = (report.gemini_response as any)?.is_mock === true;
+
+  const comparablesHtml = (report.comparables || [])
+    .map(
+      (c, i) => `
+        <div class="comp-card">
+          <div class="comp-header">
+            <span class="comp-address">${i + 1}. ${escapeHtml(c.address)}</span>
+            <span class="comp-distance">${escapeHtml(formatDistance(c.distance_miles, countryCode))} away</span>
+          </div>
+          <div class="comp-details">
+            <span>Sale Price: <strong>${escapeHtml(formatCurrency(c.sale_price, countryCode))}</strong></span>
+            <span>Date: ${escapeHtml(c.sale_date)}</span>
+            <span>Similarity: ${(c.similarity_score * 100).toFixed(0)}%</span>
+          </div>
+        </div>`
+    )
+    .join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 32px; }
+  h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
+  .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
+  .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
+  .disclaimer h2 { color: #92400E; font-size: 13px; margin: 0 0 8px; }
+  .disclaimer p { color: #78350F; font-size: 11px; line-height: 1.6; margin: 0 0 8px; white-space: pre-line; }
+  .disclaimer a { color: #2563EB; }
+  h3.section { font-size: 15px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-top: 24px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 12px; margin-top: 8px; }
+  .facts span b { color: #1F2937; }
+  .valuation { text-align: center; background: #F0F9FF; border-radius: 10px; padding: 20px; margin-top: 16px; }
+  .valuation .amount { font-size: 28px; font-weight: 700; color: #2563EB; }
+  .valuation .range { font-size: 12px; color: #6B7280; margin-top: 6px; }
+  .comp-card { border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
+  .comp-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+  .comp-details { display: flex; gap: 16px; font-size: 11px; color: #4B5563; margin-top: 4px; }
+  .narrative h2 { font-size: 16px; color: #2563EB; margin-top: 20px; }
+  .narrative h3 { font-size: 14px; color: #2563EB; margin-top: 16px; }
+  .narrative h4 { font-size: 12px; color: #1F2937; margin-top: 12px; }
+  .narrative p, .narrative li { font-size: 11px; line-height: 1.6; color: #1F2937; }
+  .comp-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10px; }
+  .comp-table th { background: #2563EB; color: #fff; padding: 6px 8px; text-align: left; }
+  .comp-table td { border-bottom: 1px solid #E5E7EB; padding: 6px 8px; }
+  .footer { margin-top: 28px; text-align: center; font-size: 9px; color: #9CA3AF; }
+</style>
+</head>
+<body>
+  <h1>Property Valuation Report</h1>
+  <div class="brand">Appraisal Online</div>
+
+  ${isMock ? `<div class="disclaimer">
+    <h2>&#9888; Estimate Unavailable</h2>
+    <p>We couldn't reach our AI valuation service, so this is a rough placeholder, not a real estimate. Try generating this report again.</p>
+  </div>` : ''}
+
+  <div class="disclaimer">
+    <h2>&#9888; Important Notice</h2>
+    <p>${escapeHtml(CLIENT_DISCLAIMER_TEXT).replace(
+      'www.prc.gov.ph',
+      `<a href="${PRC_VERIFICATION_URL}">www.prc.gov.ph</a>`
+    )}</p>
+  </div>
+
+  <h3 class="section">Property Information</h3>
+  <div class="facts">
+    <span><b>Address:</b> ${escapeHtml(property?.address || propertyAddress)}</span>
+    <span><b>Bedrooms:</b> ${property?.bedrooms ?? 'N/A'}</span>
+    <span><b>Bathrooms:</b> ${property?.bathrooms ?? 'N/A'}</span>
+    ${property?.parking_spaces !== undefined && property?.parking_spaces !== null ? `<span><b>Parking:</b> ${property.parking_spaces}</span>` : ''}
+    <span><b>Square Feet:</b> ${property?.square_feet ?? 'N/A'}</span>
+    <span><b>Year Built:</b> ${property?.year_built ? property.year_built : 'N/A'}</span>
+    <span><b>Type:</b> ${escapeHtml(property?.property_type || 'N/A')}</span>
+    <span><b>Condition:</b> ${escapeHtml(property?.condition || 'N/A')}</span>
+  </div>
+
+  <div class="valuation">
+    <div class="amount">${escapeHtml(valueFormatted)}</div>
+    <div class="range">Estimated Range: ${escapeHtml(lowFormatted)} &ndash; ${escapeHtml(highFormatted)}</div>
+  </div>
+
+  ${fullReportMarkdown ? `<div class="narrative">${renderNarrativeHtml(fullReportMarkdown)}</div>` : ''}
+
+  <h3 class="section">Comparable Sales</h3>
+  ${comparablesHtml || '<p>No comparable sales data available</p>'}
+
+  <div class="footer">
+    Report ID: ${escapeHtml(report.id)} | Generated: ${escapeHtml(new Date().toLocaleString())}<br/>
+    This report was generated by Appraisal Online.
+  </div>
+</body>
+</html>`;
 }

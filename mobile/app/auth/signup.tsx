@@ -1,18 +1,217 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
-import { Toggle } from '../../components/ui/Toggle';
+import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Card } from '../../components/ui/Card';
+import { ProgressBar } from '../../components/ui/ProgressBar';
+import { CurrencyValue } from '../../components/ui/CurrencyValue';
 import { useAuthStore } from '../../stores/auth.store';
+import { useReportStore } from '../../stores/report.store';
 import { authService } from '../../services/auth.service';
+import { formatCurrency } from '../../config/marketConfig';
+import {
+  completePendingValuation,
+  stashPendingValuation,
+} from '../../services/pendingValuationCompletion';
+import { theme } from '../../theme';
+
+/**
+ * Sign-up gate — screen 3 of 3 of the valuation flow, reached from
+ * loading.tsx once a guest's Gemini valuation has come back (see
+ * report.store.ts's pendingValuation). This is a repositioning, not just a
+ * restyle: today's app makes signup a route you pass BEFORE valuing
+ * anything; here the account wall comes AFTER, with the real value blurred
+ * behind it (see the README's "Signup gates the report, not the flow").
+ *
+ * Reached any other way (a broker signing up, or a consumer tapping "Sign
+ * Up" from the login screen with nothing pending) falls through to the
+ * original type-selection form further down, unchanged.
+ */
+function GateScreen() {
+  const router = useRouter();
+  const setUser = useAuthStore((state) => state.setUser);
+  const currentProperty = useReportStore((state) => state.currentProperty);
+  const currentPropertyDetails = useReportStore((state) => state.currentPropertyDetails);
+  const pendingValuation = useReportStore((state) => state.pendingValuation);
+  const setCurrentReport = useReportStore((state) => state.setCurrentReport);
+  const setCurrentProperty = useReportStore((state) => state.setCurrentProperty);
+
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [gateError, setGateError] = useState('');
+
+  if (!currentProperty || !currentPropertyDetails || !pendingValuation) {
+    // Shouldn't happen (loading.tsx only routes here once all three are
+    // set), but a stale deep link or a killed-and-reopened app could land
+    // here with nothing to gate — send back to Home rather than crash.
+    return null;
+  }
+
+  const countryCode = currentProperty.address_components?.country_code;
+  const lowFormatted = formatCurrency(pendingValuation.confidenceRange.low, countryCode);
+  const highFormatted = formatCurrency(pendingValuation.confidenceRange.high, countryCode);
+
+  const validate = (): string | null => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email';
+    const digitCount = phone.replace(/\D/g, '').length;
+    if (digitCount < 7) return 'Please enter a valid mobile number';
+    if (password.length < 8) return 'Password must be at least 8 characters';
+    return null;
+  };
+
+  const handleCreateAccount = async () => {
+    const validationError = validate();
+    if (validationError) {
+      setGateError(validationError);
+      return;
+    }
+
+    setGateError('');
+    setLoading(true);
+
+    try {
+      const result = await authService.signup(email, password, {
+        full_name: '',
+        user_type: 'consumer',
+        phone,
+      });
+
+      if (!result.success || !result.user) {
+        setGateError(result.error?.message || 'Unable to create account');
+        return;
+      }
+
+      const payload = { property: currentProperty, details: currentPropertyDetails, valuation: pendingValuation };
+
+      if (result.needsEmailConfirmation) {
+        // No session yet — can't write properties/reports (NOT NULL
+        // user_id). Stash to disk since Zustand state won't survive the
+        // user leaving to check their inbox; auth/login.tsx finishes the
+        // job on their first real sign-in.
+        await stashPendingValuation(payload);
+        router.replace({
+          pathname: '/auth/verify-email',
+          params: { email, hasPendingValuation: '1' },
+        });
+        return;
+      }
+
+      setUser(result.user);
+      const completion = await completePendingValuation(result.user.id, payload);
+      if (!completion.success) {
+        setGateError(completion.error);
+        return;
+      }
+
+      setCurrentProperty(completion.property);
+      setCurrentReport(completion.report);
+      // pendingValuation's job is done — currentReport is now the real,
+      // persisted record report-view.tsx reads.
+      useReportStore.setState({ pendingValuation: null });
+      router.replace('/consumer/report-view');
+    } catch (err) {
+      console.error('Gate signup error:', err);
+      setGateError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaWrapper scrollable>
+      <ProgressBar progress={100} label="3 of 3" />
+
+      <Text style={styles.gateAddress}>{currentProperty.address}</Text>
+
+      <View style={styles.valueCard}>
+        <Text style={styles.valueLabel}>Estimated value</Text>
+        <View style={styles.blurTarget}>
+          <CurrencyValue
+            amountMinorUnits={pendingValuation.estimatedValue}
+            countryCode={countryCode}
+            style={styles.valueFigure}
+          />
+          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+        </View>
+        <View style={styles.blurTargetRange}>
+          <Text style={styles.rangeText}>
+            Range {lowFormatted} – {highFormatted}
+          </Text>
+          <BlurView intensity={40} tint="light" style={StyleSheet.absoluteFill} />
+        </View>
+      </View>
+
+      <Text style={styles.gateHeading}>Create your account to see it</Text>
+      <Text style={styles.gateSubtitle}>Free — takes less than a minute.</Text>
+
+      <View style={styles.form}>
+        <TextInput
+          label="Email"
+          placeholder="you@example.com"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          editable={!loading}
+        />
+        <PhoneInput label="Mobile number" value={phone} onChangeText={setPhone} editable={!loading} />
+        <TextInput
+          label="Password"
+          placeholder="At least 8 characters"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          editable={!loading}
+        />
+
+        {!!gateError && <Text style={styles.gateErrorText}>{gateError}</Text>}
+
+        <Button
+          title={loading ? 'Creating account…' : 'Create account and see value'}
+          size="large"
+          onPress={handleCreateAccount}
+          disabled={loading}
+          style={{ marginTop: theme.space.md }}
+        />
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Already have an account? </Text>
+        <Text
+          style={styles.footerLink}
+          onPress={() => {
+            // The valuation stays in memory — coming back here after
+            // logging in elsewhere isn't the expected path, but clearing it
+            // would silently lose work if they do.
+            router.push('/auth/login');
+          }}
+        >
+          Log in
+        </Text>
+      </View>
+    </SafeAreaWrapper>
+  );
+}
 
 export default function SignupScreen() {
   const router = useRouter();
   const setUser = useAuthStore((state) => state.setUser);
-  const [userType, setUserType] = useState<'consumer' | 'broker' | null>(null);
+  const pendingValuation = useReportStore((state) => state.pendingValuation);
+  const currentProperty = useReportStore((state) => state.currentProperty);
+  const currentPropertyDetails = useReportStore((state) => state.currentPropertyDetails);
+
+  // Choose role (welcome.tsx) already asked a broker which path they're on —
+  // arriving here with that answer in hand should skip asking a second time.
+  const { userType: userTypeParam } = useLocalSearchParams<{ userType?: string }>();
+  const [userType, setUserType] = useState<'consumer' | 'broker' | null>(
+    userTypeParam === 'broker' || userTypeParam === 'consumer' ? userTypeParam : null
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,6 +222,13 @@ export default function SignupScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // A guest who just generated a valuation reaches this route with all
+  // three of these set (see loading.tsx) — render the gate instead of the
+  // generic broker/consumer type-selection form below.
+  if (pendingValuation && currentProperty && currentPropertyDetails) {
+    return <GateScreen />;
+  }
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -171,7 +377,7 @@ export default function SignupScreen() {
           title="← Back"
           variant="outline"
           size="small"
-          onPress={() => setUserType(null)}
+          onPress={() => router.replace('/welcome')}
           style={{ alignSelf: 'flex-start', marginBottom: 16 }}
         />
         <Text style={styles.title}>Create Your Account</Text>
@@ -189,23 +395,6 @@ export default function SignupScreen() {
           editable={!loading}
           error={errors.fullName}
         />
-
-        {userType === 'consumer' && (
-          <>
-            <TextInput
-              placeholder="Mobile Number"
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              editable={!loading}
-              error={errors.phone}
-              style={{ marginTop: 12 }}
-            />
-            <Text style={styles.phoneHelper}>
-              Only shared with a professional if you opt in to be contacted on a report.
-            </Text>
-          </>
-        )}
 
         <TextInput
           placeholder="Email"
@@ -238,10 +427,31 @@ export default function SignupScreen() {
           style={{ marginTop: 12 }}
         />
 
+        {userType === 'consumer' && (
+          <View style={{ marginTop: 12 }}>
+            <PhoneInput
+              value={phone}
+              onChangeText={setPhone}
+              editable={!loading}
+              error={errors.phone}
+            />
+            <Text style={styles.phoneHelper}>
+              Only shared with a professional if you opt in to be contacted on a report.
+            </Text>
+          </View>
+        )}
+
         {/* Terms Agreement */}
         <Card variant="outlined" style={styles.termsCard}>
           <Text style={styles.termsText}>
-            By signing up, you agree to our Terms of Service and Privacy Policy
+            By signing up, you agree to our{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
+              Privacy Policy
+            </Text>
           </Text>
         </Card>
 
@@ -251,17 +461,6 @@ export default function SignupScreen() {
           onPress={handleSignup}
           disabled={loading}
           style={{ marginTop: 20 }}
-        />
-      </View>
-
-      {/* Login Link */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Already have an account? </Text>
-        <Button
-          title="Sign In"
-          variant="outline"
-          size="small"
-          onPress={() => router.push('/auth/login')}
         />
       </View>
     </SafeAreaWrapper>
@@ -317,6 +516,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
   },
+  termsLink: {
+    color: '#2563EB',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -326,5 +530,62 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  // --- Gate ---
+  gateAddress: {
+    ...theme.type.heading,
+    color: theme.color.text,
+    marginBottom: theme.space.lg,
+  },
+  valueCard: {
+    ...theme.type.body,
+    alignItems: 'center',
+    marginBottom: theme.space['2xl'],
+  },
+  valueLabel: {
+    ...theme.type.eyebrow,
+    color: theme.color.textMuted,
+    marginBottom: theme.space.sm,
+  },
+  blurTarget: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.space.sm,
+  },
+  blurTargetRange: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  valueFigure: {
+    ...theme.type.hero,
+    color: theme.color.text,
+  },
+  rangeText: {
+    ...theme.type.bodySm,
+    color: theme.color.textMuted,
+  },
+  gateHeading: {
+    ...theme.type.title,
+    color: theme.color.text,
+    marginBottom: theme.space.xs,
+  },
+  gateSubtitle: {
+    ...theme.type.bodySm,
+    color: theme.color.textMuted,
+    marginBottom: theme.space.xl,
+  },
+  gateErrorText: {
+    ...theme.type.bodySm,
+    color: theme.color.danger,
+    marginTop: theme.space.sm,
+    marginBottom: theme.space.sm,
+  },
+  footerLink: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
+    textDecorationLine: 'underline',
   },
 });

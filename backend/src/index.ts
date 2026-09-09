@@ -14,6 +14,7 @@ import emailRoutes from './routes/emails.js';
 import webhookRoutes from './routes/webhooks.js';
 import healthRoutes from './routes/health.js';
 import placesRoutes from './routes/places.js';
+import valuationRoutes from './routes/valuation.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,6 +47,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/places', placesRoutes);
+app.use('/api/valuation', valuationRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

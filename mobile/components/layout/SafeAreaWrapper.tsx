@@ -8,6 +8,13 @@ interface SafeAreaWrapperProps {
   style?: ViewStyle;
   contentContainerStyle?: ViewStyle;
   showBottomPadding?: boolean;
+  // Lets a screen temporarily disable the outer scroll — e.g. while a
+  // dropdown nested inside it needs sole ownership of the touch gesture.
+  // position:absolute on the nested content only changes where it's drawn,
+  // not React Native's touch-responder hierarchy, so on a real device the
+  // outer ScrollView can still claim the gesture before the inner one even
+  // when the inner list is visually floating on top of everything else.
+  scrollEnabled?: boolean;
 }
 
 export function SafeAreaWrapper({
@@ -16,6 +23,7 @@ export function SafeAreaWrapper({
   style,
   contentContainerStyle,
   showBottomPadding = true,
+  scrollEnabled = true,
 }: SafeAreaWrapperProps) {
   const insets = useSafeAreaInsets();
 
@@ -36,6 +44,7 @@ export function SafeAreaWrapper({
         style={containerStyle}
         contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={scrollEnabled}
       >
         {children}
       </ScrollView>

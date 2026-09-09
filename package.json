@@ -22,5 +22,8 @@
     "supabase"
   ],
   "author": "Appraisal Online",
-  "license": "PROPRIETARY"
+  "license": "PROPRIETARY",
+  "overrides": {
+    "react-native": "0.86.3"
+  }
 }

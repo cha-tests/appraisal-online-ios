@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
+import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
@@ -180,10 +181,8 @@ export default function BrokerProfileScreen() {
         onChangeText={(val) => setFormData((prev) => ({ ...prev, license_number: val }))}
       />
 
-      <TextInput
+      <PhoneInput
         label="Phone"
-        placeholder="(555) 123-4567"
-        keyboardType="phone-pad"
         value={formData.phone}
         onChangeText={(val) => setFormData((prev) => ({ ...prev, phone: val }))}
       />

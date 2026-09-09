@@ -128,9 +128,34 @@ const DEFAULT_MARKET: MarketConfig = {
   currency: 'USD',
 };
 
+// Appended to every market's property type list (see getMarketConfig) so
+// there's always an escape hatch — a fixed list, however well-tailored to a
+// country, can still miss a real property's type (an unusual local category,
+// or the address's country not being resolvable at all — see isVacantLandType
+// and the property-details.tsx screen for how the accompanying free-text
+// field is handled).
+export const OTHER_PROPERTY_TYPE = 'Others';
+
 export function getMarketConfig(countryCode?: string | null): MarketConfig {
-  if (!countryCode) return DEFAULT_MARKET;
-  return MARKETS[countryCode] ?? DEFAULT_MARKET;
+  const config = (countryCode && MARKETS[countryCode]) || DEFAULT_MARKET;
+  return { ...config, propertyTypes: [...config.propertyTypes, OTHER_PROPERTY_TYPE] };
+}
+
+/**
+ * Whether a market's property-type label denotes vacant land rather than a
+ * building — every MARKETS entry above spells this option as exactly "Land",
+ * "Vacant Lot", or "Vacant Land", so matching the whole string (anchored,
+ * not a bare substring test) covers all of them without needing a parallel
+ * per-market flag. A property this is true for has no building on it yet, so
+ * "Year Built" doesn't apply.
+ *
+ * Must stay anchored to the full string — a plain /land|lot/ substring test
+ * also matched PH's "House and Lot", a completed house, wrongly treating it
+ * as unbuilt land and making Year Built look optional for it too.
+ */
+export function isVacantLandType(propertyType: string | undefined | null): boolean {
+  if (!propertyType) return false;
+  return /^(land|vacant lot|vacant land)$/i.test(propertyType.trim());
 }
 
 const MILES_TO_KM = 1.60934;
@@ -276,3 +301,28 @@ export function generateMockComparableSales(
  * already configured in MARKETS above and just need a slot here.
  */
 export const AUTOCOMPLETE_COUNTRIES = ['US', 'PH', 'AU', 'GB', 'SG'] as const;
+
+export interface PhoneCountry {
+  /** ISO country code — matches the MARKETS keys above. */
+  code: string;
+  dialCode: string;
+  flag: string;
+  name: string;
+}
+
+// PH listed first (not alphabetical) since it's this app's primary launch
+// market — see project notes — so the phone country picker defaults to it
+// rather than an arbitrary/US-centric choice. Covers the same countries as
+// MARKETS above; add an entry here whenever one is added there.
+export const PHONE_COUNTRIES: PhoneCountry[] = [
+  { code: 'PH', dialCode: '+63', flag: '🇵🇭', name: 'Philippines' },
+  { code: 'US', dialCode: '+1', flag: '🇺🇸', name: 'United States' },
+  { code: 'AU', dialCode: '+61', flag: '🇦🇺', name: 'Australia' },
+  { code: 'GB', dialCode: '+44', flag: '🇬🇧', name: 'United Kingdom' },
+  { code: 'SG', dialCode: '+65', flag: '🇸🇬', name: 'Singapore' },
+  { code: 'AE', dialCode: '+971', flag: '🇦🇪', name: 'United Arab Emirates' },
+  { code: 'CA', dialCode: '+1', flag: '🇨🇦', name: 'Canada' },
+  { code: 'DE', dialCode: '+49', flag: '🇩🇪', name: 'Germany' },
+];
+
+export const DEFAULT_PHONE_COUNTRY = PHONE_COUNTRIES[0];

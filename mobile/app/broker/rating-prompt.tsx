@@ -38,6 +38,13 @@ export default function RatingPrompt() {
   return (
     <SafeAreaWrapper scrollable>
       {/* Header */}
+      <Button
+        title="← Back"
+        variant="outline"
+        size="small"
+        onPress={() => router.back()}
+        style={{ alignSelf: 'flex-start', marginBottom: 16 }}
+      />
       <View style={styles.header}>
         <Text style={styles.title}>How are we doing?</Text>
         <Text style={styles.subtitle}>

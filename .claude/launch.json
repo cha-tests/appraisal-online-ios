@@ -9,6 +9,13 @@
       "cwd": "mobile"
     },
     {
+      "name": "Backend (API)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001,
+      "cwd": "backend"
+    },
+    {
       "name": "Web (Next.js)",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
@@ -21,6 +28,13 @@
       "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],
       "port": 8082,
       "cwd": "mobile"
+    },
+    {
+      "name": "Web v2 (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3002"],
+      "port": 3002,
+      "cwd": "web-v2"
     }
   ]
 }

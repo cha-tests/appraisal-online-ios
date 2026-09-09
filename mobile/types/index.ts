@@ -17,11 +17,18 @@ export interface User {
   deleted_at?: string;
 }
 
+export type BrokerRole = 'broker' | 'salesperson';
+export type KycStatus = 'pending' | 'approved' | 'rejected';
+
 export interface BrokerProfile {
   id: string;
   user_id: string;
   company_name: string;
   license_number?: string;
+  // 'salesperson' operates under a sponsoring broker rather than holding a
+  // broker license outright — both can join (see the Sep 1 sync-up spec),
+  // and license_number stays optional either way.
+  role: BrokerRole;
   bio?: string;
   profile_photo_url?: string;
   phone?: string;
@@ -34,8 +41,33 @@ export interface BrokerProfile {
   sms_enabled: boolean;
   quiet_hours_start?: string;
   quiet_hours_end?: string;
+  // Lightweight identity check (selfie + government ID), reviewed by an
+  // admin — not automated pass/fail. A 'pending' broker can still complete
+  // onboarding; kyc_status is what gates lead access down the line.
+  kyc_status: KycStatus;
+  kyc_id_url?: string;
+  kyc_selfie_url?: string;
+  kyc_submitted_at?: string;
+  kyc_reviewed_at?: string;
+  kyc_rejection_reason?: string;
+  // Locks in the ₱5,000/year rate for life for the first 1,000 paid
+  // ('Premium Annual') signups — see migration 015 and the Sep 1 spec's
+  // founding-member pricing decision. founding_member_locked_price is in
+  // minor units (centavos), matching subscriptions.price.
+  is_founding_member: boolean;
+  founding_member_number?: number;
+  founding_member_locked_price?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface DisclaimerAcceptance {
+  id: string;
+  user_id: string;
+  disclaimer_type: 'client' | 'broker';
+  version: string;
+  context?: Record<string, unknown>;
+  accepted_at: string;
 }
 
 // Properties
@@ -46,6 +78,7 @@ export interface Property {
   address_components?: Record<string, any>;
   bedrooms?: number;
   bathrooms?: number;
+  parking_spaces?: number;
   square_feet?: number;
   lot_size?: number;
   year_built?: number;
@@ -80,9 +113,21 @@ export interface Report {
   broker_contact_opted_in: boolean;
   phone_provided?: string;
   phone_verified: boolean;
+  // Asked only alongside the broker opt-in, never on the initial appraisal
+  // — see broker-optins.tsx. title_url is a storage path (private bucket),
+  // not a public URL; a self-reported flag, never verified by the
+  // platform itself — see BROKER_DISCLAIMER_TEXT in config/disclaimers.ts.
+  is_owner?: boolean;
+  intends_to_sell?: boolean;
+  title_url?: string;
+  title_submitted_at?: string;
   status: 'generating' | 'generated' | 'error' | 'deleted';
   pdf_url?: string;
   created_at: string;
+  // Only populated where the query joins it in (see
+  // reportService.getUserReports) — the reports table has no address column
+  // of its own; it lives on the referenced property.
+  property?: { address: string; address_components?: { route?: string; city?: string } };
 }
 
 // Leads
@@ -204,6 +249,7 @@ export interface ApiSuccess<T> {
 export interface PropertyDetailsFormData {
   bedrooms: number;
   bathrooms: number;
+  parking_spaces?: number;
   square_feet: number;
   lot_size?: number;
   year_built: number;

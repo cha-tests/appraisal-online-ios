@@ -5,15 +5,31 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 // Stripe constructor auto-selects a compatible API version
 
 /**
- * Tier pricing in cents. This is the single source of truth for what a tier
- * costs — the amount is never accepted from the client, or a caller could ask
- * for a $1 intent against the $499 tier and get a Founder subscription for it.
+ * Tier pricing in minor units (cents/centavos). This is the single source
+ * of truth for what a tier costs — the amount is never accepted from the
+ * client, or a caller could ask for a $1 intent against the real price and
+ * get a paid subscription for it.
+ *
+ * Mirrors mobile/config/brokerTiers.ts's BROKER_TIER_PRICING (a separate
+ * package with no shared module, so kept in sync by hand — same convention
+ * already used for currency/distance formatting elsewhere in this backend).
+ * Per the Sep 1 pricing decision, only 'Basic Annual' (free — never reaches
+ * Stripe at all, see routes/payments.ts) and 'Premium Annual' (₱5,000/year)
+ * are actually offered at signup; 'Founder Lifetime' remains a valid Tier
+ * value for type compatibility but isn't reachable from onboarding.
  */
-export const TIER_PRICING = {
+export const TIER_PRICING: Record<string, number> = {
   'Founder Lifetime': 49900,
-  'Premium Annual': 19900,
-  'Basic Annual': 4900,
-} as const;
+  'Premium Annual': 500000,
+  'Basic Annual': 0,
+};
+
+/** ISO currency code per tier — Premium Annual is PHP-priced, not USD. */
+export const TIER_CURRENCY: Record<string, string> = {
+  'Founder Lifetime': 'usd',
+  'Premium Annual': 'php',
+  'Basic Annual': 'php',
+};
 
 export type Tier = keyof typeof TIER_PRICING;
 
@@ -37,10 +53,11 @@ export const isTier = (value: unknown): value is Tier =>
 export async function createPaymentIntent(tier: Tier, metadata: any = {}) {
   try {
     const amount = TIER_PRICING[tier];
+    const currency = TIER_CURRENCY[tier];
 
     const intent = await stripe.paymentIntents.create({
       amount,
-      currency: 'usd',
+      currency,
       payment_method_types: ['card'],
       metadata: { ...metadata, tier },
     });

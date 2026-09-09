@@ -8,6 +8,14 @@ type UserType = 'consumer' | 'broker';
 interface RequireUserTypeProps {
   type: UserType;
   children: React.ReactNode;
+  /**
+   * Lets a signed-out visitor through instead of bouncing to login — for the
+   * consumer group, which now starts the valuation flow before an account
+   * exists (see the sign-up gate in auth/signup.tsx). A signed-in user of
+   * the WRONG type is still redirected home either way; this only changes
+   * the no-user case.
+   */
+  allowGuest?: boolean;
 }
 
 const homeFor = (userType: UserType) =>
@@ -28,24 +36,24 @@ const homeFor = (userType: UserType) =>
  * Supabase row-level security on the server. It stops the wrong screens from
  * being reachable; it does not by itself stop a crafted API call.
  */
-export function RequireUserType({ type, children }: RequireUserTypeProps) {
+export function RequireUserType({ type, children, allowGuest = false }: RequireUserTypeProps) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
-  const allowed = user?.user_type === type;
+  const allowed = user ? user.user_type === type : allowGuest;
 
   useEffect(() => {
     // Redirect from an effect rather than during render — navigating mid-render
     // throws in expo-router.
     if (!user) {
-      router.replace('/auth/login');
+      if (!allowGuest) router.replace('/auth/login');
       return;
     }
 
     if (!allowed) {
       router.replace(homeFor(user.user_type as UserType));
     }
-  }, [user, allowed, router]);
+  }, [user, allowed, allowGuest, router]);
 
   if (!allowed) {
     // Render a placeholder, never `children`, so the guarded screens do not

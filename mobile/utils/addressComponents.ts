@@ -102,6 +102,29 @@ export function isPreciseAddress(parsed: ParsedAddress): boolean {
   return Boolean(parsed.streetNumber || parsed.premise || parsed.subpremise);
 }
 
+// Google's Plus Codes use a restricted base-20 alphabet (no 0/1/I/O/S/U/etc,
+// to avoid look-alike confusion) and a '+' separating the area and locality
+// parts — e.g. the short form "8Q98+XR" or the full form
+// "7QQ38Q98+XR, Makati City". Matched against the autocomplete prediction's
+// description/main_text, not the resolved address_components, since Google
+// does not tag these results with street_number/premise/subpremise the way
+// it does a conventional address — see isPreciseAddress's comment for why
+// that absence otherwise (wrongly) reads as "not a specific property".
+const PLUS_CODE_PATTERN = /\b[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}\b/i;
+
+/**
+ * Whether the given text is (or contains) a Plus Code.
+ *
+ * A Plus Code already pinpoints one specific location — it's just not
+ * expressed as a house number. That makes it as precise as a street
+ * number for valuation purposes, unlike a bare route or locality name
+ * (which really is ambiguous over an entire street or neighborhood).
+ */
+export function isPlusCode(text: string | undefined | null): boolean {
+  if (!text) return false;
+  return PLUS_CODE_PATTERN.test(text);
+}
+
 /** Short one-line label for the resolved property, for confirmation UI. */
 export function formatStreetLine(parsed: ParsedAddress): string {
   const { subpremise, streetNumber, route, premise } = parsed;
@@ -113,4 +136,30 @@ export function formatStreetLine(parsed: ParsedAddress): string {
   if (route) parts.push(route);
 
   return parts.join(' ').trim();
+}
+
+/**
+ * Short label for a saved property, used where the full formatted address
+ * (house number, province, country and all) is too long to read at a
+ * glance — the consumer's Account > Your Reports list.
+ *
+ * A conventional address collapses to "route, city", dropping the house
+ * number — the list distinguishes reports well enough without it. A Plus
+ * Code has no street name to show, so it collapses to just the city/town.
+ */
+export function shortAddressLabel(
+  address: string | undefined | null,
+  components?: Pick<ParsedAddress, 'route' | 'city'> | null
+): string {
+  if (!address) return '';
+
+  const city = components?.city;
+
+  if (isPlusCode(address)) {
+    return city || address;
+  }
+
+  const route = components?.route;
+  if (route && city) return `${route}, ${city}`;
+  return city || route || address;
 }

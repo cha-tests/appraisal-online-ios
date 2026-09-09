@@ -8,16 +8,13 @@ import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { paymentService } from '../../services/payment.service';
+import { BROKER_TIER_PRICING, formatTierPrice } from '../../config/brokerTiers';
 
 // lib/stripe is platform-split: the real SDK on native, inert stubs on web.
 // Importing through it keeps the native-only module out of the web bundle.
 import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
 
-const TIER_PRICING = {
-  'Founder Lifetime': { price: 49900, currency: 'USD' },
-  'Premium Annual': { price: 19900, currency: 'USD' },
-  'Basic Annual': { price: 4900, currency: 'USD' },
-};
+const TIER_PRICING = BROKER_TIER_PRICING;
 
 export default function Checkout() {
   const router = useRouter();
@@ -61,7 +58,6 @@ export default function Checkout() {
   }
 
   const pricing = TIER_PRICING[selectedTier];
-  const priceInDollars = pricing.price / 100;
 
   const createPaymentIntent = useCallback(async () => {
     try {
@@ -182,12 +178,12 @@ export default function Checkout() {
       <Card variant="default" style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{selectedTier}</Text>
-          <Text style={styles.summaryPrice}>${priceInDollars.toFixed(2)}</Text>
+          <Text style={styles.summaryPrice}>{formatTierPrice(selectedTier)}</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { fontWeight: '700' }]}>Total</Text>
-          <Text style={styles.summaryTotal}>${priceInDollars.toFixed(2)}</Text>
+          <Text style={styles.summaryTotal}>{formatTierPrice(selectedTier)}</Text>
         </View>
       </Card>
 
@@ -255,7 +251,7 @@ export default function Checkout() {
       ) : null}
 
       {/* Error Message */}
-      {error && <Text style={styles.errorMessage}>{error}</Text>}
+      {!!error && <Text style={styles.errorMessage}>{error}</Text>}
 
       {/* Action Buttons */}
       <View style={styles.footer}>

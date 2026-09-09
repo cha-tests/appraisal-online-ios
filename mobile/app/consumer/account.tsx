@@ -18,10 +18,13 @@ import { reportService } from '../../services/report.service';
 import { authService } from '../../services/auth.service';
 import { Report } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
+import { shortAddressLabel } from '../../utils/addressComponents';
+import { useRequireAccount } from '../../hooks/useRequireAccount';
+import { beginSignOut } from '../../utils/signOutGuard';
 
 export default function ConsumerAccount() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
+  const user = useRequireAccount();
   const clearAuth = useAuthStore((state) => state.clear);
   const setCurrentReport = useReportStore((state) => state.setCurrentReport);
   const setCurrentProperty = useReportStore((state) => state.setCurrentProperty);
@@ -80,12 +83,19 @@ export default function ConsumerAccount() {
               Alert.alert('Error', result.error?.message ?? 'Failed to sign out');
               return;
             }
+            // Marks this as a deliberate sign-out so useRequireAccount (this
+            // screen uses it) doesn't fire its own competing redirect to
+            // Home when it sees `user` go null a moment later — see
+            // utils/signOutGuard.ts.
+            beginSignOut();
             // clear() rather than setUser(null) so the whole auth slice
             // (session, cached profile) goes with it.
             clearAuth();
             // replace, not push: the signed-in screens must not stay on the
             // history stack where Back could return to them after sign out.
-            router.replace('/auth/login');
+            // Welcome, not login — a signed-out homeowner lands back on
+            // Choose role, same as a first-time visitor.
+            router.replace('/welcome');
           } catch (err) {
             Alert.alert('Error', 'Failed to sign out');
           } finally {
@@ -117,23 +127,6 @@ export default function ConsumerAccount() {
     } finally {
       setOpeningReportId(null);
     }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Deleting your account will remove all your data. This cannot be undone.',
-      [
-        { text: 'Cancel', onPress: () => {} },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Requested', 'Your account deletion request has been submitted. We will process it within 30 days.');
-          },
-        },
-      ]
-    );
   };
 
   if (loading) {
@@ -203,7 +196,9 @@ export default function ConsumerAccount() {
               activeOpacity={0.7}
             >
               <View style={styles.reportCardContent}>
-                <Text style={styles.reportAddress}>Report</Text>
+                <Text style={styles.reportAddress} numberOfLines={1}>
+                  {shortAddressLabel(item.property?.address, item.property?.address_components) || 'Report'}
+                </Text>
                 <Text style={styles.reportValue}>
                   {formatCurrency(item.estimated_value, item.gemini_response?.country_code)}
                 </Text>
@@ -230,7 +225,7 @@ export default function ConsumerAccount() {
           <Button
             title="Get a Valuation"
             size="medium"
-            onPress={() => router.push('/consumer/address-entry')}
+            onPress={() => router.push('/consumer/home')}
             style={{ marginTop: 12 }}
           />
         </Card>
@@ -278,14 +273,6 @@ export default function ConsumerAccount() {
           variant="outline"
           size="large"
           onPress={handleSignOut}
-          disabled={signingOut}
-          style={{ marginBottom: 12 }}
-        />
-        <Button
-          title="Delete Account"
-          variant="danger"
-          size="large"
-          onPress={handleDeleteAccount}
           disabled={signingOut}
         />
       </View>

@@ -1,19 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
+import { ProgressBar } from '../../components/ui/ProgressBar';
+import { IconSpinner } from '../../components/ui/icons';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
 import { generateMockComparableSales } from '../../config/marketConfig';
+import { hasAnonymousValuationsLeft, incrementAnonymousValuationCount } from '../../utils/anonymousQuota';
+import { theme } from '../../theme';
 
-const LOADING_MESSAGES = [
-  'Analyzing property details...',
-  'Searching for comparable sales...',
-  'Generating AI valuation...',
-  'Compiling report...',
-  'Almost done...',
+const STEPS = [
+  { label: 'Finding comparable sales', at: 0 },
+  { label: 'Analyzing property details', at: 900 },
+  { label: 'Generating your valuation', at: 1800 },
 ];
+const PROGRESS_AT_STEP = [22, 58, 92];
 
 export default function LoadingScreen() {
   const router = useRouter();
@@ -21,58 +24,58 @@ export default function LoadingScreen() {
   const currentProperty = useReportStore((state) => state.currentProperty);
   const currentPropertyDetails = useReportStore((state) => state.currentPropertyDetails);
   const setCurrentReport = useReportStore((state) => state.setCurrentReport);
+  const setCurrentProperty = useReportStore((state) => state.setCurrentProperty);
+  const setPendingValuation = useReportStore((state) => state.setPendingValuation);
   const setError = useReportStore((state) => state.setError);
   const setIsGenerating = useReportStore((state) => state.setIsGenerating);
 
-  const [messageIndex, setMessageIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(0);
+  const spin = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, { toValue: 1, duration: 1200, easing: Easing.linear, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [spin]);
 
   useEffect(() => {
     const generateReport = async () => {
       try {
-        if (!user?.id || !currentProperty || !currentPropertyDetails) {
+        if (!currentProperty || !currentPropertyDetails) {
           throw new Error('Missing required data');
         }
 
         setIsGenerating(true);
 
-        // Check free report allowance
-        const allowance = await reportService.checkReportAllowance(user.id);
-        if (!allowance.allowed) {
-          // There is no consumer paywall/upgrade screen yet — payments for
-          // consumers are intentionally deferred for the initial launch (see
-          // broker/paywall.tsx for the analogous broker flow, which does have
-          // Stripe wired up). Until a consumer paywall exists, the limit is
-          // surfaced as an alert rather than routed to a screen that isn't
-          // built, which previously produced an "Unmatched Route" crash.
-          setError('You\'ve reached your monthly free report limit');
+        // Signed-in consumers spend their real monthly allowance; a guest
+        // hasn't got an account yet, so a lightweight per-device count
+        // stands in until the sign-up gate creates one (see anonymousQuota.ts
+        // for why this is a UX speed bump, not a security boundary).
+        if (user?.id) {
+          const allowance = await reportService.checkReportAllowance(user.id);
+          if (!allowance.allowed) {
+            setError('You\'ve reached your monthly free report limit');
+            setIsGenerating(false);
+            Alert.alert(
+              'Monthly Limit Reached',
+              'You\'ve used all 3 free reports this month. Your allowance resets next month.',
+              [{ text: 'OK', onPress: () => router.back() }]
+            );
+            return;
+          }
+        } else if (!(await hasAnonymousValuationsLeft())) {
+          setError('Free valuation limit reached');
           setIsGenerating(false);
           Alert.alert(
-            'Monthly Limit Reached',
-            'You\'ve used all 3 free reports this month. Your allowance resets next month.',
+            'Create an account to continue',
+            'You\'ve used your free valuations on this device. Sign up for a free account to keep valuing properties.',
             [{ text: 'OK', onPress: () => router.back() }]
           );
           return;
         }
 
-        // Create property record
-        const propertyResult = await reportService.createProperty(
-          user.id,
-          currentProperty.address,
-          {
-            address_components: currentProperty.address_components,
-            ...currentPropertyDetails,
-          }
-        );
-
-        if (!propertyResult.success) {
-          throw new Error('Failed to create property record');
-        }
-
-        // Fallback comparables, used only if Gemini is unavailable or its
-        // own generated ones (see report.service.ts's buildValuationPrompt)
-        // come back malformed — see marketConfig.ts's
-        // generateMockComparableSales for why these are scaled per market
-        // instead of a flat number reused for every property everywhere.
         const fallbackComparables = generateMockComparableSales(
           currentPropertyDetails.square_feet,
           currentProperty.address_components?.country_code
@@ -89,29 +92,57 @@ export default function LoadingScreen() {
           throw new Error('Failed to generate valuation');
         }
 
-        // Create report record
-        const reportResult = await reportService.createReport(
-          user.id,
-          propertyResult.property.id,
-          valuationResult.estimatedValue!,
-          valuationResult.confidenceRange!,
-          valuationResult.comparables || fallbackComparables,
-          valuationResult.geminiResponse || {}
-        );
+        const valuation = {
+          estimatedValue: valuationResult.estimatedValue!,
+          confidenceRange: valuationResult.confidenceRange!,
+          comparables: valuationResult.comparables || fallbackComparables,
+          geminiResponse: valuationResult.geminiResponse || {},
+        };
 
-        if (!reportResult.success) {
-          throw new Error('Failed to create report');
+        if (user?.id) {
+          // Already has an account — persist immediately, same as before.
+          const propertyResult = await reportService.createProperty(
+            user.id,
+            currentProperty.address,
+            { address_components: currentProperty.address_components, ...currentPropertyDetails }
+          );
+          if (!propertyResult.success || !propertyResult.property) {
+            throw new Error('Failed to create property record');
+          }
+
+          // currentProperty was set back on Home from just the resolved
+          // address/coordinates — bedrooms, bathrooms, square footage etc.
+          // weren't known yet, so it never carried them. Replace it with the
+          // full DB row now that one exists, or report-view.tsx's PDF
+          // download reads those fields as undefined and prints "N/A".
+          setCurrentProperty(propertyResult.property);
+
+          const reportResult = await reportService.createReport(
+            user.id,
+            propertyResult.property.id,
+            valuation.estimatedValue,
+            valuation.confidenceRange,
+            valuation.comparables,
+            valuation.geminiResponse
+          );
+          if (!reportResult.success || !reportResult.report) {
+            throw new Error('Failed to create report');
+          }
+
+          reportService.deliverReportEmail(reportResult.report.id);
+          setCurrentReport(reportResult.report);
+          setIsGenerating(false);
+          router.push('/consumer/report-view');
+        } else {
+          // No account yet — hold the result in memory and gate the report
+          // behind signup instead of writing to properties/reports, both of
+          // which have a NOT NULL user_id (see stores/report.store.ts's
+          // PendingValuation and the gate in auth/signup.tsx).
+          await incrementAnonymousValuationCount();
+          setPendingValuation(valuation);
+          setIsGenerating(false);
+          router.push('/auth/signup');
         }
-
-        // Fire-and-forget: emails the branded PDF in the background while
-        // the consumer moves on to report-view. Not awaited on purpose —
-        // see deliverReportEmail's comment for why it must never block or
-        // fail this flow.
-        reportService.deliverReportEmail(reportResult.report.id);
-
-        setCurrentReport(reportResult.report);
-        setIsGenerating(false);
-        router.push('/consumer/report-view');
       } catch (err) {
         console.error('Error generating report:', err);
         setError(err instanceof Error ? err.message : 'Failed to generate report');
@@ -122,30 +153,36 @@ export default function LoadingScreen() {
 
     generateReport();
 
-    // Cycle through loading messages
-    const messageTimer = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
-    }, 2000);
-
-    return () => clearInterval(messageTimer);
+    const timers = STEPS.slice(1).map((step, i) =>
+      setTimeout(() => setStepIndex(i + 1), step.at)
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   return (
     <SafeAreaWrapper>
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.message}>{LOADING_MESSAGES[messageIndex]}</Text>
-        <View style={styles.dots}>
-          {[0, 1, 2].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                {
-                  opacity: messageIndex % 3 === i ? 1 : 0.3,
-                },
-              ]}
-            />
+        <Animated.View style={{ transform: [{ rotate }] }}>
+          <IconSpinner size={40} />
+        </Animated.View>
+
+        <Text style={styles.message}>{STEPS[stepIndex].label}…</Text>
+
+        <View style={styles.progressWrap}>
+          <ProgressBar progress={PROGRESS_AT_STEP[stepIndex]} />
+        </View>
+
+        <View style={styles.stepList}>
+          {STEPS.map((step, i) => (
+            <Text
+              key={step.label}
+              style={[styles.stepText, i <= stepIndex && styles.stepTextDone]}
+            >
+              {step.label}
+            </Text>
           ))}
         </View>
       </View>
@@ -158,23 +195,28 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: theme.space['2xl'],
   },
   message: {
-    marginTop: 24,
-    fontSize: 16,
-    color: '#1F2937',
-    fontWeight: '600',
+    ...theme.type.subheading,
+    color: theme.color.text,
+    marginTop: theme.space.xl,
     textAlign: 'center',
   },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 16,
+  progressWrap: {
+    width: '100%',
+    marginTop: theme.space['2xl'],
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#2563EB',
+  stepList: {
+    marginTop: theme.space.lg,
+    gap: theme.space.sm,
+    alignItems: 'center',
+  },
+  stepText: {
+    ...theme.type.meta,
+    color: theme.color.textFaint,
+  },
+  stepTextDone: {
+    color: theme.color.textMuted,
   },
 });

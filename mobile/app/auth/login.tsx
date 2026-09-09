@@ -3,9 +3,16 @@ import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { authService } from '../../services/auth.service';
+import {
+  completePendingValuation,
+  readPendingValuationStash,
+  clearPendingValuationStash,
+} from '../../services/pendingValuationCompletion';
+import { useReportStore } from '../../stores/report.store';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -51,9 +58,27 @@ export default function LoginScreen() {
           const brokerProfile = result.session?.broker_profile;
           setBrokerProfile(brokerProfile ?? null);
           router.replace(brokerProfile ? '/broker/dashboard' : '/broker/splash');
-        } else {
-          router.replace('/consumer/home');
+          return;
         }
+
+        // A guest who generated a valuation before an account existed, then
+        // had to verify their email before a session was available — see
+        // the sign-up gate (auth/signup.tsx) and pendingValuationCompletion.ts.
+        // Finish writing their property/report now that they're signed in.
+        const stashed = await readPendingValuationStash();
+        if (stashed) {
+          const completion = await completePendingValuation(result.user.id, stashed);
+          await clearPendingValuationStash();
+          if (completion.success) {
+            useReportStore.getState().setCurrentProperty(completion.property);
+            useReportStore.getState().setCurrentReport(completion.report);
+            useReportStore.setState({ pendingValuation: null });
+            router.replace('/consumer/report-view');
+            return;
+          }
+        }
+
+        router.replace('/consumer/home');
       } else {
         const errorMessage = typeof result.error === 'object' && result.error?.message
           ? result.error.message
@@ -70,6 +95,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaWrapper scrollable>
+      <BackButton onPress={() => router.replace('/welcome')} />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Welcome Back</Text>
@@ -114,17 +140,6 @@ export default function LoginScreen() {
           variant="outline"
           size="small"
           onPress={() => router.push('/auth/forgot-password')}
-        />
-      </View>
-
-      {/* Sign Up Link */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don't have an account? </Text>
-        <Button
-          title="Sign Up"
-          variant="outline"
-          size="small"
-          onPress={() => router.push('/auth/signup')}
         />
       </View>
     </SafeAreaWrapper>

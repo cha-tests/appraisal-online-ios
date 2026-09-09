@@ -86,6 +86,17 @@ async function main() {
   }
   console.log(`Deleted ${authDeleted}/${users.length} auth account(s).`);
 
+  // Wiping every broker_profiles row doesn't roll back the founding-member
+  // sequence (migration 015) — without this, repeated wipe-and-retest
+  // cycles would keep it climbing (member #47, #48...) even though no real
+  // founding members exist anymore after a full reset.
+  const { error: seqError } = await supabase.rpc('reset_founding_member_seq');
+  if (seqError) {
+    console.error('Failed to reset founding-member counter:', seqError.message);
+  } else {
+    console.log('Reset founding-member counter back to #1.');
+  }
+
   console.log('\nDone. All user data wiped. Reference data (cities) left untouched.');
 }
 

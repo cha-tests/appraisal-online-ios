@@ -1,162 +1,370 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, FlatList, useWindowDimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  TextInput as RNTextInput,
+  Platform,
+  Modal,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
-import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { CurrencyValue } from '../../components/ui/CurrencyValue';
+import { IconSearch, IconUser, IconPin, IconTrendUp } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
+import { useReportStore } from '../../stores/report.store';
+import { reportService } from '../../services/report.service';
+import { AUTOCOMPLETE_COUNTRIES } from '../../config/marketConfig';
+import { parseAddressComponents, isPreciseAddress, isPlusCode } from '../../utils/addressComponents';
+import { shortAddressLabel } from '../../utils/addressComponents';
+import { supabase } from '../../services/supabase';
+import { getAnonymousValuationCount, ANONYMOUS_VALUATION_LIMIT } from '../../utils/anonymousQuota';
+import { Report } from '../../types';
+import { theme, card } from '../../theme';
 
-const SLIDES = [
-  {
-    id: '1',
-    title: 'Know Your Home\'s Value',
-    description: 'Get an AI-powered valuation of your property in less than 60 seconds.',
-    icon: '📈',
-  },
-  {
-    id: '2',
-    title: 'See Comparable Sales',
-    description: 'Compare your property with recent sales in your area to understand the market.',
-    icon: '🏘️',
-  },
-  {
-    id: '3',
-    title: 'Connect with Professionals',
-    description: 'Optionally connect with local real estate agents, lenders, and brokers.',
-    icon: '🤝',
-  },
-];
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
+const COMPONENTS_FILTER = AUTOCOMPLETE_COUNTRIES.map((code) => `country:${code}`).join('|');
+
+async function authHeaders() {
+  const { data } = await supabase.auth.getSession();
+  return { Authorization: `Bearer ${data.session?.access_token}` };
+}
+
+interface PlacesPrediction {
+  place_id: string;
+  description: string;
+  main_text: string;
+  secondary_text?: string;
+}
+
+function monthDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 export default function ConsumerHome() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const [activeSlide, setActiveSlide] = useState(0);
-  const scrollViewRef = useRef<FlatList>(null);
-  // Reactive, unlike Dimensions.get('window') — that reads the size once at
-  // module load and never updates, so the carousel never adjusted to a
-  // window resize, device rotation, or (on web) a viewport that didn't match
-  // whatever size was current the moment the JS bundle first evaluated.
-  const { width } = useWindowDimensions();
+  const clearReport = useReportStore((state) => state.clear);
+  const setCurrentProperty = useReportStore((state) => state.setCurrentProperty);
+  const setCurrentReport = useReportStore((state) => state.setCurrentReport);
 
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const currentIndex = Math.round(contentOffsetX / width);
-    setActiveSlide(currentIndex);
-  };
+  const [query, setQuery] = useState('');
+  const [predictions, setPredictions] = useState<PlacesPrediction[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [plusCodeModalVisible, setPlusCodeModalVisible] = useState(false);
 
-  // FlatList measures each page in absolute pixels at render time; it doesn't
-  // re-measure on its own when `width` changes later (e.g. a browser resize,
-  // or rotating the device), which would otherwise leave the current slide
-  // sitting at the wrong offset — no longer aligned to a page boundary at
-  // the new width. Re-snapping to the same logical slide keeps it aligned.
+  const [reports, setReports] = useState<Report[]>([]);
+  const [openingReportId, setOpeningReportId] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
   useEffect(() => {
-    scrollViewRef.current?.scrollToOffset({ offset: activeSlide * width, animated: false });
-  }, [width]);
+    if (user?.id) {
+      reportService.checkReportAllowance(user.id).then(({ remaining }) => setRemaining(remaining));
+      reportService.getUserReports(user.id, 5).then(({ success, reports }) => {
+        if (success && reports) setReports(reports);
+      });
+    } else {
+      getAnonymousValuationCount().then((used) => setRemaining(Math.max(ANONYMOUS_VALUATION_LIMIT - used, 0)));
+    }
+  }, [user?.id]);
 
-  const handleGetStarted = () => {
-    router.push('/consumer/address-entry');
+  const fetchPredictions = useCallback(async (input: string) => {
+    if (!input || input.length < 2) {
+      setPredictions([]);
+      return;
+    }
+
+    try {
+      setSearching(true);
+      setSearchError('');
+
+      const response = Platform.OS === 'web'
+        ? await axios.get(`${API_URL}/api/places/autocomplete`, {
+            params: { input, components: COMPONENTS_FILTER },
+            headers: await authHeaders(),
+          })
+        : await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
+            params: {
+              input,
+              key: GOOGLE_PLACES_API_KEY,
+              types: 'address',
+              components: COMPONENTS_FILTER,
+            },
+          });
+
+      const status = response.data.status;
+      if (status && status !== 'OK' && status !== 'ZERO_RESULTS') {
+        console.error('Places autocomplete failed:', status, response.data.error_message);
+        setSearchError(
+          status === 'REQUEST_DENIED'
+            ? 'Address lookup is not configured correctly. Please contact support.'
+            : 'Unable to fetch addresses. Please try again.'
+        );
+        setPredictions([]);
+        return;
+      }
+
+      const results: PlacesPrediction[] = (response.data.predictions ?? []).map((p: any) => ({
+        place_id: p.place_id,
+        description: p.description,
+        main_text: p.structured_formatting?.main_text ?? p.description,
+        secondary_text: p.structured_formatting?.secondary_text,
+      }));
+
+      setPredictions(results);
+    } catch (err) {
+      console.error('Error fetching predictions:', err);
+      setSearchError('Unable to fetch addresses. Please try again.');
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleSelectPrediction = async (prediction: PlacesPrediction) => {
+    if (remaining !== null && remaining <= 0) {
+      Alert.alert('Monthly limit reached', "You've used all your free valuations this month. Upgrade to continue valuing properties.");
+      return;
+    }
+
+    setPredictions([]);
+    setSearchError('');
+    setResolving(true);
+    // Starting a new valuation resets the draft first — otherwise a saved
+    // property's rooms/rate leak into this one (see report.store.ts's clear).
+    clearReport();
+
+    try {
+      const detailResponse = Platform.OS === 'web'
+        ? await axios.get(`${API_URL}/api/places/details`, {
+            params: { place_id: prediction.place_id },
+            headers: await authHeaders(),
+          })
+        : await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
+            params: {
+              place_id: prediction.place_id,
+              key: GOOGLE_PLACES_API_KEY,
+              fields: 'geometry,formatted_address,address_components',
+            },
+          });
+
+      const status = detailResponse.data.status;
+      const result = detailResponse.data.result;
+      if ((status && status !== 'OK') || !result) {
+        console.error('Place details failed:', status, detailResponse.data.error_message);
+        setSearchError('Could not look up that address. Please pick another.');
+        return;
+      }
+
+      const { geometry, address_components, formatted_address } = result;
+      const parsedAddress = parseAddressComponents(address_components);
+      const canonical = formatted_address ?? prediction.description;
+      const lat = geometry?.location?.lat;
+      const lng = geometry?.location?.lng;
+      const precise = isPreciseAddress(parsedAddress) || isPlusCode(prediction.description);
+
+      setCurrentProperty({
+        id: prediction.place_id,
+        user_id: '',
+        address: canonical,
+        address_components: {
+          latitude: lat,
+          longitude: lng,
+          street_number: parsedAddress.streetNumber,
+          route: parsedAddress.route,
+          unit: parsedAddress.subpremise,
+          building: parsedAddress.premise,
+          barangay: parsedAddress.barangay,
+          city: parsedAddress.city,
+          province: parsedAddress.province,
+          state_code: parsedAddress.stateCode,
+          postal_code: parsedAddress.postalCode,
+          country: parsedAddress.country,
+          country_code: parsedAddress.countryCode,
+          is_precise: precise,
+          components: address_components,
+        },
+        created_at: new Date().toISOString(),
+      });
+
+      setQuery('');
+      router.push('/consumer/confirmation');
+    } catch (err) {
+      console.error('Error fetching place details:', err);
+      setSearchError('Could not look up that address. Please check your connection.');
+    } finally {
+      setResolving(false);
+    }
   };
+
+  const handleOpenReport = async (report: Report) => {
+    try {
+      setOpeningReportId(report.id);
+      const { success, property } = await reportService.getProperty(report.property_id);
+      setCurrentReport(report);
+      setCurrentProperty(success && property ? property : null);
+      router.push('/consumer/report-view');
+    } catch (err) {
+      console.error('Error opening report:', err);
+    } finally {
+      setOpeningReportId(null);
+    }
+  };
+
+  const freeLeftLabel = remaining === null ? '…' : `${remaining} free left`;
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable contentContainerStyle={{ paddingTop: theme.space['4xl'] }}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.greeting}>Hello, {user?.email?.split('@')[0] || 'User'}! 👋</Text>
-        <Button
-          title="Account"
-          variant="outline"
-          size="small"
-          onPress={() => router.push('/consumer/account')}
+        <Text style={styles.wordmark}>Appraisal Online</Text>
+        <View style={styles.headerRight}>
+          <View style={styles.freePill}>
+            <Text style={styles.freePillText}>{freeLeftLabel}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => router.push(user ? '/consumer/account' : '/auth/login')}
+            activeOpacity={0.7}
+          >
+            <IconUser size={20} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Text style={styles.title}>Value a property</Text>
+
+      {/* Search field */}
+      <View style={styles.searchWrapper}>
+        <View style={styles.searchIcon}>
+          <IconSearch size={19} color={theme.color.textMuted} />
+        </View>
+        <RNTextInput
+          style={styles.searchInput}
+          placeholder="Enter an address"
+          placeholderTextColor={theme.color.textFaint}
+          value={query}
+          onChangeText={(text) => {
+            setQuery(text);
+            fetchPredictions(text);
+          }}
         />
+        {(searching || resolving) && (
+          <ActivityIndicator style={styles.searchSpinner} color={theme.color.text} />
+        )}
+
+        {predictions.length > 0 && (
+          <Card variant="elevated" style={styles.suggestions}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 280 }}>
+              {predictions.map((item) => (
+                <TouchableOpacity
+                  key={item.place_id}
+                  style={styles.suggestionRow}
+                  onPress={() => handleSelectPrediction(item)}
+                  activeOpacity={0.7}
+                >
+                  <IconPin size={17} color={theme.color.textMuted} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.suggestionMain}>{item.main_text}</Text>
+                    {!!item.secondary_text && (
+                      <Text style={styles.suggestionSecondary}>{item.secondary_text}</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Card>
+        )}
       </View>
 
-      {/* Carousel Slides */}
-      <View style={styles.carouselContainer}>
-        <FlatList
-          ref={scrollViewRef}
-          data={SLIDES}
-          renderItem={({ item }) => (
-            <Card style={[styles.slide, { width }]}>
-              <View style={styles.slideContent}>
-                <Text style={styles.slideIcon}>{item.icon}</Text>
-                <Text style={styles.slideTitle}>{item.title}</Text>
-                <Text style={styles.slideDescription}>{item.description}</Text>
-              </View>
-            </Card>
-          )}
-          keyExtractor={(item) => item.id}
-          horizontal
-          pagingEnabled
-          scrollEventThrottle={16}
-          onScroll={handleScroll}
-          showsHorizontalScrollIndicator={false}
-        />
+      {!!searchError && <Text style={styles.errorText}>{searchError}</Text>}
 
-        {/* Dot Indicators */}
-        <View style={styles.dots}>
-          {SLIDES.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: index === activeSlide ? '#2563EB' : '#D1D5DB',
-                  width: index === activeSlide ? 24 : 8,
-                },
-              ]}
-            />
-          ))}
-        </View>
+      <Text style={styles.plusCodeHint}>
+        Can't find it?{' '}
+        <Text style={styles.plusCodeLink} onPress={() => setPlusCodeModalVisible(true)}>
+          Try a Plus Code
+        </Text>
+      </Text>
+
+      {/* Your properties */}
+      {user && reports.length > 0 && (
+        <>
+          <Text style={styles.eyebrow}>Your properties</Text>
+          {reports.map((report) => {
+            const propertyComponents = (report as any).property?.address_components as
+              | Record<string, any>
+              | undefined;
+            const address = (report as any).property?.address as string | undefined;
+            const city = propertyComponents?.city as string | undefined;
+            const countryCode = propertyComponents?.country_code as string | undefined;
+            return (
+              <TouchableOpacity
+                key={report.id}
+                style={styles.propertyCard}
+                onPress={() => handleOpenReport(report)}
+                activeOpacity={0.7}
+                disabled={openingReportId === report.id}
+              >
+                <View style={styles.propertyCardRow}>
+                  <Text style={styles.propertyAddress} numberOfLines={1}>
+                    {address ? shortAddressLabel(address, propertyComponents as any) : 'Property'}
+                  </Text>
+                  {openingReportId === report.id ? (
+                    <ActivityIndicator color={theme.color.text} />
+                  ) : (
+                    <CurrencyValue
+                      amountMinorUnits={report.estimated_value}
+                      countryCode={countryCode}
+                      style={styles.propertyValue}
+                    />
+                  )}
+                </View>
+                <Text style={styles.propertyMeta}>
+                  {[city, `valued ${monthDay(report.created_at)}`].filter(Boolean).join(' · ')}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </>
+      )}
+
+      {/* Market strip — illustrative copy, not live market data (no market-
+          trend feed is wired up yet). */}
+      <View style={styles.marketStrip}>
+        <IconTrendUp size={16} />
+        <Text style={styles.marketStripText}>Home values have been trending up this quarter</Text>
       </View>
 
-      {/* CTA Button */}
-      <View style={styles.ctaContainer}>
-        <Button
-          title="Get Your Free Valuation"
-          size="large"
-          onPress={handleGetStarted}
-          style={{ marginBottom: 12 }}
-        />
-        <Text style={styles.ctaSubtext}>Free • Less than 60 seconds • No commitment</Text>
-      </View>
-
-      {/* Info Section */}
-      <View style={styles.infoSection}>
-        <Text style={styles.infoTitle}>How It Works</Text>
-        <View style={styles.step}>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>1</Text>
-          </View>
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Enter Your Address</Text>
-            <Text style={styles.stepDescription}>Tell us about your property with a few quick details.</Text>
-          </View>
+      {/* Plus Code helper modal — carried over from the old address-entry
+          screen so the affordance isn't lost now that search lives here. */}
+      <Modal
+        visible={plusCodeModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPlusCodeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Card variant="elevated" style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Finding a Plus Code</Text>
+            <View style={styles.modalSteps}>
+              <Text style={styles.modalStep}>1. Open Google Maps and find the property's location.</Text>
+              <Text style={styles.modalStep}>2. Press and hold the exact spot to drop a pin.</Text>
+              <Text style={styles.modalStep}>3. The Plus Code appears above the pin, e.g. "7QQ3+8Q9".</Text>
+              <Text style={styles.modalStep}>4. Type that code into the search above — adding the city helps too.</Text>
+            </View>
+            <Button title="Got it" onPress={() => setPlusCodeModalVisible(false)} />
+          </Card>
         </View>
-        <View style={styles.step}>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>2</Text>
-          </View>
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Get Your Valuation</Text>
-            <Text style={styles.stepDescription}>Our AI analyzes comparable sales to estimate your home's value.</Text>
-          </View>
-        </View>
-        <View style={styles.step}>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>3</Text>
-          </View>
-          <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Download Your Report</Text>
-            <Text style={styles.stepDescription}>Get a detailed PDF with your valuation and market insights.</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Free Reports Info */}
-      <Card variant="outlined" style={styles.freeReportsCard}>
-        <Text style={styles.freeReportsTitle}>Free Reports This Month</Text>
-        <Text style={styles.freeReportsText}>You have <Text style={styles.bold}>3 free reports</Text> available. They reset on the 1st of each month.</Text>
-      </Card>
+      </Modal>
     </SafeAreaWrapper>
   );
 }
@@ -166,121 +374,182 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: theme.space['2xl'] + 2,
   },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
+  wordmark: {
+    ...theme.type.subheading,
+    color: theme.color.text,
   },
-  carouselContainer: {
-    marginBottom: 24,
-  },
-  slide: {
-    marginHorizontal: 0,
-    height: 300,
-    justifyContent: 'center',
-  },
-  slideContent: {
-    alignItems: 'center',
-  },
-  slideIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  slideTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  slideDescription: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  dots: {
+  headerRight: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+  },
+  freePill: {
+    borderWidth: 1,
+    borderColor: theme.color.text,
+    borderRadius: theme.radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: theme.space.md,
+  },
+  freePillText: {
+    ...theme.type.eyebrow,
+    color: theme.color.text,
+    textTransform: 'none',
+    letterSpacing: 0,
+  },
+  avatar: {
+    width: theme.size.avatarSm,
+    height: theme.size.avatarSm,
+    borderRadius: theme.size.avatarSm / 2,
+    borderWidth: 1,
+    borderColor: theme.color.border,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
   },
-  dot: {
-    height: 8,
-    borderRadius: 4,
+  title: {
+    ...theme.type.title,
+    color: theme.color.text,
+    marginBottom: theme.space.xl - 2,
   },
-  ctaContainer: {
-    marginBottom: 32,
+  searchWrapper: {
+    position: 'relative',
+    zIndex: 20,
+    elevation: 20,
   },
-  ctaSubtext: {
-    textAlign: 'center',
-    color: '#6B7280',
-    fontSize: 12,
+  searchIcon: {
+    position: 'absolute',
+    left: 18,
+    top: 20,
+    zIndex: 1,
   },
-  infoSection: {
-    marginBottom: 24,
+  searchInput: {
+    minHeight: theme.size.field,
+    borderRadius: theme.radius.full,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
+    paddingLeft: 46,
+    paddingRight: theme.space.lg,
+    fontFamily: theme.font.body,
+    fontSize: theme.type.body.fontSize,
+    color: theme.color.text,
   },
-  infoTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
+  searchSpinner: {
+    position: 'absolute',
+    right: 18,
+    top: 20,
   },
-  step: {
+  suggestions: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: theme.space.sm,
+    padding: theme.space.xs,
+  },
+  suggestionRow: {
     flexDirection: 'row',
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  stepNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#DBEAFE',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    gap: theme.space.sm + 2,
+    paddingVertical: theme.space.md - 2,
+    paddingHorizontal: theme.space.sm + 2,
+    borderRadius: theme.radius.md - 2,
   },
-  stepNumberText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2563EB',
+  suggestionMain: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
   },
-  stepContent: {
+  suggestionSecondary: {
+    ...theme.type.meta,
+    color: theme.color.textMuted,
+  },
+  errorText: {
+    ...theme.type.meta,
+    color: theme.color.danger,
+    marginTop: theme.space.sm,
+  },
+  plusCodeHint: {
+    ...theme.type.meta,
+    color: theme.color.textMuted,
+    marginTop: theme.space.md,
+  },
+  plusCodeLink: {
+    color: theme.color.text,
+    fontFamily: theme.font.bodySemibold,
+    textDecorationLine: 'underline',
+  },
+  eyebrow: {
+    ...theme.type.eyebrow,
+    color: theme.color.textMuted,
+    marginTop: theme.space['2xl'],
+    marginBottom: theme.space.md,
+  },
+  propertyCard: {
+    ...card.base,
+    marginBottom: theme.space.md,
+  },
+  propertyCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: theme.space.sm,
+  },
+  propertyAddress: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
     flex: 1,
   },
-  stepTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
+  propertyValue: {
+    ...theme.type.subheading,
+    fontFamily: theme.font.heading,
+    color: theme.color.text,
   },
-  stepDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+  propertyMeta: {
+    ...theme.type.caption,
+    color: theme.color.textMuted,
+    marginTop: theme.space.xs,
   },
-  freeReportsCard: {
-    backgroundColor: '#F0F9FF',
-    borderColor: '#BFDBFE',
-    marginBottom: 32,
+  marketStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.sm,
+    backgroundColor: theme.color.accentWash,
+    borderRadius: theme.radius.full,
+    paddingVertical: theme.space.md,
+    paddingHorizontal: theme.space.lg + 2,
+    marginTop: theme.space['2xl'],
   },
-  freeReportsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
+  marketStripText: {
+    ...theme.type.bodySm,
+    color: theme.color.text,
+    flex: 1,
   },
-  freeReportsText: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(22, 24, 29, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.space['2xl'],
   },
-  bold: {
-    fontWeight: '700',
-    color: '#1F2937',
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+  },
+  modalTitle: {
+    ...theme.type.subheading,
+    color: theme.color.text,
+    marginBottom: theme.space.lg,
+    textAlign: 'center',
+  },
+  modalSteps: {
+    marginBottom: theme.space.xl,
+    gap: theme.space.sm,
+  },
+  modalStep: {
+    ...theme.type.bodySm,
+    color: theme.color.textMuted,
   },
 });

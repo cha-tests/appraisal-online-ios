@@ -1,16 +1,21 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { theme, card } from '../../theme';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   padding?: number;
   variant?: 'default' | 'elevated' | 'outlined';
 }
 
-export function Card({ children, style, padding = 16, variant = 'default' }: CardProps) {
+export function Card({ children, style, padding, variant = 'default' }: CardProps) {
+  const paddingStyle = padding !== undefined
+    ? { padding }
+    : { paddingVertical: theme.space.lg, paddingHorizontal: theme.space.lg + 2 };
+
   return (
-    <View style={[styles.card, styles[variant], { padding }, style]}>
+    <View style={[styles.card, styles[variant], paddingStyle, style]}>
       {children}
     </View>
   );
@@ -18,22 +23,21 @@ export function Card({ children, style, padding = 16, variant = 'default' }: Car
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.color.surface,
   },
+  // Structure is carried by a hairline edge, not a shadow — see theme.ts's
+  // "Structure is carried by lines" note. `elevated` is the one exception:
+  // the search-suggestions dropdown, which floats over content.
   default: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   elevated: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    ...card.floating,
   },
   outlined: {
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderWidth: 1,
+    borderColor: theme.color.border,
   },
 });

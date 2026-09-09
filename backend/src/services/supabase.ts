@@ -31,12 +31,17 @@ export async function getUser(userId: string) {
  * Get a report by ID
  */
 export async function getReport(reportId: string) {
+  // `comparables` is already a JSONB column on `reports` itself (the array
+  // Gemini/mock valuation produced) — there is no `comparable_sales` table,
+  // so a `comparables:comparable_sales(*)` join here would either error or
+  // silently shadow that real column. Property facts (address, bedrooms,
+  // etc.) live on the separate `properties` row instead, joined via
+  // `property_id`, so pdf.ts reads them from `data.properties`.
   const { data, error } = await supabase
     .from('reports')
     .select(`
       *,
-      comparables:comparable_sales(*),
-      properties(address_components)
+      properties(*)
     `)
     .eq('id', reportId)
     .single();

@@ -2,6 +2,9 @@ import 'react-native-url-polyfill/auto';
 import '../polyfills/alert';
 import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import { Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold } from '@expo-google-fonts/archivo';
+import { BodoniModa_600SemiBold } from '@expo-google-fonts/bodoni-moda';
 import { initStripe } from '../lib/stripe';
 import * as SplashScreen from 'expo-splash-screen';
 import { supabase, getCurrentUser } from '../services/supabase';
@@ -30,6 +33,19 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const setUser = useAuthStore((state) => state.setUser);
   const setBrokerProfile = useAuthStore((state) => state.setBrokerProfile);
+
+  // theme.ts's `font` object names these two faces by these exact export
+  // names — the monochrome redesign's Archivo (body/heading) + Bodoni Moda
+  // (hero values only). Splash stays up (see prepareApp's finally below)
+  // until both this AND the auth check are done, so no screen can flash
+  // system-font text before these are ready.
+  const [fontsLoaded] = useFonts({
+    Archivo_400Regular,
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+    BodoniModa_600SemiBold,
+  });
 
   useEffect(() => {
     async function prepareApp() {
@@ -61,14 +77,19 @@ export default function RootLayout() {
         console.error('Error preparing app:', error);
       } finally {
         setIsReady(true);
-        await SplashScreen.hideAsync();
       }
     }
 
     prepareApp();
   }, []);
 
-  if (!isReady) {
+  useEffect(() => {
+    if (isReady && fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [isReady, fontsLoaded]);
+
+  if (!isReady || !fontsLoaded) {
     return null;
   }
 

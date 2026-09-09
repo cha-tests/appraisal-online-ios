@@ -163,7 +163,7 @@ export default function HowWeMakeMoney() {
         <Button
           title="Get Started for Free"
           size="large"
-          onPress={() => router.push('/consumer/address-entry')}
+          onPress={() => router.push('/welcome')}
           style={{ marginBottom: 12 }}
         />
         <Button

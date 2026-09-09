@@ -1,5 +1,5 @@
 import { supabase, parseSupabaseError } from './supabase';
-import { BrokerProfile, City, BrokerTier } from '../types';
+import { BrokerProfile, City, BrokerTier, BrokerRole } from '../types';
 
 export const brokerService = {
   // Create broker profile
@@ -8,7 +8,9 @@ export const brokerService = {
     companyName: string,
     license?: string,
     phone?: string,
-    website?: string
+    website?: string,
+    role: BrokerRole = 'broker',
+    tier: BrokerTier = 'Premium Annual'
   ) {
     try {
       const { data, error } = await supabase
@@ -19,7 +21,8 @@ export const brokerService = {
           license_number: license,
           phone,
           website,
-          tier: 'Premium Annual', // Default tier before payment
+          role,
+          tier,
           selected_cities: [],
           email_enabled: true,
           push_enabled: true,
@@ -35,6 +38,92 @@ export const brokerService = {
       return {
         success: false,
         error: parseSupabaseError(error),
+      };
+    }
+  },
+
+  /**
+   * Uploads one KYC file (the valid-ID photo or the selfie) to the private
+   * 'kyc-documents' bucket at <user_id>/<kind>.jpg — RLS on storage.objects
+   * (migration 014) restricts both upload and read to the owning user.
+   * Returns the storage path (not a public URL, since the bucket is
+   * private) — callers pass this straight to submitKyc.
+   */
+  async uploadKycDocument(
+    userId: string,
+    fileUri: string,
+    kind: 'id' | 'selfie'
+  ): Promise<{ success: boolean; path?: string; error?: string }> {
+    try {
+      const response = await fetch(fileUri);
+      const blob = await response.blob();
+      const path = `${userId}/${kind}.jpg`;
+
+      const { error } = await supabase.storage.from('kyc-documents').upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+      if (error) throw error;
+      return { success: true, path };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload document',
+      };
+    }
+  },
+
+  /**
+   * Records that KYC documents were submitted and resets status to
+   * 'pending' for admin review (see scripts/review-kyc.ts). Re-submitting
+   * (e.g. after a rejection) is safe to call again — it just re-queues it.
+   */
+  async submitKyc(userId: string, idPath: string, selfiePath: string) {
+    try {
+      const { error } = await supabase
+        .from('broker_profiles')
+        .update({
+          kyc_id_url: idPath,
+          kyc_selfie_url: selfiePath,
+          kyc_status: 'pending',
+          kyc_submitted_at: new Date().toISOString(),
+          kyc_reviewed_at: null,
+          kyc_rejection_reason: null,
+        })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: parseSupabaseError(error),
+      };
+    }
+  },
+
+  /**
+   * Claims a founding-member slot (₱5,000/year locked for life) for the
+   * calling broker, if any of the first 1,000 remain — see migration 015.
+   * Idempotent: safe to call more than once for the same broker. Returns
+   * `founding_member_number: null` (not an error) once slots run out —
+   * the broker still signs up, just without the lock.
+   */
+  async claimFoundingMemberSlot(
+    userId: string
+  ): Promise<{ success: boolean; founding_member_number?: number | null; error?: string }> {
+    try {
+      const { data, error } = await supabase.rpc('claim_founding_member_slot', {
+        p_user_id: userId,
+      });
+
+      if (error) throw error;
+      return { success: true, founding_member_number: data as number | null };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to claim founding member slot',
       };
     }
   },

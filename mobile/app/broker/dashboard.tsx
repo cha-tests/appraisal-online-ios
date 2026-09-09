@@ -9,6 +9,7 @@ import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
+import { formatCurrency } from '../../config/marketConfig';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -17,12 +18,26 @@ interface DashboardMetrics {
   averageLeadValue: number;
 }
 
+// Shape of a lead_routings row as fetched below (`lead:lead_id(*, ...)`),
+// not the bare `Lead` row itself — the list actually renders the routing's
+// nested `lead`, `lead_id`, and `delivery_status`, not fields on `Lead`.
+interface RecentLeadRouting {
+  id: string;
+  lead_id: string;
+  delivery_status?: string;
+  lead?: Lead & {
+    consumer_email?: string;
+    property?: { address_components?: { country_code?: string } };
+    report?: { title_url?: string };
+  };
+}
+
 export default function BrokerDashboard() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [brokerProfile, setBrokerProfile] = useState<BrokerProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [recentLeads, setRecentLeads] = useState<Lead[]>([]);
+  const [recentLeads, setRecentLeads] = useState<RecentLeadRouting[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
@@ -58,13 +73,20 @@ export default function BrokerDashboard() {
         // Fetch recent leads for this broker
         const { data: leads } = await supabase
           .from('lead_routings')
-          .select('*, lead:lead_id(*, consumer:consumer_id(email))')
+          .select(
+            '*, lead:lead_id(*, consumer:consumer_id(email), property:property_id(address_components), report:report_id(title_url))'
+          )
           .eq('broker_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5);
 
         if (leads) {
-          setRecentLeads(leads as any);
+          // A consumer who revokes broker contact archives the underlying
+          // lead (see report.service.ts's updateBrokerOptIn) — filtered
+          // client-side since the archive status lives on the nested
+          // `lead`, not lead_routings itself, so it can't be pushed into
+          // the query above without an inner-join filter.
+          setRecentLeads(leads.filter((r: any) => r.lead?.status !== 'archived') as any);
         }
 
         // Calculate metrics (mock data for now)
@@ -213,13 +235,16 @@ export default function BrokerDashboard() {
               <View style={styles.leadCardHeader}>
                 <Text style={styles.leadAddress}>{item.lead?.property_address || 'Property'}</Text>
                 <Text style={styles.leadValue}>
-                  ${(item.lead?.property_value ? item.lead.property_value / 100 : 0).toLocaleString()}
+                  {formatCurrency(item.lead?.property_value || 0, item.lead?.property?.address_components?.country_code)}
                 </Text>
               </View>
               <View style={styles.leadCardFooter}>
                 <Text style={styles.leadEmail}>{item.lead?.consumer_email || 'Unknown'}</Text>
                 <Text style={styles.leadStatus}>{item.delivery_status}</Text>
               </View>
+              {item.lead?.report?.title_url && (
+                <Text style={styles.leadTitleBadge}>✓ Title on file</Text>
+              )}
             </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}
@@ -248,7 +273,7 @@ export default function BrokerDashboard() {
       )}
 
       {/* Tips Section */}
-      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Quick Tips</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Quick Tips</Text>
 
       <Card variant="outlined" style={styles.tipCard}>
         <Text style={styles.tipIcon}>⚡</Text>
@@ -435,6 +460,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+  leadTitleBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
+    marginTop: 6,
   },
   emptyState: {
     alignItems: 'center',

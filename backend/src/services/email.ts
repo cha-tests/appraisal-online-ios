@@ -1,5 +1,6 @@
 import { ServerClient } from 'postmark';
 import { logger } from '../utils/logger.js';
+import { formatCurrency } from '../utils/formatCurrency.js';
 
 const client = new ServerClient(process.env.POSTMARK_API_KEY || '');
 
@@ -60,18 +61,22 @@ export async function sendBrokerWelcomeEmail(
 
 /**
  * Send consumer confirmation email after report generation
+ *
+ * pdfAttachment is optional so this still works for the existing
+ * /api/emails/confirmation route, which has no PDF to attach — only the
+ * new auto-send-on-report-creation path (routes/reports.ts) passes one.
+ * countryCode is likewise optional (falls back to USD in formatCurrency) for
+ * that same older route, which doesn't have the property on hand.
  */
 export async function sendConsumerConfirmationEmail(
   consumerEmail: string,
   propertyAddress: string,
-  estimatedValue: number
+  estimatedValue: number,
+  pdfAttachment?: { fileName: string; buffer: Buffer },
+  countryCode?: string | null
 ) {
   try {
-    const valueFormatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(estimatedValue / 100);
+    const valueFormatted = formatCurrency(estimatedValue, countryCode);
 
     const subject = `Your Property Valuation Report for ${propertyAddress}`;
 
@@ -109,6 +114,18 @@ export async function sendConsumerConfirmationEmail(
       TextBody: `Your property valuation: ${valueFormatted}`,
       MessageStream: 'outbound',
       Tag: 'consumer-report',
+      Attachments: pdfAttachment
+        ? [
+            {
+              Name: pdfAttachment.fileName,
+              Content: pdfAttachment.buffer.toString('base64'),
+              ContentType: 'application/pdf',
+              // Postmark's type requires this even for a normal (non-inline)
+              // attachment; an empty string is what a plain attachment uses.
+              ContentID: '',
+            },
+          ]
+        : undefined,
     });
 
     logger.info(`Confirmation email sent to ${consumerEmail}`);

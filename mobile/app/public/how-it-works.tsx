@@ -131,7 +131,7 @@ export default function HowItWorks() {
         <Button
           title="Get Your Free Valuation"
           size="large"
-          onPress={() => router.push('/consumer/address-entry')}
+          onPress={() => router.push('/welcome')}
         />
       </View>
     </SafeAreaWrapper>
