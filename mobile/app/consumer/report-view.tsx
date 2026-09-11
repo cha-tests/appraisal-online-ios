@@ -171,7 +171,7 @@ export default function ReportView() {
         <Card variant="default" style={styles.optinWash}>
           <Text style={styles.optinTitle}>You're connected</Text>
           <Text style={styles.optinText}>
-            A qualified professional will reach out within 24-48 hours. You can manage this
+            A qualified professional will reach out about this property. You can manage this
             anytime from your account.
           </Text>
         </Card>
