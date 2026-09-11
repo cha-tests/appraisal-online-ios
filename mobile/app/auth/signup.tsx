@@ -12,6 +12,7 @@ import { CurrencyValue } from '../../components/ui/CurrencyValue';
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { authService } from '../../services/auth.service';
+import { checkPasswordBreach } from '../../services/passwordBreach.service';
 import { formatCurrency } from '../../config/marketConfig';
 import {
   completePendingValuation,
@@ -76,6 +77,14 @@ function GateScreen() {
     setLoading(true);
 
     try {
+      const breachCheck = await checkPasswordBreach(password);
+      if (breachCheck.breached) {
+        setGateError(
+          'This password has appeared in known data breaches. Please choose a different password.'
+        );
+        return;
+      }
+
       const result = await authService.signup(email, password, {
         full_name: '',
         user_type: 'consumer',
@@ -281,6 +290,16 @@ export default function SignupScreen() {
 
     try {
       setLoading(true);
+
+      const breachCheck = await checkPasswordBreach(password);
+      if (breachCheck.breached) {
+        setErrors((prev) => ({
+          ...prev,
+          password: 'This password has appeared in known data breaches. Please choose a different password.',
+        }));
+        return;
+      }
+
       const result = await authService.signup(email, password, {
         full_name: fullName,
         user_type: userType!,
