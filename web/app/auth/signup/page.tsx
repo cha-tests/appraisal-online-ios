@@ -145,48 +145,8 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
-          {/* First Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              First Name
-            </label>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => {
-                setFirstName(e.target.value);
-                if (errors.firstName) setErrors({ ...errors, firstName: undefined });
-              }}
-              placeholder="John"
-              disabled={loading}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
-            />
-            {errors.firstName && (
-              <p className="text-red-600 text-sm mt-1">{errors.firstName}</p>
-            )}
-          </div>
-
-          {/* Last Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Last Name
-            </label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => {
-                setLastName(e.target.value);
-                if (errors.lastName) setErrors({ ...errors, lastName: undefined });
-              }}
-              placeholder="Doe"
-              disabled={loading}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
-            />
-            {errors.lastName && (
-              <p className="text-red-600 text-sm mt-1">{errors.lastName}</p>
-            )}
-          </div>
-
+          {/* Email, password, confirm password, first name, last name — in
+              that order. */}
           {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -248,6 +208,48 @@ export default function SignupPage() {
             />
             {errors.confirmPassword && (
               <p className="text-red-600 text-sm mt-1">{errors.confirmPassword}</p>
+            )}
+          </div>
+
+          {/* First Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              First Name
+            </label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => {
+                setFirstName(e.target.value);
+                if (errors.firstName) setErrors({ ...errors, firstName: undefined });
+              }}
+              placeholder="John"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
+            {errors.firstName && (
+              <p className="text-red-600 text-sm mt-1">{errors.firstName}</p>
+            )}
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Last Name
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                if (errors.lastName) setErrors({ ...errors, lastName: undefined });
+              }}
+              placeholder="Doe"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
+            {errors.lastName && (
+              <p className="text-red-600 text-sm mt-1">{errors.lastName}</p>
             )}
           </div>
 

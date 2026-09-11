@@ -443,25 +443,9 @@ export default function SignupScreen() {
         </Text>
       </View>
 
-      {/* Form */}
+      {/* Form — email, password, confirm password, first name, last name,
+          phone (in that order). */}
       <View style={styles.form}>
-        <TextInput
-          placeholder="First Name"
-          value={firstName}
-          onChangeText={setFirstName}
-          editable={!loading}
-          error={errors.firstName}
-        />
-
-        <TextInput
-          placeholder="Last Name"
-          value={lastName}
-          onChangeText={setLastName}
-          editable={!loading}
-          error={errors.lastName}
-          style={{ marginTop: 12 }}
-        />
-
         <TextInput
           placeholder="Email"
           value={email}
@@ -470,7 +454,6 @@ export default function SignupScreen() {
           autoCapitalize="none"
           editable={!loading}
           error={errors.email}
-          style={{ marginTop: 12 }}
         />
 
         <TextInput
@@ -490,6 +473,24 @@ export default function SignupScreen() {
           secureTextEntry
           editable={!loading}
           error={errors.confirmPassword}
+          style={{ marginTop: 12 }}
+        />
+
+        <TextInput
+          placeholder="First Name"
+          value={firstName}
+          onChangeText={setFirstName}
+          editable={!loading}
+          error={errors.firstName}
+          style={{ marginTop: 12 }}
+        />
+
+        <TextInput
+          placeholder="Last Name"
+          value={lastName}
+          onChangeText={setLastName}
+          editable={!loading}
+          error={errors.lastName}
           style={{ marginTop: 12 }}
         />
 
