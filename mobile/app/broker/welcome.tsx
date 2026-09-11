@@ -30,10 +30,14 @@ export default function Welcome() {
       try {
         const eligibility = await subscriptionService.checkRefundEligibility(user.id);
         if (eligibility.eligible) {
+          const daysSincePurchase = eligibility.daysSincePurchase || 0;
+          const refundWindow = eligibility.refundWindow || 0;
+          const daysRemaining = Math.max(0, refundWindow - daysSincePurchase);
+
           setRefundInfo({
-            daysRemaining: eligibility.refundWindow || 0,
+            daysRemaining,
             expiresAt: new Date(
-              Date.now() + (eligibility.refundWindow || 0) * 24 * 60 * 60 * 1000
+              Date.now() + daysRemaining * 24 * 60 * 60 * 1000
             ).toLocaleDateString(),
           });
         }

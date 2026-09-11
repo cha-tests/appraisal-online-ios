@@ -22,17 +22,11 @@ export default function RatingPrompt() {
       } catch (err) {
         console.error('Error opening store review:', err);
       }
-      // Continue to paywall regardless
-      setTimeout(() => {
-        router.push('/broker/paywall');
-      }, 1000);
-    } else if (stars < 5) {
-      // Show feedback prompt
-      router.push({
-        pathname: '/broker/paywall',
-        params: { showFeedback: 'true' },
-      });
     }
+  };
+
+  const handleContinue = () => {
+    router.push('/broker/paywall');
   };
 
   return (
@@ -105,14 +99,14 @@ export default function RatingPrompt() {
             <Button
               title="Continue to Payment"
               size="large"
-              onPress={() => router.push('/broker/paywall')}
+              onPress={handleContinue}
               style={{ marginBottom: 12 }}
             />
             <Button
               title="Skip"
               variant="outline"
               size="large"
-              onPress={() => router.push('/broker/paywall')}
+              onPress={handleContinue}
             />
           </>
         ) : (
@@ -121,7 +115,7 @@ export default function RatingPrompt() {
               title="Skip This Step"
               variant="outline"
               size="large"
-              onPress={() => router.push('/broker/paywall')}
+              onPress={handleContinue}
             />
             <Text style={styles.skipNote}>
               You can always rate us later from the app
