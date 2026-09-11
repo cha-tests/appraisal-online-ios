@@ -191,26 +191,21 @@ export default function BrokerOptins() {
         // currentReport) keeps showing the stale pre-opt-in state — the
         // store was never told the update actually happened.
         if (result.report) setCurrentReport(result.report);
-        router.push('/consumer/report-view');
+
+        // Opting in: stay on this screen rather than navigating away —
+        // updating currentReport makes report.broker_contact_opted_in true,
+        // which re-renders this same component into the "You're Connected"
+        // confirmation (see the early-return branch above handleContinue).
+        // Navigating to report-view here, like the decline path still does,
+        // would skip past that confirmation before it ever showed.
+        if (!optedIn) {
+          router.push('/consumer/report-view');
+        }
       } else {
         setError(result.error?.message || 'Failed to save preferences');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSkip = async () => {
-    try {
-      setLoading(true);
-      // Update report with opt-out
-      const result = await reportService.updateBrokerOptIn(report.id, false);
-      if (result.report) setCurrentReport(result.report);
-      router.push('/consumer/report-view');
-    } catch (err) {
-      console.error('Error:', err);
     } finally {
       setLoading(false);
     }
