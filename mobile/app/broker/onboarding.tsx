@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Image, Alert, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -16,7 +16,7 @@ import { disclaimerService } from '../../services/disclaimer.service';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { BrokerTier, BrokerRole, City } from '../../types';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 // Only these two are offered at signup for now, per the Sep 1 pricing
 // decision (₱5,000/year flat, no city cap yet) — 'Founder Lifetime' still
 // exists as a BrokerTier value (other screens reference it) but isn't
@@ -47,6 +47,7 @@ export default function BrokerOnboarding() {
   const [cities, setCities] = useState<City[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
@@ -102,7 +103,6 @@ export default function BrokerOnboarding() {
     const newErrors: Record<string, string> = {};
 
     if (stepNum === 1) {
-      if (!formData.company_name.trim()) newErrors.company_name = 'Company name is required';
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
     } else if (stepNum === 2) {
       if (!kycIdUri) newErrors.kycId = 'Upload a photo of a valid ID';
@@ -293,11 +293,10 @@ export default function BrokerOnboarding() {
           )}
 
           <TextInput
-            label="Company Name"
+            label="Company Name (Optional)"
             placeholder="e.g., Smith & Associates Realty"
             value={formData.company_name}
             onChangeText={(val) => setFormData((prev) => ({ ...prev, company_name: val }))}
-            error={formErrors.company_name}
           />
 
           <TextInput
@@ -432,28 +431,47 @@ export default function BrokerOnboarding() {
           ) : (
             <>
               {COUNTRY_ORDER.filter((code) => cities.some((c) => c.country === code)).length > 1 && (
-                <View style={styles.countryTabs}>
-                  {COUNTRY_ORDER.filter((code) => cities.some((c) => c.country === code)).map((code) => (
-                    <TouchableOpacity
-                      key={code}
-                      style={[
-                        styles.countryTab,
-                        selectedCountry === code && styles.countryTabActive,
-                      ]}
-                      onPress={() => setSelectedCountry(code)}
-                    >
-                      <Text
-                        style={[
-                          styles.countryTabText,
-                          selectedCountry === code && styles.countryTabTextActive,
-                        ]}
-                      >
-                        {COUNTRY_LABELS[code] ?? code}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  style={styles.countryDropdown}
+                  onPress={() => setCountryPickerVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.countryDropdownText}>
+                    {selectedCountry ? COUNTRY_LABELS[selectedCountry] ?? selectedCountry : 'Select country'}
+                  </Text>
+                  <Text style={styles.countryDropdownChevron}>▾</Text>
+                </TouchableOpacity>
               )}
+
+              <Modal
+                visible={countryPickerVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setCountryPickerVisible(false)}
+              >
+                <TouchableOpacity
+                  style={styles.modalOverlay}
+                  activeOpacity={1}
+                  onPress={() => setCountryPickerVisible(false)}
+                >
+                  <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+                    <Text style={styles.modalTitle}>Select Country</Text>
+                    {COUNTRY_ORDER.filter((code) => cities.some((c) => c.country === code)).map((code) => (
+                      <TouchableOpacity
+                        key={code}
+                        style={styles.countryOptionRow}
+                        onPress={() => {
+                          setSelectedCountry(code);
+                          setCountryPickerVisible(false);
+                        }}
+                      >
+                        <Text style={styles.countryOptionText}>{COUNTRY_LABELS[code] ?? code}</Text>
+                        {selectedCountry === code && <Text style={styles.countryOptionCheck}>✓</Text>}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
               <FlatList
               data={cities.filter((c) => c.country === selectedCountry)}
               renderItem={({ item }) => {
@@ -521,8 +539,95 @@ export default function BrokerOnboarding() {
           <Card variant="outlined" style={styles.infoCard}>
             <Text style={styles.infoTitle}>Next Step</Text>
             <Text style={styles.infoText}>
-              After completing this onboarding, you'll see your personalized value reveal and choose how to proceed with payment.
+              Review everything you've entered on the next screen before submitting.
             </Text>
+          </Card>
+        </View>
+      )}
+
+      {/* Step 6: Review — a real summary of what's about to be submitted,
+          not just a button labeled "Review" with nothing to review. */}
+      {step === 6 && (
+        <View>
+          <Text style={styles.sectionTitle}>Review Your Information</Text>
+          <Text style={styles.stepDescription}>
+            Confirm everything below is correct before submitting.
+          </Text>
+
+          <Card variant="default" style={styles.reviewCard}>
+            <Text style={styles.reviewSectionLabel}>Your Information</Text>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>I am a</Text>
+              <Text style={styles.reviewValue}>
+                {formData.role === 'broker' ? 'Broker' : 'Salesperson'}
+              </Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Company Name</Text>
+              <Text style={styles.reviewValue}>{formData.company_name || 'Not provided'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>License #</Text>
+              <Text style={styles.reviewValue}>{formData.license_number || 'Not provided'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Phone</Text>
+              <Text style={styles.reviewValue}>{formData.phone || 'Not provided'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Website</Text>
+              <Text style={styles.reviewValue}>{formData.website || 'Not provided'}</Text>
+            </View>
+          </Card>
+
+          <Card variant="default" style={styles.reviewCard}>
+            <Text style={styles.reviewSectionLabel}>Verification</Text>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Valid ID</Text>
+              <Text style={styles.reviewValue}>{kycIdUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Selfie</Text>
+              <Text style={styles.reviewValue}>{kycSelfieUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+            </View>
+          </Card>
+
+          <Card variant="default" style={styles.reviewCard}>
+            <Text style={styles.reviewSectionLabel}>Plan</Text>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Selected Plan</Text>
+              <Text style={styles.reviewValue}>{TIER_DETAILS[formData.tier].label}</Text>
+            </View>
+          </Card>
+
+          <Card variant="default" style={styles.reviewCard}>
+            <Text style={styles.reviewSectionLabel}>
+              Cities ({formData.selectedCities.length})
+            </Text>
+            <Text style={styles.reviewValue}>
+              {cities
+                .filter((c) => formData.selectedCities.includes(c.id))
+                .map((c) => c.name)
+                .join(', ') || 'None selected'}
+            </Text>
+          </Card>
+
+          <Card variant="default" style={styles.reviewCard}>
+            <Text style={styles.reviewSectionLabel}>Notifications</Text>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Email</Text>
+              <Text style={styles.reviewValue}>{formData.emailEnabled ? 'On' : 'Off'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Push</Text>
+              <Text style={styles.reviewValue}>{formData.pushEnabled ? 'On' : 'Off'}</Text>
+            </View>
           </Card>
         </View>
       )}
@@ -542,7 +647,7 @@ export default function BrokerOnboarding() {
         {step < TOTAL_STEPS ? (
           <Button title="Next" size="large" onPress={handleNext} />
         ) : (
-          <Button title="Review & Continue" size="large" onPress={handleSubmit} loading={submitting} />
+          <Button title="Confirm & Submit" size="large" onPress={handleSubmit} loading={submitting} />
         )}
       </View>
     </SafeAreaWrapper>
@@ -708,30 +813,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  countryTabs: {
+  countryDropdown: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  countryTab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    alignItems: 'center',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#FFFFFF',
+    marginBottom: 16,
   },
-  countryTabActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
-  },
-  countryTabText: {
-    fontSize: 14,
+  countryDropdownText: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#1F2937',
+  },
+  countryDropdownChevron: {
+    fontSize: 13,
     color: '#6B7280',
   },
-  countryTabTextActive: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  countryOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  countryOptionText: {
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  countryOptionCheck: {
+    fontSize: 15,
+    fontWeight: '700',
     color: '#2563EB',
   },
   cityItem: {
@@ -832,6 +970,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  reviewCard: {
+    marginBottom: 12,
+  },
+  reviewSectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 10,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  reviewLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  reviewValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   footer: {
     marginBottom: 32,

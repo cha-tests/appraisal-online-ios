@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
+import { formatCurrency } from '../../config/marketConfig';
 
 interface ValueMetrics {
   estimatedLeadsPerMonth: number;
@@ -20,6 +21,10 @@ export default function ValueReveal() {
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
   const [metrics, setMetrics] = useState<ValueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  // The broker's country, derived from their selected cities — cities carry
+  // their own country, but selectedCities in the store is just a list of
+  // IDs, so this needs its own lookup rather than being available directly.
+  const [countryCode, setCountryCode] = useState<string | null>(null);
 
   useEffect(() => {
     const calculateMetrics = async () => {
@@ -27,9 +32,13 @@ export default function ValueReveal() {
         // Get marketing allocation for selected cities
         const allocations = await brokerService.getMarketingAllocation('temp-user');
 
+        const { cities } = await brokerService.getCities();
+        const firstSelectedCity = cities?.find((c) => selectedCities.includes(c.id));
+        setCountryCode(firstSelectedCity?.country ?? null);
+
         // Calculate conservative estimates
         const avgLeadsPerMonth = selectedCities.length * 3; // Conservative estimate
-        const avgLeadValue = 5000; // Conservative estimate
+        const avgLeadValue = 5000; // Conservative estimate (minor currency units)
 
         setMetrics({
           estimatedLeadsPerMonth: avgLeadsPerMonth,
@@ -99,25 +108,27 @@ export default function ValueReveal() {
         </Text>
       </Card>
 
-      {/* Value Breakdown */}
+      {/* Value Breakdown — one panel with dividers between items, matching
+          "How You Get Leads" and "Why This Works" below, rather than three
+          separate cards that read as tappable options. */}
       <Text style={styles.sectionTitle}>What This Means</Text>
 
-      <Card variant="default" style={styles.metricCard}>
+      <Card variant="default" style={styles.whatThisMeansCard}>
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>💰</Text>
           <View style={styles.metricCardText}>
             <Text style={styles.metricCardLabel}>Potential Monthly Revenue</Text>
             <Text style={styles.metricCardValue}>
-              ${monthlyRevenuePotential.toLocaleString()}
+              {formatCurrency(monthlyRevenuePotential * 100, countryCode)}
             </Text>
             <Text style={styles.metricCardHelper}>
-              @ ~${metrics.estimatedLeadValue / 100} average lead value
+              @ ~{formatCurrency(metrics.estimatedLeadValue, countryCode)} average lead value
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.metricCard}>
+        <View style={styles.divider} />
+
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>📍</Text>
           <View style={styles.metricCardText}>
@@ -128,9 +139,9 @@ export default function ValueReveal() {
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.metricCard}>
+        <View style={styles.divider} />
+
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>🏆</Text>
           <View style={styles.metricCardText}>
@@ -236,28 +247,43 @@ export default function ValueReveal() {
         </View>
       </Card>
 
-      {/* CTA */}
-      <View style={styles.ctaSection}>
-        <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
-        <Text style={styles.ctaSubtitle}>
-          Choose your plan and complete payment to activate your membership
-        </Text>
-      </View>
+      {/* CTA — the Free tier has nothing to pay for, so it skips straight to
+          activation instead of the paid tier's payment flow (rating-prompt
+          -> paywall -> checkout). The broker profile itself was already
+          created back in onboarding.tsx's handleSubmit, so "Submit" here
+          just confirms and moves on to the welcome/activation screen. */}
+      {(() => {
+        const isFree = selectedTier === 'Basic Annual';
+        return (
+          <>
+            <View style={styles.ctaSection}>
+              <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
+              <Text style={styles.ctaSubtitle}>
+                {isFree
+                  ? 'Submit to activate your free membership'
+                  : 'Choose your plan and complete payment to activate your membership'}
+              </Text>
+            </View>
 
-      <View style={styles.footer}>
-        <Button
-          title="Continue to Payment"
-          size="large"
-          onPress={() => router.push('/broker/rating-prompt')}
-          style={{ marginBottom: 12 }}
-        />
-        <Button
-          title="Back"
-          variant="outline"
-          size="large"
-          onPress={() => router.back()}
-        />
-      </View>
+            <View style={styles.footer}>
+              <Button
+                title={isFree ? 'Submit' : 'Continue to Payment'}
+                size="large"
+                onPress={() =>
+                  router.push(isFree ? '/broker/welcome' : '/broker/rating-prompt')
+                }
+                style={{ marginBottom: 12 }}
+              />
+              <Button
+                title="Back"
+                variant="outline"
+                size="large"
+                onPress={() => router.back()}
+              />
+            </View>
+          </>
+        );
+      })()}
     </SafeAreaWrapper>
   );
 }
@@ -318,12 +344,13 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 16,
   },
-  metricCard: {
-    marginBottom: 12,
+  whatThisMeansCard: {
+    marginBottom: 24,
   },
   metricCardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: 14,
   },
   metricCardIcon: {
     fontSize: 28,
