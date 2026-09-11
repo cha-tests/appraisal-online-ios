@@ -9,6 +9,7 @@ import {
   TextInput as RNTextInput,
   Platform,
   Modal,
+  FlatList,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -27,7 +28,7 @@ import { shortAddressLabel } from '../../utils/addressComponents';
 import { supabase } from '../../services/supabase';
 import { getAnonymousValuationCount, ANONYMOUS_VALUATION_LIMIT } from '../../utils/anonymousQuota';
 import { Report } from '../../types';
-import { theme, card, pill } from '../../theme';
+import { theme, card } from '../../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
@@ -82,6 +83,7 @@ export default function ConsumerHome() {
   // null = search across all AUTOCOMPLETE_COUNTRIES at once (the prior
   // behavior); picking one narrows results to just that country.
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
 
   const [reports, setReports] = useState<Report[]>([]);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
@@ -244,6 +246,13 @@ export default function ConsumerHome() {
   };
 
   const freeLeftLabel = remaining === null ? '…' : `${remaining} free left`;
+  const selectedCountryOption = COUNTRY_OPTIONS.find((c) => c.code === selectedCountry) ?? null;
+
+  const handleSelectCountry = (code: string | null) => {
+    setSelectedCountry(code);
+    setCountryPickerVisible(false);
+    if (query.length >= 2) fetchPredictions(query, code);
+  };
 
   return (
     <SafeAreaWrapper scrollable contentContainerStyle={{ paddingTop: theme.space['4xl'] }}>
@@ -269,40 +278,63 @@ export default function ConsumerHome() {
       {/* Country selector — narrows the address search to one country
           instead of always matching against all five at once (see
           componentsFilterFor above). Placed above the search field since it
-          scopes what that field searches. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.countryRow}
-        contentContainerStyle={styles.countryRowContent}
+          scopes what that field searches. A single dropdown button (matching
+          PhoneInput's country-code picker elsewhere in the app) rather than a
+          row of selectable pills — cleaner at a glance, and doesn't grow
+          wider as more countries are added. */}
+      <TouchableOpacity
+        style={styles.countryDropdown}
+        onPress={() => setCountryPickerVisible(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.countryDropdownFlag}>{selectedCountryOption?.flag ?? '🌐'}</Text>
+        <Text style={styles.countryDropdownLabel}>
+          {selectedCountryOption?.name ?? 'All countries'}
+        </Text>
+        <Text style={styles.countryDropdownChevron}>▾</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={countryPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCountryPickerVisible(false)}
       >
         <TouchableOpacity
-          style={[pill.base, !selectedCountry ? pill.on : pill.off]}
-          onPress={() => {
-            setSelectedCountry(null);
-            if (query.length >= 2) fetchPredictions(query, null);
-          }}
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCountryPickerVisible(false)}
         >
-          <Text style={!selectedCountry ? pill.textOn : pill.textOff}>All</Text>
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <Text style={styles.modalTitle}>Search in which country?</Text>
+            <FlatList
+              data={COUNTRY_OPTIONS}
+              keyExtractor={(item) => item.code}
+              style={{ flexGrow: 0 }}
+              ListHeaderComponent={
+                <TouchableOpacity
+                  style={styles.countryOptionRow}
+                  onPress={() => handleSelectCountry(null)}
+                >
+                  <Text style={styles.countryOptionFlag}>🌐</Text>
+                  <Text style={styles.countryOptionName}>All countries</Text>
+                  {!selectedCountry && <Text style={styles.countryOptionCheck}>✓</Text>}
+                </TouchableOpacity>
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.countryOptionRow}
+                  onPress={() => handleSelectCountry(item.code)}
+                >
+                  <Text style={styles.countryOptionFlag}>{item.flag}</Text>
+                  <Text style={styles.countryOptionName}>{item.name}</Text>
+                  {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
         </TouchableOpacity>
-        {COUNTRY_OPTIONS.map((country) => {
-          const active = selectedCountry === country.code;
-          return (
-            <TouchableOpacity
-              key={country.code}
-              style={[pill.base, active ? pill.on : pill.off]}
-              onPress={() => {
-                setSelectedCountry(country.code);
-                if (query.length >= 2) fetchPredictions(query, country.code);
-              }}
-            >
-              <Text style={active ? pill.textOn : pill.textOff}>
-                {country.flag} {country.code}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      </Modal>
 
       {/* Search field */}
       <View style={styles.searchWrapper}>
@@ -473,13 +505,52 @@ const styles = StyleSheet.create({
     color: theme.color.text,
     marginBottom: theme.space.xl - 2,
   },
-  countryRow: {
+  countryDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.surface,
+    paddingVertical: theme.space.sm,
+    paddingHorizontal: theme.space.md,
     marginBottom: theme.space.md,
   },
-  countryRowContent: {
+  countryDropdownFlag: {
+    fontSize: 16,
+    marginRight: theme.space.xs + 2,
+  },
+  countryDropdownLabel: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
+  },
+  countryDropdownChevron: {
+    ...theme.type.caption,
+    color: theme.color.textMuted,
+    marginLeft: theme.space.xs + 2,
+  },
+  countryOptionRow: {
     flexDirection: 'row',
-    gap: theme.space.sm,
-    paddingRight: theme.space.lg,
+    alignItems: 'center',
+    paddingVertical: theme.space.md - 2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  countryOptionFlag: {
+    fontSize: 18,
+    marginRight: theme.space.sm + 2,
+  },
+  countryOptionName: {
+    ...theme.type.bodySm,
+    color: theme.color.text,
+    flex: 1,
+  },
+  countryOptionCheck: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
   },
   searchWrapper: {
     position: 'relative',
