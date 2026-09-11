@@ -277,69 +277,24 @@ export default function ConsumerHome() {
 
       <Text style={styles.title}>Value a property</Text>
 
-      {/* Country selector — narrows the address search to one country
-          instead of always matching against all five at once (see
-          componentsFilterFor above). Placed above the search field since it
-          scopes what that field searches. A single dropdown button (matching
-          PhoneInput's country-code picker elsewhere in the app) rather than a
-          row of selectable pills — cleaner at a glance, and doesn't grow
-          wider as more countries are added. */}
-      <TouchableOpacity
-        style={styles.countryDropdown}
-        onPress={() => setCountryPickerVisible(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.countryDropdownFlag}>{selectedCountryOption?.flag ?? '🌐'}</Text>
-        <Text style={styles.countryDropdownLabel}>
-          {selectedCountryOption?.name ?? 'All countries'}
-        </Text>
-        <Text style={styles.countryDropdownChevron}>▾</Text>
-      </TouchableOpacity>
-
-      <Modal
-        visible={countryPickerVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCountryPickerVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setCountryPickerVisible(false)}
-        >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={styles.modalTitle}>Search in which country?</Text>
-            <FlatList
-              data={COUNTRY_OPTIONS}
-              keyExtractor={(item) => item.code}
-              style={{ flexGrow: 0 }}
-              ListHeaderComponent={
-                <TouchableOpacity
-                  style={styles.countryOptionRow}
-                  onPress={() => handleSelectCountry(null)}
-                >
-                  <Text style={styles.countryOptionFlag}>🌐</Text>
-                  <Text style={styles.countryOptionName}>All countries</Text>
-                  {!selectedCountry && <Text style={styles.countryOptionCheck}>✓</Text>}
-                </TouchableOpacity>
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.countryOptionRow}
-                  onPress={() => handleSelectCountry(item.code)}
-                >
-                  <Text style={styles.countryOptionFlag}>{item.flag}</Text>
-                  <Text style={styles.countryOptionName}>{item.name}</Text>
-                  {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Search field */}
+      {/* Search field — the country selector lives inside the same bordered
+          pill as the address input (flag + chevron, then a divider, then
+          the input) rather than as a separate control stacked above it, so
+          the two read as one search tool instead of two competing elements.
+          Narrows Places Autocomplete to one country instead of always
+          matching against all five at once (see componentsFilterFor above). */}
       <View style={styles.searchWrapper}>
+        <TouchableOpacity
+          style={styles.countrySegment}
+          onPress={() => setCountryPickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.countrySegmentFlag}>{selectedCountryOption?.flag ?? '🌐'}</Text>
+          <Text style={styles.countrySegmentChevron}>▾</Text>
+        </TouchableOpacity>
+
+        <View style={styles.searchDivider} />
+
         <View style={styles.searchIcon}>
           <IconSearch size={19} color={theme.color.textMuted} />
         </View>
@@ -356,6 +311,48 @@ export default function ConsumerHome() {
         {(searching || resolving) && (
           <ActivityIndicator style={styles.searchSpinner} color={theme.color.text} />
         )}
+
+        <Modal
+          visible={countryPickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCountryPickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setCountryPickerVisible(false)}
+          >
+            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+              <Text style={styles.modalTitle}>Search in which country?</Text>
+              <FlatList
+                data={COUNTRY_OPTIONS}
+                keyExtractor={(item) => item.code}
+                style={{ flexGrow: 0 }}
+                ListHeaderComponent={
+                  <TouchableOpacity
+                    style={styles.countryOptionRow}
+                    onPress={() => handleSelectCountry(null)}
+                  >
+                    <Text style={styles.countryOptionFlag}>🌐</Text>
+                    <Text style={styles.countryOptionName}>All countries</Text>
+                    {!selectedCountry && <Text style={styles.countryOptionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.countryOptionRow}
+                    onPress={() => handleSelectCountry(item.code)}
+                  >
+                    <Text style={styles.countryOptionFlag}>{item.flag}</Text>
+                    <Text style={styles.countryOptionName}>{item.name}</Text>
+                    {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {predictions.length > 0 && (
           <Card variant="elevated" style={styles.suggestions}>
@@ -507,31 +504,26 @@ const styles = StyleSheet.create({
     color: theme.color.text,
     marginBottom: theme.space.xl - 2,
   },
-  countryDropdown: {
+  countrySegment: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: theme.color.border,
-    borderRadius: theme.radius.full,
-    backgroundColor: theme.color.surface,
-    paddingVertical: theme.space.sm,
-    paddingHorizontal: theme.space.md,
-    marginBottom: theme.space.md,
+    height: '100%',
+    paddingLeft: theme.space.lg,
+    paddingRight: theme.space.sm,
   },
-  countryDropdownFlag: {
-    fontSize: 16,
-    marginRight: theme.space.xs + 2,
+  countrySegmentFlag: {
+    fontSize: 18,
   },
-  countryDropdownLabel: {
-    ...theme.type.bodySm,
-    fontFamily: theme.font.bodySemibold,
-    color: theme.color.text,
-  },
-  countryDropdownChevron: {
+  countrySegmentChevron: {
     ...theme.type.caption,
     color: theme.color.textMuted,
-    marginLeft: theme.space.xs + 2,
+    marginLeft: theme.space.xs,
+  },
+  searchDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    marginVertical: theme.space.sm + 2,
+    backgroundColor: theme.color.border,
   },
   countryOptionRow: {
     flexDirection: 'row',
@@ -558,21 +550,22 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 20,
     elevation: 20,
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 18,
-    top: 20,
-    zIndex: 1,
-  },
-  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: theme.size.field,
     borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.surface,
-    paddingLeft: 46,
-    paddingRight: theme.space.lg,
+  },
+  searchIcon: {
+    marginLeft: theme.space.md,
+    marginRight: theme.space.xs,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: theme.size.field,
+    paddingRight: theme.space['2xl'],
     fontFamily: theme.font.body,
     fontSize: theme.type.body.fontSize,
     color: theme.color.text,
@@ -580,7 +573,8 @@ const styles = StyleSheet.create({
   searchSpinner: {
     position: 'absolute',
     right: 18,
-    top: 20,
+    top: '50%',
+    marginTop: -10,
   },
   suggestions: {
     position: 'absolute',
