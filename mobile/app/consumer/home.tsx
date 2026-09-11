@@ -120,9 +120,11 @@ export default function ConsumerHome() {
             params: {
               input,
               key: GOOGLE_PLACES_API_KEY,
-              // See componentsFilterFor above for why 'address' was dropped
-              // in favor of 'geocode'.
-              types: 'geocode',
+              // No 'types' restriction — 'address' and even 'geocode' still
+              // missed named subdivisions/villages Google indexes as an
+              // establishment/POI (the API only accepts one type category
+              // per request). Omitting 'types' entirely matches how the
+              // full Google Maps app searches, with no restriction at all.
               components: componentsFilter,
             },
           });
