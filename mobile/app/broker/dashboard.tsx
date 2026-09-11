@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -9,7 +9,7 @@ import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
-import { formatCurrency } from '../../config/marketConfig';
+import { formatCurrency, getMarketConfig } from '../../config/marketConfig';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -41,6 +41,22 @@ export default function BrokerDashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
+  // Broker's own market, for the aggregate "Avg Lead Value" metric below —
+  // per-lead values (see the recent-leads list) already use each lead's own
+  // property country instead, since a broker's leads can span cities.
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+
+  // "Avg Lead Value" below is shown abbreviated ("$5K"), which
+  // formatCurrency isn't built for — it derives just the currency symbol
+  // (₱, A$, £, S$, ...) for the broker's market instead, via the same
+  // Intl-derived-from-currency-code approach formatCurrency itself uses.
+  const currencySymbol = useMemo(() => {
+    const { currency } = getMarketConfig(countryCode);
+    const part = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
+      .formatToParts(0)
+      .find((p) => p.type === 'currency');
+    return part?.value ?? '$';
+  }, [countryCode]);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -53,6 +69,7 @@ export default function BrokerDashboard() {
         const { profile } = await brokerService.getProfile(user.id);
         if (profile) {
           setBrokerProfile(profile);
+          setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
         }
 
         // Fetch subscription
@@ -196,7 +213,7 @@ export default function BrokerDashboard() {
             <Text style={styles.metricLabel}>Conversion Rate</Text>
           </Card>
           <Card variant="default" style={styles.metricCard}>
-            <Text style={styles.metricValue}>${(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
+            <Text style={styles.metricValue}>{currencySymbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
             <Text style={styles.metricLabel}>Avg Lead Value</Text>
           </Card>
         </View>
