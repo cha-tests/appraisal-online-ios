@@ -323,12 +323,12 @@ export default function ConsumerHome() {
             activeOpacity={1}
             onPress={() => setCountryPickerVisible(false)}
           >
-            <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.countryPickerCard} onStartShouldSetResponder={() => true}>
               <Text style={styles.modalTitle}>Search in which country?</Text>
               <FlatList
                 data={COUNTRY_OPTIONS}
                 keyExtractor={(item) => item.code}
-                style={{ flexGrow: 0 }}
+                style={{ flexGrow: 0, maxHeight: 360 }}
                 ListHeaderComponent={
                   <TouchableOpacity
                     style={styles.countryOptionRow}
@@ -673,6 +673,18 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 380,
+  },
+  // Unlike modalCard above (used by the Plus Code modal, where a <Card>
+  // component supplies the background), this wraps a plain View directly —
+  // it needs its own opaque background/border/shadow or the country list
+  // renders see-through against the dark overlay behind it.
+  countryPickerCard: {
+    width: '100%',
+    maxWidth: 380,
+    ...card.floating,
+    paddingHorizontal: theme.space.lg + 2,
+    paddingTop: theme.space.lg,
+    paddingBottom: theme.space.sm,
   },
   modalTitle: {
     ...theme.type.subheading,
