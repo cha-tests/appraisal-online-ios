@@ -87,8 +87,11 @@ export default function PropertyDetails() {
   );
 
   const [formData, setFormData] = useState<PropertyDetailsFormData>({
-    bedrooms: 3,
-    bathrooms: 2,
+    // No default bedroom/bathroom count — a house and a condo don't share a
+    // plausible guess, so this starts at 0 rather than assuming a typical
+    // 3-bed/2-bath home.
+    bedrooms: 0,
+    bathrooms: 0,
     square_feet: 2000,
     // 0 is a deliberately invalid placeholder, not a real year — the field
     // starts genuinely blank (see yearText below) and validateAll already
@@ -96,7 +99,10 @@ export default function PropertyDetails() {
     // slip through to submission.
     year_built: 0,
     property_type: market.propertyTypes[0],
-    condition: 'Good',
+    // No default condition — validateAll requires an explicit selection
+    // below rather than silently submitting "Good" for a property nobody
+    // actually looked at.
+    condition: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -241,6 +247,11 @@ export default function PropertyDetails() {
     if (isOtherType && !customPropertyType.trim()) {
       newErrors.property_type = 'Please specify the property type';
     }
+    // No default condition (see formData above) — require an explicit pick
+    // for anything with a structure to describe; vacant land has none.
+    if (!isLand && !formData.condition) {
+      newErrors.condition = 'Please select a condition';
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -327,40 +338,18 @@ export default function PropertyDetails() {
         )}
       </View>
 
-      {/* Condition — its own section (not vacant land, which has no
-          structure to describe a condition for). */}
+      {/* Layout — not applicable to vacant land. */}
       {!isLand && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Condition</Text>
-          <View style={styles.conditionGrid}>
-            {CONDITIONS.map((condition) => {
-              const active = formData.condition === condition;
-              return (
-                <TouchableOpacity
-                  key={condition}
-                  style={[pill.base, active ? pill.on : pill.off, styles.conditionButton]}
-                  onPress={() => updateFormData('condition', condition)}
-                >
-                  <Text style={active ? pill.textOn : pill.textOff}>{condition}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* Rooms — not applicable to vacant land. */}
-      {!isLand && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rooms</Text>
+          <Text style={styles.sectionTitle}>Layout</Text>
           <Stepper
-            label="Bedrooms"
+            label="Bedroom(s)"
             value={formData.bedrooms}
             onChange={(next) => updateFormData('bedrooms', next)}
             max={10}
           />
           <Stepper
-            label="Bathrooms"
+            label="Bathroom(s)"
             value={formData.bathrooms}
             onChange={(next) => updateFormData('bathrooms', next)}
             max={10}
@@ -378,12 +367,12 @@ export default function PropertyDetails() {
         </View>
       )}
 
-      {/* Size & Age — Lot Area comes before Floor Area since it's the more
+      {/* Size — Lot Area comes before Floor Area since it's the more
           fundamental measurement (and the only one that applies to vacant
-          land); Floor Area and Year Built don't apply to vacant land, and Lot
-          Area doesn't apply to a condo/apartment unit (isNoLot). */}
+          land); Floor Area doesn't apply to vacant land, and Lot Area
+          doesn't apply to a condo/apartment unit (isNoLot). */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{isLand ? 'Size' : 'Size and age'}</Text>
+        <Text style={styles.sectionTitle}>Size</Text>
 
         <View style={styles.sizeLabelRow}>
           <Text style={styles.label}>Area units</Text>
@@ -426,18 +415,42 @@ export default function PropertyDetails() {
               onChangeText={handleSizeChange}
               error={errors.square_feet}
             />
-
-            <TextInput
-              label="Year Built"
-              placeholder="e.g., 1985"
-              keyboardType="numeric"
-              value={yearText}
-              onChangeText={handleYearChange}
-              error={errors.year_built}
-            />
           </>
         )}
       </View>
+
+      {/* State — Condition and Year Built, neither applicable to vacant
+          land (no structure to describe or date). */}
+      {!isLand && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>State</Text>
+          <View style={styles.conditionGrid}>
+            {CONDITIONS.map((condition) => {
+              const active = formData.condition === condition;
+              return (
+                <TouchableOpacity
+                  key={condition}
+                  style={[pill.base, active ? pill.on : pill.off, styles.conditionButton]}
+                  onPress={() => updateFormData('condition', condition)}
+                >
+                  <Text style={active ? pill.textOn : pill.textOff}>{condition}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {!!errors.condition && <Text style={styles.errorText}>{errors.condition}</Text>}
+
+          <TextInput
+            label="Year Built"
+            placeholder="e.g., 1985"
+            keyboardType="numeric"
+            value={yearText}
+            onChangeText={handleYearChange}
+            error={errors.year_built}
+            style={{ marginTop: theme.space.md }}
+          />
+        </View>
+      )}
 
       {/* Navigation */}
       <View style={styles.footer}>

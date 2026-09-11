@@ -2,7 +2,7 @@ import { Report, Property } from '../types';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { formatCurrency, formatDistance } from '../config/marketConfig';
+import { formatCurrency, formatDistance, getMarketConfig, sqftToSqm } from '../config/marketConfig';
 import { CLIENT_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
 
 /**
@@ -95,8 +95,11 @@ async function generateLocalPdf(
     // Android-only: its print pipeline has its own page margins (default 0),
     // separate from the HTML's own CSS body padding below — iOS has no such
     // option and relies on that padding alone, so both need to agree for the
-    // margin to look the same on both platforms.
-    margins: { left: 40, top: 40, right: 40, bottom: 40 },
+    // margin to look the same on both platforms. Top is smaller than the
+    // other sides — this margin and the body's own padding-top (see the
+    // <style> block) both add space above the title on the first page, and
+    // together at 40px each left an oversized gap there.
+    margins: { left: 40, top: 16, right: 40, bottom: 40 },
   });
 
   const cleanAddress = propertyAddress
@@ -228,6 +231,17 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   const valueFormatted = formatCurrency(report.estimated_value, countryCode);
   const lowFormatted = formatCurrency(report.confidence_range.low, countryCode);
   const highFormatted = formatCurrency(report.confidence_range.high, countryCode);
+
+  // Sizes are always stored in sqft (see property-details.tsx) — display in
+  // whichever unit this property's market actually measures in, the same
+  // sqft<->sqm conversion "Tell us about the property" itself uses, so a PH
+  // report doesn't show sq ft when the homeowner entered sq m.
+  const { sizeUnit } = getMarketConfig(countryCode);
+  const formatArea = (sqft: number | undefined | null): string => {
+    if (sqft === undefined || sqft === null) return 'N/A';
+    const value = sizeUnit === 'sqm' ? sqftToSqm(sqft) : sqft;
+    return `${Math.round(value).toLocaleString()} ${sizeUnit === 'sqm' ? 'sq m' : 'sq ft'}`;
+  };
   const fullReportMarkdown = (report.gemini_response as any)?.full_report_markdown as string | undefined;
   const isMock = (report.gemini_response as any)?.is_mock === true;
 
@@ -254,7 +268,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 <head>
 <meta charset="utf-8" />
 <style>
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 40px; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 16px 40px 40px 40px; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
   .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
@@ -300,13 +314,14 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   <h3 class="section">Property Information</h3>
   <div class="facts">
     <span><b>Address:</b> ${escapeHtml(property?.address || propertyAddress)}</span>
-    <span><b>Bedrooms:</b> ${property?.bedrooms ?? 'N/A'}</span>
-    <span><b>Bathrooms:</b> ${property?.bathrooms ?? 'N/A'}</span>
-    ${property?.parking_spaces !== undefined && property?.parking_spaces !== null ? `<span><b>Parking:</b> ${property.parking_spaces}</span>` : ''}
-    <span><b>Square Feet:</b> ${property?.square_feet ?? 'N/A'}</span>
-    <span><b>Year Built:</b> ${property?.year_built ? property.year_built : 'N/A'}</span>
     <span><b>Type:</b> ${escapeHtml(property?.property_type || 'N/A')}</span>
+    <span><b>Bedroom(s):</b> ${property?.bedrooms ?? 'N/A'}</span>
+    <span><b>Bathroom(s):</b> ${property?.bathrooms ?? 'N/A'}</span>
+    ${property?.parking_spaces !== undefined && property?.parking_spaces !== null ? `<span><b>Parking:</b> ${property.parking_spaces}</span>` : ''}
+    ${property?.lot_size !== undefined && property?.lot_size !== null ? `<span><b>Lot Area:</b> ${formatArea(property.lot_size)}</span>` : ''}
+    <span><b>Floor Area:</b> ${formatArea(property?.square_feet)}</span>
     <span><b>Condition:</b> ${escapeHtml(property?.condition || 'N/A')}</span>
+    <span><b>Year Built:</b> ${property?.year_built ? property.year_built : 'N/A'}</span>
   </div>
 
   <div class="valuation">
