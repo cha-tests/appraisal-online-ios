@@ -21,17 +21,34 @@ import { IconSearch, IconUser, IconPin, IconTrendUp } from '../../components/ui/
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
-import { AUTOCOMPLETE_COUNTRIES } from '../../config/marketConfig';
+import { AUTOCOMPLETE_COUNTRIES, PHONE_COUNTRIES } from '../../config/marketConfig';
 import { parseAddressComponents, isPreciseAddress, isPlusCode } from '../../utils/addressComponents';
 import { shortAddressLabel } from '../../utils/addressComponents';
 import { supabase } from '../../services/supabase';
 import { getAnonymousValuationCount, ANONYMOUS_VALUATION_LIMIT } from '../../utils/anonymousQuota';
 import { Report } from '../../types';
-import { theme, card } from '../../theme';
+import { theme, card, pill } from '../../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
-const COMPONENTS_FILTER = AUTOCOMPLETE_COUNTRIES.map((code) => `country:${code}`).join('|');
+
+// Country options for the selector, in AUTOCOMPLETE_COUNTRIES' order (PH
+// first — see PHONE_COUNTRIES) rather than PHONE_COUNTRIES' full list, which
+// also includes AE/CA/DE that aren't wired into the autocomplete filter.
+const COUNTRY_OPTIONS = AUTOCOMPLETE_COUNTRIES.map(
+  (code) => PHONE_COUNTRIES.find((c) => c.code === code)!
+);
+
+/**
+ * Narrowing the search to one country (rather than always searching all of
+ * AUTOCOMPLETE_COUNTRIES at once) means a "Main Street" query in the
+ * Philippines doesn't have to compete with every "Main Street" in the US,
+ * Australia, the UK, and Singapore for the top few suggestion slots.
+ */
+function componentsFilterFor(country: string | null): string {
+  const countries = country ? [country] : AUTOCOMPLETE_COUNTRIES;
+  return countries.map((code) => `country:${code}`).join('|');
+}
 
 async function authHeaders() {
   const { data } = await supabase.auth.getSession();
@@ -62,6 +79,9 @@ export default function ConsumerHome() {
   const [resolving, setResolving] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [plusCodeModalVisible, setPlusCodeModalVisible] = useState(false);
+  // null = search across all AUTOCOMPLETE_COUNTRIES at once (the prior
+  // behavior); picking one narrows results to just that country.
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
   const [reports, setReports] = useState<Report[]>([]);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
@@ -78,7 +98,7 @@ export default function ConsumerHome() {
     }
   }, [user?.id]);
 
-  const fetchPredictions = useCallback(async (input: string) => {
+  const fetchPredictions = useCallback(async (input: string, country: string | null) => {
     if (!input || input.length < 2) {
       setPredictions([]);
       return;
@@ -88,17 +108,20 @@ export default function ConsumerHome() {
       setSearching(true);
       setSearchError('');
 
+      const componentsFilter = componentsFilterFor(country);
       const response = Platform.OS === 'web'
         ? await axios.get(`${API_URL}/api/places/autocomplete`, {
-            params: { input, components: COMPONENTS_FILTER },
+            params: { input, components: componentsFilter },
             headers: await authHeaders(),
           })
         : await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
             params: {
               input,
               key: GOOGLE_PLACES_API_KEY,
-              types: 'address',
-              components: COMPONENTS_FILTER,
+              // See componentsFilterFor above for why 'address' was dropped
+              // in favor of 'geocode'.
+              types: 'geocode',
+              components: componentsFilter,
             },
           });
 
@@ -243,6 +266,44 @@ export default function ConsumerHome() {
 
       <Text style={styles.title}>Value a property</Text>
 
+      {/* Country selector — narrows the address search to one country
+          instead of always matching against all five at once (see
+          componentsFilterFor above). Placed above the search field since it
+          scopes what that field searches. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.countryRow}
+        contentContainerStyle={styles.countryRowContent}
+      >
+        <TouchableOpacity
+          style={[pill.base, !selectedCountry ? pill.on : pill.off]}
+          onPress={() => {
+            setSelectedCountry(null);
+            if (query.length >= 2) fetchPredictions(query, null);
+          }}
+        >
+          <Text style={!selectedCountry ? pill.textOn : pill.textOff}>All</Text>
+        </TouchableOpacity>
+        {COUNTRY_OPTIONS.map((country) => {
+          const active = selectedCountry === country.code;
+          return (
+            <TouchableOpacity
+              key={country.code}
+              style={[pill.base, active ? pill.on : pill.off]}
+              onPress={() => {
+                setSelectedCountry(country.code);
+                if (query.length >= 2) fetchPredictions(query, country.code);
+              }}
+            >
+              <Text style={active ? pill.textOn : pill.textOff}>
+                {country.flag} {country.code}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       {/* Search field */}
       <View style={styles.searchWrapper}>
         <View style={styles.searchIcon}>
@@ -255,7 +316,7 @@ export default function ConsumerHome() {
           value={query}
           onChangeText={(text) => {
             setQuery(text);
-            fetchPredictions(text);
+            fetchPredictions(text, selectedCountry);
           }}
         />
         {(searching || resolving) && (
@@ -411,6 +472,14 @@ const styles = StyleSheet.create({
     ...theme.type.title,
     color: theme.color.text,
     marginBottom: theme.space.xl - 2,
+  },
+  countryRow: {
+    marginBottom: theme.space.md,
+  },
+  countryRowContent: {
+    flexDirection: 'row',
+    gap: theme.space.sm,
+    paddingRight: theme.space.lg,
   },
   searchWrapper: {
     position: 'relative',

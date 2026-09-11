@@ -38,7 +38,12 @@ router.get('/autocomplete', authMiddleware, async (req: Request, res: Response) 
         params: {
           input,
           key: process.env.GOOGLE_PLACES_API_KEY,
-          types: 'address',
+          // 'address' is too narrow — it excludes named subdivisions/villages
+          // (common in PH addressing, e.g. "JCMC Ville") that Google classifies
+          // as a sublocality/neighborhood rather than a precise address, even
+          // though the full Google Maps app finds them fine. 'geocode' covers
+          // both precise addresses and those broader geographic entities.
+          types: 'geocode',
           components,
         },
       }

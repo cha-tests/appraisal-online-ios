@@ -158,6 +158,22 @@ export function isVacantLandType(propertyType: string | undefined | null): boole
   return /^(land|vacant lot|vacant land)$/i.test(propertyType.trim());
 }
 
+/**
+ * Whether a market's property-type label denotes a unit with no lot of its
+ * own — a condo, apartment, or flat sits on land the building as a whole
+ * owns, not a parcel that comes with the individual unit, so "Lot Area"
+ * doesn't apply to it the way it does to a house or townhouse.
+ *
+ * A substring match (not anchored like isVacantLandType) is deliberate here:
+ * it needs to catch every market's phrasing — "Condo", "Condominium",
+ * "Executive Condominium", "Apartment/Unit", "Flat/Apartment", "HDB Flat" —
+ * without maintaining a parallel per-market list.
+ */
+export function isNoLotType(propertyType: string | undefined | null): boolean {
+  if (!propertyType) return false;
+  return /(condo|apartment|flat|hdb)/i.test(propertyType.trim());
+}
+
 const MILES_TO_KM = 1.60934;
 
 /**
