@@ -595,7 +595,11 @@ const styles = StyleSheet.create({
   termsText: {
     fontSize: 12,
     color: '#1F2937',
-    lineHeight: 18,
+    // Matches the checkbox's own 22px height (see styles.checkbox) so its
+    // vertical center lines up with the first line of text — a shorter
+    // line-height here left the checkbox sitting visibly lower than the
+    // text next to it.
+    lineHeight: 22,
     flex: 1,
   },
   termsLink: {
@@ -633,7 +637,9 @@ const styles = StyleSheet.create({
     ...theme.type.bodySm,
     color: theme.color.textMuted,
     flex: 1,
-    lineHeight: 20,
+    // Matches the checkbox's own 22px height (see styles.checkbox) so its
+    // vertical center lines up with the first line of text.
+    lineHeight: 22,
   },
   checkbox: {
     width: 22,
@@ -644,7 +650,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
-    marginTop: 1,
   },
   checkboxChecked: {
     backgroundColor: theme.color.text,
