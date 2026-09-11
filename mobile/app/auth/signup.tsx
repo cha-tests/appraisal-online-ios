@@ -86,7 +86,8 @@ function GateScreen() {
       }
 
       const result = await authService.signup(email, password, {
-        full_name: '',
+        first_name: '',
+        last_name: '',
         user_type: 'consumer',
         phone,
       });
@@ -224,7 +225,8 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   // Consumer-only — see the phone comment on the User type. Brokers already
   // provide a phone number during broker/onboarding.tsx, so asking again
   // here would be a duplicate prompt for that account type.
@@ -246,8 +248,12 @@ export default function SignupScreen() {
       newErrors.userType = 'Please select account type';
     }
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     if (userType === 'consumer') {
@@ -301,7 +307,8 @@ export default function SignupScreen() {
       }
 
       const result = await authService.signup(email, password, {
-        full_name: fullName,
+        first_name: firstName,
+        last_name: lastName,
         user_type: userType!,
         // Brokers provide their phone during onboarding instead — see the
         // field's own comment above for why it's consumer-only here.
@@ -408,11 +415,20 @@ export default function SignupScreen() {
       {/* Form */}
       <View style={styles.form}>
         <TextInput
-          placeholder="Full Name"
-          value={fullName}
-          onChangeText={setFullName}
+          placeholder="First Name"
+          value={firstName}
+          onChangeText={setFirstName}
           editable={!loading}
-          error={errors.fullName}
+          error={errors.firstName}
+        />
+
+        <TextInput
+          placeholder="Last Name"
+          value={lastName}
+          onChangeText={setLastName}
+          editable={!loading}
+          error={errors.lastName}
+          style={{ marginTop: 12 }}
         />
 
         <TextInput

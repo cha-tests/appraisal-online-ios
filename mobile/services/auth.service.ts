@@ -6,7 +6,7 @@ export const authService = {
   async signup(
     email: string,
     password: string,
-    metadata?: { full_name?: string; user_type?: string; phone?: string }
+    metadata?: { first_name?: string; last_name?: string; user_type?: string; phone?: string }
   ) {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -14,7 +14,8 @@ export const authService = {
         password,
         options: {
           data: {
-            full_name: metadata?.full_name || '',
+            first_name: metadata?.first_name || '',
+            last_name: metadata?.last_name || '',
             user_type: metadata?.user_type || 'consumer',
             // Captured once here so a consumer never has to re-enter it when
             // opting in for professional contact later — see the phone
@@ -28,8 +29,8 @@ export const authService = {
       if (!authData.user?.id) throw new Error('User creation failed');
 
       // The public.users row is created automatically by the
-      // on_auth_user_created DB trigger (see 005_auto_create_user_on_signup.sql
-      // and 013_add_user_phone.sql, which extended it to also capture phone).
+      // on_auth_user_created DB trigger (see 005_auto_create_user_on_signup.sql,
+      // 013_add_user_phone.sql, and 020_split_full_name_to_first_last.sql).
       // Inserting it here too would race the trigger and fail (RLS rejects the
       // insert before email confirmation grants a session; duplicate-key error after).
       return {
@@ -38,6 +39,8 @@ export const authService = {
           id: authData.user.id,
           email,
           user_type: metadata?.user_type || 'consumer',
+          first_name: metadata?.first_name || undefined,
+          last_name: metadata?.last_name || undefined,
           phone: metadata?.phone || undefined,
           created_at: authData.user.created_at,
           updated_at: authData.user.updated_at || authData.user.created_at,

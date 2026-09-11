@@ -11,7 +11,8 @@ export default function SignupPage() {
   const router = useRouter();
   const [step, setStep] = useState<'type' | 'form'>('type');
   const [userType, setUserType] = useState<UserType>(null);
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,8 +22,12 @@ export default function SignupPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     if (!email) {
@@ -52,7 +57,8 @@ export default function SignupPage() {
     try {
       setLoading(true);
       const result = await signUp(email, password, {
-        full_name: fullName,
+        first_name: firstName,
+        last_name: lastName,
         user_type: userType || 'consumer',
       });
 
@@ -133,24 +139,45 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
-          {/* Full Name */}
+          {/* First Name */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Full Name
+              First Name
             </label>
             <input
               type="text"
-              value={fullName}
+              value={firstName}
               onChange={(e) => {
-                setFullName(e.target.value);
-                if (errors.fullName) setErrors({ ...errors, fullName: undefined });
+                setFirstName(e.target.value);
+                if (errors.firstName) setErrors({ ...errors, firstName: undefined });
               }}
-              placeholder="John Doe"
+              placeholder="John"
               disabled={loading}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
             />
-            {errors.fullName && (
-              <p className="text-red-600 text-sm mt-1">{errors.fullName}</p>
+            {errors.firstName && (
+              <p className="text-red-600 text-sm mt-1">{errors.firstName}</p>
+            )}
+          </div>
+
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Last Name
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                if (errors.lastName) setErrors({ ...errors, lastName: undefined });
+              }}
+              placeholder="Doe"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
+            {errors.lastName && (
+              <p className="text-red-600 text-sm mt-1">{errors.lastName}</p>
             )}
           </div>
 

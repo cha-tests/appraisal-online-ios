@@ -32,7 +32,7 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes — just long enough to re
 async function listPending() {
   const { data, error } = await supabase
     .from('broker_profiles')
-    .select('user_id, company_name, role, license_number, kyc_id_url, kyc_selfie_url, kyc_submitted_at, users(email, full_name)')
+    .select('user_id, company_name, role, license_number, kyc_id_url, kyc_selfie_url, kyc_submitted_at, users(email, first_name, last_name)')
     .eq('kyc_status', 'pending')
     .order('kyc_submitted_at', { ascending: true });
 
@@ -47,7 +47,8 @@ async function listPending() {
 
   for (const row of data as any[]) {
     console.log(`user_id:   ${row.user_id}`);
-    console.log(`name:      ${row.users?.full_name || '(none)'} <${row.users?.email}>`);
+    const name = [row.users?.first_name, row.users?.last_name].filter(Boolean).join(' ');
+    console.log(`name:      ${name || '(none)'} <${row.users?.email}>`);
     console.log(`role:      ${row.role}`);
     console.log(`company:   ${row.company_name}`);
     console.log(`license#:  ${row.license_number || '(none given)'}`);

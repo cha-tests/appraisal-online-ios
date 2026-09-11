@@ -138,10 +138,10 @@ export default function BrokerDashboard() {
     );
   }
 
-  // Greet the person who signed up, not their company — full_name comes from
-  // the sign-up form (see auth/signup.tsx), while company_name is the
+  // Greet the person who signed up, not their company — first_name comes
+  // from the sign-up form (see auth/signup.tsx), while company_name is the
   // business name collected later in broker/onboarding.tsx.
-  const brokerName = user?.full_name || 'Broker';
+  const brokerName = user?.first_name || 'Broker';
 
   return (
     <SafeAreaWrapper scrollable>
