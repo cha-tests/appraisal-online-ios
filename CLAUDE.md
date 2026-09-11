@@ -93,6 +93,42 @@ from the code:
 - Offer legal advice or legal consultation. Brokers and consumers are
   responsible for their own legal compliance.
 
+## Implementation notes (recent work, worth pinning down)
+
+- **Broker launch markets stay US/PH only.** `mobile/config/marketConfig.ts`
+  additionally wires up Australia, UK and Singapore, but only for the
+  *consumer* side — address-search autocomplete, size-unit/currency
+  display, phone country codes (`AUTOCOMPLETE_COUNTRIES`). Broker
+  signup's city picker (`broker/onboarding.tsx`) still only offers PH/US
+  cities, matching "Launch markets" above. Don't read that 5-country list
+  as an expansion of broker markets — it's consumer-side convenience only
+  (a homeowner there can still get a valuation in their own
+  currency/units), and any AU/UK/SG "broker" accounts are test data, not a
+  real rollout.
+- **Property type is one universal list** across every market — House,
+  Apartment/Unit, Townhouse, Villa, Condo, Vacant Land, Others
+  (`PROPERTY_TYPES` in `marketConfig.ts`) — replacing what used to be a
+  different list per country, since the app only actually ships two
+  markets and the per-country lists added complexity without real value.
+- **"Tell us about the property" (consumer form)** is ordered Property
+  Type → Layout (Bedroom(s)/Bathroom(s)/Parking) → Size (Lot Area/Floor
+  Area) → State (Condition/Year Built), with no default bedroom/bathroom
+  count (starts at 0) and no default Condition (a required selection, not
+  a "Good" default).
+- **Signup forms (broker + consumer)** are ordered email → password →
+  confirm password → first name → last name → phone.
+- **Broker onboarding has a real Review step** before final submission,
+  and a Free-tier signup shows "Submit" instead of "Continue to Payment".
+- **The generated PDF report** mirrors the property-details field order
+  above, and displays floor/lot area in the property's own market unit
+  (sq m or sq ft) instead of a fixed "Square Feet" label.
+- **Known discrepancy, unresolved:** broker onboarding's `TIER_DETAILS`
+  (`broker/onboarding.tsx`) currently displays Premium Annual as
+  "₱5,000/year" and Basic Annual as "Free" — not the $199/year and
+  $49/year figures in the tiers table above. Not yet resolved either
+  direction (update the table to match, or revert the onboarding screen)
+  — flag before shipping.
+
 ## Companion documents and precedence
 
 Ask specific questions rather than guessing. When these conflict:
