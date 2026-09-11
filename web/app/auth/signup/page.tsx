@@ -18,6 +18,8 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Never pre-checked — explicit, required consent.
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -44,6 +46,10 @@ export default function SignupPage() {
 
     if (password !== confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (!agreedToTerms) {
+      newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
     }
 
     setErrors(newErrors);
@@ -245,12 +251,28 @@ export default function SignupPage() {
             )}
           </div>
 
-          {/* Terms */}
+          {/* Terms — a real checkbox, not just informational text: explicit,
+              required, never pre-checked. */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-gray-700 text-center">
-              By signing up, you agree to our Terms of Service and Privacy Policy
-            </p>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => {
+                  setAgreedToTerms(e.target.checked);
+                  if (errors.terms) setErrors({ ...errors, terms: undefined });
+                }}
+                disabled={loading}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                I agree to the Terms of Service and Privacy Policy
+              </span>
+            </label>
           </div>
+          {errors.terms && (
+            <p className="text-red-600 text-sm mt-1">{errors.terms}</p>
+          )}
 
           {/* Submit */}
           <button

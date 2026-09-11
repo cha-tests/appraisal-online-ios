@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -46,6 +46,10 @@ function GateScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [gateError, setGateError] = useState('');
+  // Never pre-checked — same rule as every other consent checkbox in this
+  // app (see broker-optins.tsx's disclaimer, CLAUDE.md's "Never pre-check a
+  // consent checkbox").
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   if (!currentProperty || !currentPropertyDetails || !pendingValuation) {
     // Shouldn't happen (loading.tsx only routes here once all three are
@@ -63,6 +67,7 @@ function GateScreen() {
     const digitCount = phone.replace(/\D/g, '').length;
     if (digitCount < 7) return 'Please enter a valid mobile number';
     if (password.length < 8) return 'Password must be at least 8 characters';
+    if (!agreedToTerms) return 'Please agree to the Terms of Service and Privacy Policy';
     return null;
   };
 
@@ -180,6 +185,26 @@ function GateScreen() {
           editable={!loading}
         />
 
+        <TouchableOpacity
+          style={styles.gateTermsRow}
+          onPress={() => setAgreedToTerms((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+            {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.gateTermsText}>
+            I agree to the{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
+              Privacy Policy
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
         {!!gateError && <Text style={styles.gateErrorText}>{gateError}</Text>}
 
         <Button
@@ -233,6 +258,8 @@ export default function SignupScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Never pre-checked — see the same field on GateScreen above.
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // A guest who just generated a valuation reaches this route with all
   // three of these set (see loading.tsx) — render the gate instead of the
@@ -285,6 +312,10 @@ export default function SignupScreen() {
 
     if (password !== confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    if (!agreedToTerms) {
+      newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
     }
 
     setErrors(newErrors);
@@ -476,19 +507,31 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* Terms Agreement */}
+        {/* Terms Agreement — a real checkbox, not just informational text:
+            explicit, required, never pre-checked (see CLAUDE.md's "Never
+            pre-check a consent checkbox"). */}
         <Card variant="outlined" style={styles.termsCard}>
-          <Text style={styles.termsText}>
-            By signing up, you agree to our{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
-              Terms of Service
-            </Text>{' '}
-            and{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
-              Privacy Policy
+          <TouchableOpacity
+            style={styles.termsCheckboxRow}
+            onPress={() => setAgreedToTerms((prev) => !prev)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+              {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.termsText}>
+              I agree to the{' '}
+              <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
+                Terms of Service
+              </Text>{' '}
+              and{' '}
+              <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
+                Privacy Policy
+              </Text>
             </Text>
-          </Text>
+          </TouchableOpacity>
         </Card>
+        {!!errors.terms && <Text style={styles.errorMessage}>{errors.terms}</Text>}
 
         <Button
           title={loading ? 'Creating Account...' : 'Create Account'}
@@ -545,16 +588,25 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     marginTop: 16,
   },
+  termsCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   termsText: {
     fontSize: 12,
     color: '#1F2937',
     lineHeight: 18,
-    textAlign: 'center',
+    flex: 1,
   },
   termsLink: {
     color: '#2563EB',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  errorMessage: {
+    color: '#EF4444',
+    fontSize: 13,
+    marginTop: 8,
   },
   footer: {
     flexDirection: 'row',
@@ -571,6 +623,37 @@ const styles = StyleSheet.create({
     ...theme.type.heading,
     color: theme.color.text,
     marginBottom: theme.space.lg,
+  },
+  gateTermsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: theme.space.md,
+  },
+  gateTermsText: {
+    ...theme.type.bodySm,
+    color: theme.color.textMuted,
+    flex: 1,
+    lineHeight: 20,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: theme.color.text,
+    borderColor: theme.color.text,
+  },
+  checkmark: {
+    color: theme.color.surface,
+    fontSize: 13,
+    fontWeight: '700',
   },
   valueCard: {
     ...theme.type.body,
