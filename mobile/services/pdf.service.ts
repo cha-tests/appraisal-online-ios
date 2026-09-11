@@ -89,7 +89,15 @@ async function generateLocalPdf(
   propertyAddress: string
 ): Promise<string> {
   const html = buildReportHtml(report, property, propertyAddress);
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const { uri } = await Print.printToFileAsync({
+    html,
+    base64: false,
+    // Android-only: its print pipeline has its own page margins (default 0),
+    // separate from the HTML's own CSS body padding below — iOS has no such
+    // option and relies on that padding alone, so both need to agree for the
+    // margin to look the same on both platforms.
+    margins: { left: 40, top: 40, right: 40, bottom: 40 },
+  });
 
   const cleanAddress = propertyAddress
     .replace(/[^a-z0-9]/gi, '-')
@@ -246,7 +254,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 <head>
 <meta charset="utf-8" />
 <style>
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 32px; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 40px; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
   .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }

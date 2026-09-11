@@ -105,15 +105,18 @@ export default function BrokerOptins() {
     return (
       <SafeAreaWrapper scrollable>
         <BackButton onPress={() => router.push('/consumer/report-view')} />
-        <View style={styles.header}>
-          <Text style={styles.title}>Want professional help?</Text>
-        </View>
 
+        {/* Leads with the confirmation itself rather than a "Want
+            professional help?" header — that question is already answered
+            at this point, so restating it above the answer just buries the
+            confirmation the user actually needs to see. */}
         <Card variant="elevated" style={styles.connectedCard}>
-          <Text style={styles.connectedTitle}>✓ You're Connected</Text>
+          <View style={styles.connectedIconCircle}>
+            <Text style={styles.connectedIcon}>✓</Text>
+          </View>
+          <Text style={styles.connectedTitle}>You're Connected!</Text>
           <Text style={styles.connectedText}>
-            You opted in to have local professionals contact you about this property. A
-            qualified professional will reach out within 24-48 hours.
+            You opted in to have local professionals contact you about this property.
           </Text>
           <Text style={styles.connectedHelper}>
             Want to change this? You can manage broker contact anytime from your account
@@ -368,25 +371,46 @@ const styles = StyleSheet.create({
   },
   connectedCard: {
     backgroundColor: '#F0FDF4',
-    borderColor: '#BBDFD4',
+    borderColor: '#34D399',
+    borderWidth: 2,
+    alignItems: 'center',
+    paddingVertical: 28,
+    marginTop: 12,
     marginBottom: 24,
   },
-  connectedTitle: {
-    fontSize: 18,
+  connectedIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  connectedIcon: {
+    fontSize: 28,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  connectedTitle: {
+    fontSize: 24,
+    fontWeight: '800',
     color: '#047857',
     marginBottom: 10,
+    textAlign: 'center',
   },
   connectedText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#065F46',
-    lineHeight: 20,
-    marginBottom: 12,
+    lineHeight: 21,
+    marginBottom: 14,
+    textAlign: 'center',
   },
   connectedHelper: {
     fontSize: 13,
     color: '#6B7280',
     lineHeight: 18,
+    textAlign: 'center',
   },
   checkboxRow: {
     flexDirection: 'row',

@@ -89,35 +89,37 @@ export default function Welcome() {
         </Card>
       )}
 
-      {/* What Happens Next */}
+      {/* What Happens Next — one panel with dividers between steps, rather
+          than three separate cards that read as tappable options (the same
+          shape selectable cards use elsewhere in the app). */}
       <Text style={styles.sectionTitle}>What Happens Next</Text>
 
-      <Card variant="default" style={styles.stepCard}>
+      <Card variant="default" style={styles.stepsCard}>
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📧</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Welcome Email</Text>
             <Text style={styles.stepDescription}>Check your email for account details and setup guide</Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.stepCard}>
+        <View style={styles.stepDivider} />
+
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📍</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Start Receiving Leads</Text>
             <Text style={styles.stepDescription}>
               {tier.includes('Basic') ? 'First weekly digest on Monday' : 'Real-time notifications as they come in'}
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.stepCard}>
+        <View style={styles.stepDivider} />
+
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📊</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Access Your Dashboard</Text>
             <Text style={styles.stepDescription}>View leads, manage notifications, track performance</Text>
           </View>
@@ -283,13 +285,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 16,
   },
-  stepCard: {
-    marginBottom: 12,
-    paddingVertical: 12,
+  stepsCard: {
+    marginBottom: 24,
   },
   stepHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   stepIcon: {
     fontSize: 24,

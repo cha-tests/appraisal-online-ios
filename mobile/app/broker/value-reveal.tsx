@@ -190,31 +190,50 @@ export default function ValueReveal() {
         </View>
       </Card>
 
-      {/* Key Benefits */}
-      <Text style={styles.sectionTitle}>Why This Works</Text>
+      {/* Key Benefits — one bordered panel with dividers between items,
+          matching "How You Get Leads" above, rather than three separate
+          bordered cards. Three stacked cards read as tappable options (the
+          same shape selectable cards use elsewhere in the app); a single
+          panel reads unambiguously as one block of information. Extra
+          marginTop on the heading (see whyThisWorksTitle) gives it room to
+          breathe from the card above, which — unlike the metric cards —
+          carries no bottom margin of its own. */}
+      <Text style={[styles.sectionTitle, styles.whyThisWorksTitle]}>Why This Works</Text>
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Pre-Qualified Leads</Text>
-        <Text style={styles.benefitText}>
-          Every lead has already been valued and expressed interest in professional help
-        </Text>
-      </Card>
+      <Card variant="outlined" style={styles.benefitsCard}>
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Pre-Qualified Leads</Text>
+            <Text style={styles.benefitText}>
+              Every lead has already been valued and expressed interest in professional help
+            </Text>
+          </View>
+        </View>
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Supply-Driven Marketing</Text>
-        <Text style={styles.benefitText}>
-          We spend marketing dollars on YOUR cities because you're a member
-        </Text>
-      </Card>
+        <View style={styles.divider} />
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Money-Back Guarantee</Text>
-        <Text style={styles.benefitText}>
-          Full refund within your tier's window if you're not satisfied
-        </Text>
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Supply-Driven Marketing</Text>
+            <Text style={styles.benefitText}>
+              We spend marketing dollars on YOUR cities because you're a member
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Money-Back Guarantee</Text>
+            <Text style={styles.benefitText}>
+              Full refund within your tier's window if you're not satisfied
+            </Text>
+          </View>
+        </View>
       </Card>
 
       {/* CTA */}
@@ -367,15 +386,26 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
   },
-  benefitCard: {
-    marginBottom: 12,
-    paddingVertical: 16,
+  whyThisWorksTitle: {
+    marginTop: 24,
+  },
+  benefitsCard: {
+    marginBottom: 24,
     backgroundColor: '#F9FAFB',
     borderColor: '#E5E7EB',
   },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 16,
+  },
   benefitIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    fontSize: 20,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  benefitContent: {
+    flex: 1,
   },
   benefitTitle: {
     fontSize: 16,
