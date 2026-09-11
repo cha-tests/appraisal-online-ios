@@ -32,9 +32,7 @@ export default function ValueReveal() {
         // Get marketing allocation for selected cities
         const allocations = await brokerService.getMarketingAllocation('temp-user');
 
-        const { cities } = await brokerService.getCities();
-        const firstSelectedCity = cities?.find((c) => selectedCities.includes(c.id));
-        setCountryCode(firstSelectedCity?.country ?? null);
+        setCountryCode(await brokerService.getBrokerCountryCode(selectedCities));
 
         // Calculate conservative estimates
         const avgLeadsPerMonth = selectedCities.length * 3; // Conservative estimate

@@ -216,6 +216,35 @@ export function formatCurrency(amountMinorUnits: number, countryCode?: string | 
   }).format(amountMinorUnits / 100);
 }
 
+const MONTH_ABBR = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Countries that write the day before the month (e.g. "23 Jan 2026") —
+// everyone else defaults to month-first ("Jan 23 2026"), matching the US/PH
+// convention. Only covers what's been explicitly confirmed; add a country
+// here once its date order is actually checked, the same caution MARKETS
+// above takes with size/distance units.
+const DAY_FIRST_COUNTRIES = new Set(['AU']);
+
+/**
+ * Formats a date as "Mmm dd yyyy" (US/PH order) or "dd Mmm yyyy" (day-first
+ * markets), for account/subscription dates like the money-back guarantee
+ * deadline — money amounts use formatCurrency above, this is its date
+ * counterpart, same "look up the market, format accordingly" approach.
+ */
+export function formatDate(date: Date, countryCode?: string | null): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = MONTH_ABBR[date.getMonth()];
+  const year = date.getFullYear();
+
+  if (countryCode && DAY_FIRST_COUNTRIES.has(countryCode)) {
+    return `${day} ${month} ${year}`;
+  }
+  return `${month} ${day} ${year}`;
+}
+
 export const SQFT_PER_SQM = 10.7639;
 export const sqftToSqm = (sqft: number) => sqft / SQFT_PER_SQM;
 export const sqmToSqft = (sqm: number) => sqm * SQFT_PER_SQM;

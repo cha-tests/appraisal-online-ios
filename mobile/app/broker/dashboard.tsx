@@ -60,12 +60,14 @@ export default function BrokerDashboard() {
         if (sub) {
           setSubscription(sub);
 
-          // Check refund eligibility
+          // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
+          // daysSincePurchase is legitimately 0 on the day of purchase, and
+          // a truthy check treated that as "no value", showing 0 days left
+          // instead of the full window on day one.
           const eligibility = await subscriptionService.checkRefundEligibility(user.id);
+          const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
           setRefundInfo({
-            daysRemaining: eligibility.daysSincePurchase
-              ? Math.max(0, (eligibility.refundWindow || 30) - eligibility.daysSincePurchase)
-              : 0,
+            daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
             canRefund: eligibility.eligible,
           });
         }
@@ -163,8 +165,10 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Refund Window Alert (if applicable) */}
-      {refundInfo && refundInfo.canRefund && (
+      {/* Refund Window Alert (if applicable) — not shown for the Free plan
+          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
+          has nothing to refund. */}
+      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
         <Card variant="outlined" style={styles.refundAlertCard}>
           <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
           <Text style={styles.refundAlertText}>
@@ -275,22 +279,28 @@ export default function BrokerDashboard() {
         </View>
       )}
 
-      {/* Tips Section */}
+      {/* Tips Section — one panel with a divider between items, matching
+          the pattern used for similar item lists elsewhere in the app,
+          rather than two separate cards that read as tappable options. */}
       <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Quick Tips</Text>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>⚡</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Respond Quickly</Text>
-          <Text style={styles.tipText}>Contact leads within 24 hours for best conversion</Text>
+      <Card variant="outlined" style={styles.tipsCard}>
+        <View style={styles.tipRow}>
+          <Text style={styles.tipIcon}>⚡</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Respond Quickly</Text>
+            <Text style={styles.tipText}>Contact leads within 24 hours for best conversion</Text>
+          </View>
         </View>
-      </Card>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>📸</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Complete Your Profile</Text>
-          <Text style={styles.tipText}>Add a photo and bio to attract more connections</Text>
+        <View style={styles.tipDivider} />
+
+        <View style={styles.tipRow}>
+          <Text style={styles.tipIcon}>📸</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Complete Your Profile</Text>
+            <Text style={styles.tipText}>Add a photo and bio to attract more connections</Text>
+          </View>
         </View>
       </Card>
 
@@ -494,13 +504,19 @@ const styles = StyleSheet.create({
   viewAllContainer: {
     marginBottom: 24,
   },
-  tipCard: {
+  tipsCard: {
     marginBottom: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     backgroundColor: '#F9FAFB',
     borderColor: '#E5E7EB',
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  tipDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   tipIcon: {
     fontSize: 20,

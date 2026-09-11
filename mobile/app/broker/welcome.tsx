@@ -7,6 +7,14 @@ import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
+import { brokerService } from '../../services/broker.service';
+import { formatDate } from '../../config/marketConfig';
+import { BrokerTier } from '../../types';
+
+// 'Basic Annual' is repurposed as the Free plan (see broker/onboarding.tsx's
+// TIER_DETAILS) — a $0 plan has nothing to refund, so the guarantee card
+// doesn't apply to it.
+const FREE_TIER: BrokerTier = 'Basic Annual';
 
 const TIER_INFO = {
   'Founder Lifetime': { refundWindow: '14 days', billingCycle: 'One-time payment' },
@@ -18,10 +26,16 @@ export default function Welcome() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
+  const selectedCities = useSubscriptionStore((state) => state.selectedCities);
   const [refundInfo, setRefundInfo] = useState<{
     daysRemaining: number;
-    expiresAt: string;
+    expiresAt: Date;
   } | null>(null);
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    brokerService.getBrokerCountryCode(selectedCities).then(setCountryCode);
+  }, [selectedCities]);
 
   useEffect(() => {
     const fetchRefundInfo = async () => {
@@ -36,9 +50,7 @@ export default function Welcome() {
 
           setRefundInfo({
             daysRemaining,
-            expiresAt: new Date(
-              Date.now() + daysRemaining * 24 * 60 * 60 * 1000
-            ).toLocaleDateString(),
+            expiresAt: new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000),
           });
         }
       } catch (err) {
@@ -51,6 +63,7 @@ export default function Welcome() {
 
   const tier = selectedTier || 'Premium Annual';
   const tierInfo = TIER_INFO[tier as keyof typeof TIER_INFO];
+  const isFreeTier = tier === FREE_TIER;
 
   return (
     <SafeAreaWrapper scrollable>
@@ -71,17 +84,18 @@ export default function Welcome() {
         <View style={styles.membershipDate}>
           <Text style={styles.membershipDateLabel}>Activated</Text>
           <Text style={styles.membershipDateValue}>
-            {new Date().toLocaleDateString()}
+            {formatDate(new Date(), countryCode)}
           </Text>
         </View>
       </Card>
 
-      {/* Refund Guarantee */}
-      {refundInfo && (
+      {/* Refund Guarantee — not shown for the Free plan, which has nothing
+          to refund. */}
+      {!isFreeTier && refundInfo && (
         <Card variant="outlined" style={styles.refundCard}>
           <Text style={styles.refundTitle}>💰 Money-Back Guarantee</Text>
           <Text style={styles.refundText}>
-            Not satisfied? You have <Text style={styles.bold}>{refundInfo.daysRemaining} days</Text> to request a full refund (expires {refundInfo.expiresAt}).
+            Not satisfied? You have <Text style={styles.bold}>{refundInfo.daysRemaining} days</Text> to request a full refund (expires {formatDate(refundInfo.expiresAt, countryCode)}).
           </Text>
           <Text style={styles.refundSubtext}>
             No questions asked. You can request a refund anytime from your dashboard.
