@@ -7,6 +7,14 @@ import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
+import { brokerService } from '../../services/broker.service';
+import { formatDate } from '../../config/marketConfig';
+import { BrokerTier } from '../../types';
+
+// 'Basic Annual' is repurposed as the Free plan (see broker/onboarding.tsx's
+// TIER_DETAILS) — a $0 plan has nothing to refund, so the guarantee card
+// doesn't apply to it.
+const FREE_TIER: BrokerTier = 'Basic Annual';
 
 const TIER_INFO = {
   'Founder Lifetime': { refundWindow: '14 days', billingCycle: 'One-time payment' },
@@ -18,10 +26,16 @@ export default function Welcome() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
+  const selectedCities = useSubscriptionStore((state) => state.selectedCities);
   const [refundInfo, setRefundInfo] = useState<{
     daysRemaining: number;
-    expiresAt: string;
+    expiresAt: Date;
   } | null>(null);
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    brokerService.getBrokerCountryCode(selectedCities).then(setCountryCode);
+  }, [selectedCities]);
 
   useEffect(() => {
     const fetchRefundInfo = async () => {
@@ -30,11 +44,13 @@ export default function Welcome() {
       try {
         const eligibility = await subscriptionService.checkRefundEligibility(user.id);
         if (eligibility.eligible) {
+          const daysSincePurchase = eligibility.daysSincePurchase || 0;
+          const refundWindow = eligibility.refundWindow || 0;
+          const daysRemaining = Math.max(0, refundWindow - daysSincePurchase);
+
           setRefundInfo({
-            daysRemaining: eligibility.refundWindow || 0,
-            expiresAt: new Date(
-              Date.now() + (eligibility.refundWindow || 0) * 24 * 60 * 60 * 1000
-            ).toLocaleDateString(),
+            daysRemaining,
+            expiresAt: new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000),
           });
         }
       } catch (err) {
@@ -47,6 +63,7 @@ export default function Welcome() {
 
   const tier = selectedTier || 'Premium Annual';
   const tierInfo = TIER_INFO[tier as keyof typeof TIER_INFO];
+  const isFreeTier = tier === FREE_TIER;
 
   return (
     <SafeAreaWrapper scrollable>
@@ -67,17 +84,18 @@ export default function Welcome() {
         <View style={styles.membershipDate}>
           <Text style={styles.membershipDateLabel}>Activated</Text>
           <Text style={styles.membershipDateValue}>
-            {new Date().toLocaleDateString()}
+            {formatDate(new Date(), countryCode)}
           </Text>
         </View>
       </Card>
 
-      {/* Refund Guarantee */}
-      {refundInfo && (
+      {/* Refund Guarantee — not shown for the Free plan, which has nothing
+          to refund. */}
+      {!isFreeTier && refundInfo && (
         <Card variant="outlined" style={styles.refundCard}>
           <Text style={styles.refundTitle}>💰 Money-Back Guarantee</Text>
           <Text style={styles.refundText}>
-            Not satisfied? You have <Text style={styles.bold}>{refundInfo.daysRemaining} days</Text> to request a full refund (expires {refundInfo.expiresAt}).
+            Not satisfied? You have <Text style={styles.bold}>{refundInfo.daysRemaining} days</Text> to request a full refund (expires {formatDate(refundInfo.expiresAt, countryCode)}).
           </Text>
           <Text style={styles.refundSubtext}>
             No questions asked. You can request a refund anytime from your dashboard.
@@ -85,35 +103,37 @@ export default function Welcome() {
         </Card>
       )}
 
-      {/* What Happens Next */}
+      {/* What Happens Next — one panel with dividers between steps, rather
+          than three separate cards that read as tappable options (the same
+          shape selectable cards use elsewhere in the app). */}
       <Text style={styles.sectionTitle}>What Happens Next</Text>
 
-      <Card variant="default" style={styles.stepCard}>
+      <Card variant="default" style={styles.stepsCard}>
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📧</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Welcome Email</Text>
             <Text style={styles.stepDescription}>Check your email for account details and setup guide</Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.stepCard}>
+        <View style={styles.stepDivider} />
+
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📍</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Start Receiving Leads</Text>
             <Text style={styles.stepDescription}>
               {tier.includes('Basic') ? 'First weekly digest on Monday' : 'Real-time notifications as they come in'}
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.stepCard}>
+        <View style={styles.stepDivider} />
+
         <View style={styles.stepHeader}>
           <Text style={styles.stepIcon}>📊</Text>
-          <View>
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Access Your Dashboard</Text>
             <Text style={styles.stepDescription}>View leads, manage notifications, track performance</Text>
           </View>
@@ -279,13 +299,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 16,
   },
-  stepCard: {
-    marginBottom: 12,
-    paddingVertical: 12,
+  stepsCard: {
+    marginBottom: 24,
   },
   stepHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  stepContent: {
+    flex: 1,
+  },
+  stepDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   stepIcon: {
     fontSize: 24,

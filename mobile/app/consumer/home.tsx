@@ -9,7 +9,9 @@ import {
   TextInput as RNTextInput,
   Platform,
   Modal,
+  FlatList,
   Alert,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -21,7 +23,7 @@ import { IconSearch, IconUser, IconPin, IconTrendUp } from '../../components/ui/
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
-import { AUTOCOMPLETE_COUNTRIES } from '../../config/marketConfig';
+import { AUTOCOMPLETE_COUNTRIES, PHONE_COUNTRIES } from '../../config/marketConfig';
 import { parseAddressComponents, isPreciseAddress, isPlusCode } from '../../utils/addressComponents';
 import { shortAddressLabel } from '../../utils/addressComponents';
 import { supabase } from '../../services/supabase';
@@ -31,7 +33,24 @@ import { theme, card } from '../../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
-const COMPONENTS_FILTER = AUTOCOMPLETE_COUNTRIES.map((code) => `country:${code}`).join('|');
+
+// Country options for the selector, in AUTOCOMPLETE_COUNTRIES' order (PH
+// first — see PHONE_COUNTRIES) rather than PHONE_COUNTRIES' full list, which
+// also includes AE/CA/DE that aren't wired into the autocomplete filter.
+const COUNTRY_OPTIONS = AUTOCOMPLETE_COUNTRIES.map(
+  (code) => PHONE_COUNTRIES.find((c) => c.code === code)!
+);
+
+/**
+ * Narrowing the search to one country (rather than always searching all of
+ * AUTOCOMPLETE_COUNTRIES at once) means a "Main Street" query in the
+ * Philippines doesn't have to compete with every "Main Street" in the US,
+ * Australia, the UK, and Singapore for the top few suggestion slots.
+ */
+function componentsFilterFor(country: string | null): string {
+  const countries = country ? [country] : AUTOCOMPLETE_COUNTRIES;
+  return countries.map((code) => `country:${code}`).join('|');
+}
 
 async function authHeaders() {
   const { data } = await supabase.auth.getSession();
@@ -62,6 +81,10 @@ export default function ConsumerHome() {
   const [resolving, setResolving] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [plusCodeModalVisible, setPlusCodeModalVisible] = useState(false);
+  // null = search across all AUTOCOMPLETE_COUNTRIES at once (the prior
+  // behavior); picking one narrows results to just that country.
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
 
   const [reports, setReports] = useState<Report[]>([]);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
@@ -78,7 +101,7 @@ export default function ConsumerHome() {
     }
   }, [user?.id]);
 
-  const fetchPredictions = useCallback(async (input: string) => {
+  const fetchPredictions = useCallback(async (input: string, country: string | null) => {
     if (!input || input.length < 2) {
       setPredictions([]);
       return;
@@ -88,17 +111,22 @@ export default function ConsumerHome() {
       setSearching(true);
       setSearchError('');
 
+      const componentsFilter = componentsFilterFor(country);
       const response = Platform.OS === 'web'
         ? await axios.get(`${API_URL}/api/places/autocomplete`, {
-            params: { input, components: COMPONENTS_FILTER },
+            params: { input, components: componentsFilter },
             headers: await authHeaders(),
           })
         : await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
             params: {
               input,
               key: GOOGLE_PLACES_API_KEY,
-              types: 'address',
-              components: COMPONENTS_FILTER,
+              // No 'types' restriction — 'address' and even 'geocode' still
+              // missed named subdivisions/villages Google indexes as an
+              // establishment/POI (the API only accepts one type category
+              // per request). Omitting 'types' entirely matches how the
+              // full Google Maps app searches, with no restriction at all.
+              components: componentsFilter,
             },
           });
 
@@ -221,6 +249,13 @@ export default function ConsumerHome() {
   };
 
   const freeLeftLabel = remaining === null ? '…' : `${remaining} free left`;
+  const selectedCountryOption = COUNTRY_OPTIONS.find((c) => c.code === selectedCountry) ?? null;
+
+  const handleSelectCountry = (code: string | null) => {
+    setSelectedCountry(code);
+    setCountryPickerVisible(false);
+    if (query.length >= 2) fetchPredictions(query, code);
+  };
 
   return (
     <SafeAreaWrapper scrollable contentContainerStyle={{ paddingTop: theme.space['4xl'] }}>
@@ -243,8 +278,24 @@ export default function ConsumerHome() {
 
       <Text style={styles.title}>Value a property</Text>
 
-      {/* Search field */}
+      {/* Search field — the country selector lives inside the same bordered
+          pill as the address input (flag + chevron, then a divider, then
+          the input) rather than as a separate control stacked above it, so
+          the two read as one search tool instead of two competing elements.
+          Narrows Places Autocomplete to one country instead of always
+          matching against all five at once (see componentsFilterFor above). */}
       <View style={styles.searchWrapper}>
+        <TouchableOpacity
+          style={styles.countrySegment}
+          onPress={() => setCountryPickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.countrySegmentFlag}>{selectedCountryOption?.flag ?? '🌐'}</Text>
+          <Text style={styles.countrySegmentChevron}>▾</Text>
+        </TouchableOpacity>
+
+        <View style={styles.searchDivider} />
+
         <View style={styles.searchIcon}>
           <IconSearch size={19} color={theme.color.textMuted} />
         </View>
@@ -255,12 +306,56 @@ export default function ConsumerHome() {
           value={query}
           onChangeText={(text) => {
             setQuery(text);
-            fetchPredictions(text);
+            fetchPredictions(text, selectedCountry);
           }}
         />
         {(searching || resolving) && (
           <ActivityIndicator style={styles.searchSpinner} color={theme.color.text} />
         )}
+
+        <Modal
+          visible={countryPickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCountryPickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setCountryPickerVisible(false)}
+          >
+            <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={styles.countryPickerCard}>
+              <Text style={styles.modalTitle}>Search in which country?</Text>
+              <FlatList
+                data={COUNTRY_OPTIONS}
+                keyExtractor={(item) => item.code}
+                style={{ flexGrow: 0, maxHeight: 360 }}
+                ListHeaderComponent={
+                  <TouchableOpacity
+                    style={styles.countryOptionRow}
+                    onPress={() => handleSelectCountry(null)}
+                  >
+                    <Text style={styles.countryOptionFlag}>🌐</Text>
+                    <Text style={styles.countryOptionName}>All countries</Text>
+                    {!selectedCountry && <Text style={styles.countryOptionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.countryOptionRow}
+                    onPress={() => handleSelectCountry(item.code)}
+                  >
+                    <Text style={styles.countryOptionFlag}>{item.flag}</Text>
+                    <Text style={styles.countryOptionName}>{item.name}</Text>
+                    {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+            </TouchableWithoutFeedback>
+          </TouchableOpacity>
+        </Modal>
 
         {predictions.length > 0 && (
           <Card variant="elevated" style={styles.suggestions}>
@@ -412,25 +507,68 @@ const styles = StyleSheet.create({
     color: theme.color.text,
     marginBottom: theme.space.xl - 2,
   },
+  countrySegment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: '100%',
+    paddingLeft: theme.space.lg,
+    paddingRight: theme.space.sm,
+  },
+  countrySegmentFlag: {
+    fontSize: 18,
+  },
+  countrySegmentChevron: {
+    ...theme.type.caption,
+    color: theme.color.textMuted,
+    marginLeft: theme.space.xs,
+  },
+  searchDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    marginVertical: theme.space.sm + 2,
+    backgroundColor: theme.color.border,
+  },
+  countryOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.space.md - 2,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  countryOptionFlag: {
+    fontSize: 18,
+    marginRight: theme.space.sm + 2,
+  },
+  countryOptionName: {
+    ...theme.type.bodySm,
+    color: theme.color.text,
+    flex: 1,
+  },
+  countryOptionCheck: {
+    ...theme.type.bodySm,
+    fontFamily: theme.font.bodySemibold,
+    color: theme.color.text,
+  },
   searchWrapper: {
     position: 'relative',
     zIndex: 20,
     elevation: 20,
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 18,
-    top: 20,
-    zIndex: 1,
-  },
-  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: theme.size.field,
     borderRadius: theme.radius.full,
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.surface,
-    paddingLeft: 46,
-    paddingRight: theme.space.lg,
+  },
+  searchIcon: {
+    marginLeft: theme.space.md,
+    marginRight: theme.space.xs,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: theme.size.field,
+    paddingRight: theme.space['2xl'],
     fontFamily: theme.font.body,
     fontSize: theme.type.body.fontSize,
     color: theme.color.text,
@@ -438,7 +576,8 @@ const styles = StyleSheet.create({
   searchSpinner: {
     position: 'absolute',
     right: 18,
-    top: 20,
+    top: '50%',
+    marginTop: -10,
   },
   suggestions: {
     position: 'absolute',
@@ -537,6 +676,18 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 380,
+  },
+  // Unlike modalCard above (used by the Plus Code modal, where a <Card>
+  // component supplies the background), this wraps a plain View directly —
+  // it needs its own opaque background/border/shadow or the country list
+  // renders see-through against the dark overlay behind it.
+  countryPickerCard: {
+    width: '100%',
+    maxWidth: 380,
+    ...card.floating,
+    paddingHorizontal: theme.space.lg + 2,
+    paddingTop: theme.space.lg,
+    paddingBottom: theme.space.sm,
   },
   modalTitle: {
     ...theme.type.subheading,

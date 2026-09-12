@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -12,6 +12,7 @@ import { CurrencyValue } from '../../components/ui/CurrencyValue';
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { authService } from '../../services/auth.service';
+import { checkPasswordBreach } from '../../services/passwordBreach.service';
 import { formatCurrency } from '../../config/marketConfig';
 import {
   completePendingValuation,
@@ -45,6 +46,10 @@ function GateScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [gateError, setGateError] = useState('');
+  // Never pre-checked — same rule as every other consent checkbox in this
+  // app (see broker-optins.tsx's disclaimer, CLAUDE.md's "Never pre-check a
+  // consent checkbox").
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   if (!currentProperty || !currentPropertyDetails || !pendingValuation) {
     // Shouldn't happen (loading.tsx only routes here once all three are
@@ -62,6 +67,7 @@ function GateScreen() {
     const digitCount = phone.replace(/\D/g, '').length;
     if (digitCount < 7) return 'Please enter a valid mobile number';
     if (password.length < 8) return 'Password must be at least 8 characters';
+    if (!agreedToTerms) return 'Please agree to the Terms of Service and Privacy Policy';
     return null;
   };
 
@@ -76,8 +82,17 @@ function GateScreen() {
     setLoading(true);
 
     try {
+      const breachCheck = await checkPasswordBreach(password);
+      if (breachCheck.breached) {
+        setGateError(
+          'This password has appeared in known data breaches. Please choose a different password.'
+        );
+        return;
+      }
+
       const result = await authService.signup(email, password, {
-        full_name: '',
+        first_name: '',
+        last_name: '',
         user_type: 'consumer',
         phone,
       });
@@ -160,7 +175,6 @@ function GateScreen() {
           autoCapitalize="none"
           editable={!loading}
         />
-        <PhoneInput label="Mobile number" value={phone} onChangeText={setPhone} editable={!loading} />
         <TextInput
           label="Password"
           placeholder="At least 8 characters"
@@ -168,7 +182,40 @@ function GateScreen() {
           onChangeText={setPassword}
           secureTextEntry
           editable={!loading}
+          style={{ marginTop: 12 }}
         />
+        <View style={{ marginTop: 12 }}>
+          <PhoneInput
+            label="Mobile number"
+            value={phone}
+            onChangeText={setPhone}
+            editable={!loading}
+            style={{ marginBottom: 0 }}
+          />
+          <Text style={styles.phoneHelper}>
+            Only shared with a professional if you opt in to be contacted on a report.
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.gateTermsRow}
+          onPress={() => setAgreedToTerms((prev) => !prev)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+            {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+          </View>
+          <Text style={styles.gateTermsText}>
+            I agree to the{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
+              Privacy Policy
+            </Text>
+          </Text>
+        </TouchableOpacity>
 
         {!!gateError && <Text style={styles.gateErrorText}>{gateError}</Text>}
 
@@ -215,13 +262,16 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   // Consumer-only — see the phone comment on the User type. Brokers already
   // provide a phone number during broker/onboarding.tsx, so asking again
   // here would be a duplicate prompt for that account type.
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Never pre-checked — see the same field on GateScreen above.
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // A guest who just generated a valuation reaches this route with all
   // three of these set (see loading.tsx) — render the gate instead of the
@@ -237,8 +287,12 @@ export default function SignupScreen() {
       newErrors.userType = 'Please select account type';
     }
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     if (userType === 'consumer') {
@@ -272,6 +326,10 @@ export default function SignupScreen() {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
+    if (!agreedToTerms) {
+      newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -281,8 +339,19 @@ export default function SignupScreen() {
 
     try {
       setLoading(true);
+
+      const breachCheck = await checkPasswordBreach(password);
+      if (breachCheck.breached) {
+        setErrors((prev) => ({
+          ...prev,
+          password: 'This password has appeared in known data breaches. Please choose a different password.',
+        }));
+        return;
+      }
+
       const result = await authService.signup(email, password, {
-        full_name: fullName,
+        first_name: firstName,
+        last_name: lastName,
         user_type: userType!,
         // Brokers provide their phone during onboarding instead — see the
         // field's own comment above for why it's consumer-only here.
@@ -386,16 +455,9 @@ export default function SignupScreen() {
         </Text>
       </View>
 
-      {/* Form */}
+      {/* Form — email, password, confirm password, first name, last name,
+          phone (in that order). */}
       <View style={styles.form}>
-        <TextInput
-          placeholder="Full Name"
-          value={fullName}
-          onChangeText={setFullName}
-          editable={!loading}
-          error={errors.fullName}
-        />
-
         <TextInput
           placeholder="Email"
           value={email}
@@ -404,7 +466,6 @@ export default function SignupScreen() {
           autoCapitalize="none"
           editable={!loading}
           error={errors.email}
-          style={{ marginTop: 12 }}
         />
 
         <TextInput
@@ -427,6 +488,24 @@ export default function SignupScreen() {
           style={{ marginTop: 12 }}
         />
 
+        <TextInput
+          placeholder="First Name"
+          value={firstName}
+          onChangeText={setFirstName}
+          editable={!loading}
+          error={errors.firstName}
+          style={{ marginTop: 12 }}
+        />
+
+        <TextInput
+          placeholder="Last Name"
+          value={lastName}
+          onChangeText={setLastName}
+          editable={!loading}
+          error={errors.lastName}
+          style={{ marginTop: 12 }}
+        />
+
         {userType === 'consumer' && (
           <View style={{ marginTop: 12 }}>
             <PhoneInput
@@ -434,6 +513,7 @@ export default function SignupScreen() {
               onChangeText={setPhone}
               editable={!loading}
               error={errors.phone}
+              style={{ marginBottom: 0 }}
             />
             <Text style={styles.phoneHelper}>
               Only shared with a professional if you opt in to be contacted on a report.
@@ -441,19 +521,31 @@ export default function SignupScreen() {
           </View>
         )}
 
-        {/* Terms Agreement */}
+        {/* Terms Agreement — a real checkbox, not just informational text:
+            explicit, required, never pre-checked (see CLAUDE.md's "Never
+            pre-check a consent checkbox"). */}
         <Card variant="outlined" style={styles.termsCard}>
-          <Text style={styles.termsText}>
-            By signing up, you agree to our{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
-              Terms of Service
-            </Text>{' '}
-            and{' '}
-            <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
-              Privacy Policy
+          <TouchableOpacity
+            style={styles.termsCheckboxRow}
+            onPress={() => setAgreedToTerms((prev) => !prev)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+              {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.termsText}>
+              I agree to the{' '}
+              <Text style={styles.termsLink} onPress={() => router.push('/public/terms-of-service')}>
+                Terms of Service
+              </Text>{' '}
+              and{' '}
+              <Text style={styles.termsLink} onPress={() => router.push('/public/privacy-policy')}>
+                Privacy Policy
+              </Text>
             </Text>
-          </Text>
+          </TouchableOpacity>
         </Card>
+        {!!errors.terms && <Text style={styles.errorMessage}>{errors.terms}</Text>}
 
         <Button
           title={loading ? 'Creating Account...' : 'Create Account'}
@@ -510,16 +602,29 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
     marginTop: 16,
   },
+  termsCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   termsText: {
     fontSize: 12,
     color: '#1F2937',
-    lineHeight: 18,
-    textAlign: 'center',
+    // Matches the checkbox's own 22px height (see styles.checkbox) so its
+    // vertical center lines up with the first line of text — a shorter
+    // line-height here left the checkbox sitting visibly lower than the
+    // text next to it.
+    lineHeight: 22,
+    flex: 1,
   },
   termsLink: {
     color: '#2563EB',
     fontWeight: '600',
     textDecorationLine: 'underline',
+  },
+  errorMessage: {
+    color: '#EF4444',
+    fontSize: 13,
+    marginTop: 8,
   },
   footer: {
     flexDirection: 'row',
@@ -536,6 +641,38 @@ const styles = StyleSheet.create({
     ...theme.type.heading,
     color: theme.color.text,
     marginBottom: theme.space.lg,
+  },
+  gateTermsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: theme.space.md,
+  },
+  gateTermsText: {
+    ...theme.type.bodySm,
+    color: theme.color.textMuted,
+    flex: 1,
+    // Matches the checkbox's own 22px height (see styles.checkbox) so its
+    // vertical center lines up with the first line of text.
+    lineHeight: 22,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: theme.color.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: theme.color.text,
+    borderColor: theme.color.text,
+  },
+  checkmark: {
+    color: theme.color.surface,
+    fontSize: 13,
+    fontWeight: '700',
   },
   valueCard: {
     ...theme.type.body,

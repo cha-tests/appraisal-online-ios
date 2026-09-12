@@ -39,7 +39,8 @@ const PASSWORD = 'TestPass123!';
 
 interface AccountSpec {
   email: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   companyName: string;
   tier: 'Founder Lifetime' | 'Premium Annual' | 'Basic Annual';
   paid: boolean;
@@ -48,14 +49,16 @@ interface AccountSpec {
 const ACCOUNTS: AccountSpec[] = [
   {
     email: 'testbroker.free@appraisalonline.ai',
-    fullName: 'Test Broker (Free)',
+    firstName: 'Test',
+    lastName: 'Broker (Free)',
     companyName: 'Free Tier Realty',
     tier: 'Basic Annual',
     paid: false,
   },
   {
     email: 'testbroker.paid@appraisalonline.ai',
-    fullName: 'Test Broker (Paid)',
+    firstName: 'Test',
+    lastName: 'Broker (Paid)',
     companyName: 'Paid Tier Realty',
     tier: 'Premium Annual',
     paid: true,
@@ -78,7 +81,7 @@ async function getOrCreateUser(spec: AccountSpec): Promise<string> {
     email: spec.email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { user_type: 'broker', full_name: spec.fullName },
+    user_metadata: { user_type: 'broker', first_name: spec.firstName, last_name: spec.lastName },
   });
 
   if (error || !created.user) {
@@ -101,7 +104,8 @@ async function getOrCreateUser(spec: AccountSpec): Promise<string> {
       id: created.user.id,
       email: spec.email,
       user_type: 'broker',
-      full_name: spec.fullName,
+      first_name: spec.firstName,
+      last_name: spec.lastName,
     });
     if (insertError) throw new Error(`Failed to insert users row: ${insertError.message}`);
   }

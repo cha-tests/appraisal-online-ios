@@ -49,7 +49,8 @@ const CONSUMER_EMAIL = 'apple.demo.consumer@appraisalonline.ai';
 async function getOrCreateAuthUser(
   email: string,
   userType: 'broker' | 'consumer',
-  fullName: string
+  firstName: string,
+  lastName: string
 ): Promise<string> {
   const { data: existing } = await supabase
     .from('users')
@@ -66,7 +67,7 @@ async function getOrCreateAuthUser(
     email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { user_type: userType, full_name: fullName },
+    user_metadata: { user_type: userType, first_name: firstName, last_name: lastName },
   });
 
   if (error || !created.user) {
@@ -84,7 +85,8 @@ async function getOrCreateAuthUser(
       id: created.user.id,
       email,
       user_type: userType,
-      full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
       phone: '09171234567',
     });
     if (insertError) throw new Error(`Failed to insert users row: ${insertError.message}`);
@@ -96,7 +98,7 @@ async function getOrCreateAuthUser(
 
 async function setupBroker(): Promise<{ userId: string }> {
   console.log(`\n${BROKER_EMAIL}:`);
-  const userId = await getOrCreateAuthUser(BROKER_EMAIL, 'broker', 'Apple Reviewer (Broker Demo)');
+  const userId = await getOrCreateAuthUser(BROKER_EMAIL, 'broker', 'Apple', 'Reviewer (Broker Demo)');
 
   const { data: city, error: cityError } = await supabase
     .from('cities')
@@ -181,7 +183,7 @@ async function setupBroker(): Promise<{ userId: string }> {
 
 async function setupConsumerWithReport(brokerId: string) {
   console.log(`\n${CONSUMER_EMAIL}:`);
-  const userId = await getOrCreateAuthUser(CONSUMER_EMAIL, 'consumer', 'Apple Reviewer (Consumer Demo)');
+  const userId = await getOrCreateAuthUser(CONSUMER_EMAIL, 'consumer', 'Apple', 'Reviewer (Consumer Demo)');
 
   const { data: existingProperty } = await supabase
     .from('properties')

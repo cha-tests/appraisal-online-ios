@@ -15,10 +15,13 @@
 export type SizeUnit = 'sqft' | 'sqm';
 export type DistanceUnit = 'mi' | 'km';
 
-export interface MarketConfig {
+// Per-market stored config — what actually varies by country. Property type
+// labels do NOT vary by market (see PROPERTY_TYPES below), so they're not
+// part of this stored shape; getMarketConfig adds them on the way out (see
+// MarketConfig below) so callers don't have to know that distinction.
+interface StoredMarketConfig {
   sizeUnit: SizeUnit;
   distanceUnit: DistanceUnit;
-  propertyTypes: string[];
   // ISO 4217 currency code property values in this market are actually
   // denominated in. A PHP-market home isn't "worth millions of US dollars" —
   // it was, before this existed, because every screen and the Gemini prompt
@@ -28,6 +31,12 @@ export interface MarketConfig {
   // how it displays, the same "stored value stays put, only display/prompt
   // wording changes" approach as sizeUnit/distanceUnit above.
   currency: string;
+}
+
+export interface MarketConfig extends StoredMarketConfig {
+  // The universal property type list (see PROPERTY_TYPES below), plus
+  // OTHER_PROPERTY_TYPE — computed by getMarketConfig, not stored per-market.
+  propertyTypes: string[];
 }
 
 // Countries with no entry here fall back to DEFAULT_MARKET below, so an
@@ -43,23 +52,20 @@ export interface MarketConfig {
 // Canada all measure floor area in square feet but distance in kilometres —
 // property size and road/travel distance are separate conventions, and
 // several markets below only share one of the two with the US.
-const MARKETS: Record<string, MarketConfig> = {
+const MARKETS: Record<string, StoredMarketConfig> = {
   US: {
     sizeUnit: 'sqft',
     distanceUnit: 'mi',
-    propertyTypes: ['Single Family', 'Condo', 'Townhouse', 'Multi-Family', 'Land'],
     currency: 'USD',
   },
   PH: {
     sizeUnit: 'sqm',
     distanceUnit: 'km',
-    propertyTypes: ['House and Lot', 'Condominium', 'Townhouse', 'Apartment', 'Vacant Lot'],
     currency: 'PHP',
   },
   AU: {
     sizeUnit: 'sqm',
     distanceUnit: 'km',
-    propertyTypes: ['House', 'Apartment/Unit', 'Townhouse', 'Villa', 'Vacant Land'],
     currency: 'AUD',
   },
   GB: {
@@ -69,25 +75,14 @@ const MARKETS: Record<string, MarketConfig> = {
     // stay imperial here.
     sizeUnit: 'sqft',
     distanceUnit: 'mi',
-    propertyTypes: [
-      'Detached House',
-      'Semi-Detached House',
-      'Terraced House',
-      'Flat/Apartment',
-      'Bungalow',
-      'Land',
-    ],
     currency: 'GBP',
   },
   SG: {
     // Singapore listings run in sq ft ("psf" pricing is standard) despite
-    // Singapore otherwise using metric units. The large majority of
-    // Singaporean housing is public HDB flats, not private condos — omitting
-    // that category would misrepresent most of the market. Distance to
-    // MRT/amenities is conventionally given in km, not miles.
+    // Singapore otherwise using metric units. Distance to MRT/amenities is
+    // conventionally given in km, not miles.
     sizeUnit: 'sqft',
     distanceUnit: 'km',
-    propertyTypes: ['HDB Flat', 'Condominium', 'Executive Condominium', 'Landed House', 'Apartment'],
     currency: 'SGD',
   },
   AE: {
@@ -95,7 +90,6 @@ const MARKETS: Record<string, MarketConfig> = {
     // UAE otherwise using metric units; road distance is km.
     sizeUnit: 'sqft',
     distanceUnit: 'km',
-    propertyTypes: ['Apartment', 'Villa', 'Townhouse', 'Penthouse', 'Land'],
     currency: 'AED',
   },
   CA: {
@@ -104,16 +98,21 @@ const MARKETS: Record<string, MarketConfig> = {
     // holdover for floor area.
     sizeUnit: 'sqft',
     distanceUnit: 'km',
-    propertyTypes: ['Single Family', 'Condo', 'Townhouse', 'Duplex', 'Land'],
     currency: 'CAD',
   },
   DE: {
     sizeUnit: 'sqm',
     distanceUnit: 'km',
-    propertyTypes: ['House', 'Apartment', 'Semi-Detached House', 'Terraced House', 'Land'],
     currency: 'EUR',
   },
 };
+
+// Property type labels are the same everywhere (see getMarketConfig below) —
+// this used to be a per-market list, but the app only actually offers the
+// two launch markets (US, PH — see CLAUDE.md), and having each market invent
+// its own wording just meant the same property showed up under a different
+// label depending on where the address happened to be.
+const PROPERTY_TYPES = ['House', 'Apartment/Unit', 'Townhouse', 'Villa', 'Condo', 'Vacant Land'];
 
 // Most of the world measures floor area in square metres, so this is a
 // reasonable placeholder for a country that hasn't been given its own entry
@@ -121,10 +120,9 @@ const MARKETS: Record<string, MarketConfig> = {
 // show, several countries measure real estate specifically in square feet
 // despite being metric everywhere else, so a country only belongs in
 // MARKETS once that convention has actually been checked.
-const DEFAULT_MARKET: MarketConfig = {
+const DEFAULT_MARKET: StoredMarketConfig = {
   sizeUnit: 'sqm',
   distanceUnit: 'km',
-  propertyTypes: ['House', 'Apartment/Condo', 'Townhouse', 'Vacant Land'],
   currency: 'USD',
 };
 
@@ -138,7 +136,7 @@ export const OTHER_PROPERTY_TYPE = 'Others';
 
 export function getMarketConfig(countryCode?: string | null): MarketConfig {
   const config = (countryCode && MARKETS[countryCode]) || DEFAULT_MARKET;
-  return { ...config, propertyTypes: [...config.propertyTypes, OTHER_PROPERTY_TYPE] };
+  return { ...config, propertyTypes: [...PROPERTY_TYPES, OTHER_PROPERTY_TYPE] };
 }
 
 /**
@@ -156,6 +154,22 @@ export function getMarketConfig(countryCode?: string | null): MarketConfig {
 export function isVacantLandType(propertyType: string | undefined | null): boolean {
   if (!propertyType) return false;
   return /^(land|vacant lot|vacant land)$/i.test(propertyType.trim());
+}
+
+/**
+ * Whether a market's property-type label denotes a unit with no lot of its
+ * own — a condo, apartment, or flat sits on land the building as a whole
+ * owns, not a parcel that comes with the individual unit, so "Lot Area"
+ * doesn't apply to it the way it does to a house or townhouse.
+ *
+ * A substring match (not anchored like isVacantLandType) is deliberate here:
+ * it needs to catch every market's phrasing — "Condo", "Condominium",
+ * "Executive Condominium", "Apartment/Unit", "Flat/Apartment", "HDB Flat" —
+ * without maintaining a parallel per-market list.
+ */
+export function isNoLotType(propertyType: string | undefined | null): boolean {
+  if (!propertyType) return false;
+  return /(condo|apartment|flat|hdb)/i.test(propertyType.trim());
 }
 
 const MILES_TO_KM = 1.60934;
@@ -198,6 +212,35 @@ export function formatCurrency(amountMinorUnits: number, countryCode?: string | 
     currency,
     maximumFractionDigits: 0,
   }).format(amountMinorUnits / 100);
+}
+
+const MONTH_ABBR = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+// Countries that write the day before the month (e.g. "23 Jan 2026") —
+// everyone else defaults to month-first ("Jan 23 2026"), matching the US/PH
+// convention. Only covers what's been explicitly confirmed; add a country
+// here once its date order is actually checked, the same caution MARKETS
+// above takes with size/distance units.
+const DAY_FIRST_COUNTRIES = new Set(['AU']);
+
+/**
+ * Formats a date as "Mmm dd yyyy" (US/PH order) or "dd Mmm yyyy" (day-first
+ * markets), for account/subscription dates like the money-back guarantee
+ * deadline — money amounts use formatCurrency above, this is its date
+ * counterpart, same "look up the market, format accordingly" approach.
+ */
+export function formatDate(date: Date, countryCode?: string | null): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = MONTH_ABBR[date.getMonth()];
+  const year = date.getFullYear();
+
+  if (countryCode && DAY_FIRST_COUNTRIES.has(countryCode)) {
+    return `${day} ${month} ${year}`;
+  }
+  return `${month} ${day} ${year}`;
 }
 
 export const SQFT_PER_SQM = 10.7639;

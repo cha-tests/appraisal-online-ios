@@ -134,6 +134,51 @@ export function IconLock(props: IconProps) {
   );
 }
 
+/** Password visibility toggle — shown state (password is visible). */
+export function IconEye(props: IconProps) {
+  const { size, color, strokeWidth } = defaults(props);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={strokeWidth} />
+    </Svg>
+  );
+}
+
+/** Password visibility toggle — hidden state (password is masked). */
+export function IconEyeOff(props: IconProps) {
+  const { size, color, strokeWidth } = defaults(props);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 3l18 18"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a15.8 15.8 0 0 1-4.2 4.9M6.6 6.6C4 8.3 2 12 2 12s3.6 7 10 7a9.6 9.6 0 0 0 3.4-.6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14.1 14.1a3 3 0 0 1-4.2-4.2"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 /**
  * "Generating" spinner rays. Rotate the whole component (see loading.tsx) —
  * this only draws one frame; two rays render at opacity .5 to match the

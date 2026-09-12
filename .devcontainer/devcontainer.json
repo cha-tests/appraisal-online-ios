@@ -1,0 +1,11 @@
+{
+  "name": "Appraisal Online (mobile dev)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-20-bullseye",
+  "forwardPorts": [8081, 19000, 19001, 19002],
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["mobile/app/consumer/home.tsx"]
+    }
+  }
+}

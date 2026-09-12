@@ -11,18 +11,25 @@ export default function SignupPage() {
   const router = useRouter();
   const [step, setStep] = useState<'type' | 'form'>('type');
   const [userType, setUserType] = useState<UserType>(null);
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Never pre-checked — explicit, required consent.
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
+    if (!firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
     }
 
     if (!email) {
@@ -41,6 +48,10 @@ export default function SignupPage() {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
+    if (!agreedToTerms) {
+      newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -52,7 +63,8 @@ export default function SignupPage() {
     try {
       setLoading(true);
       const result = await signUp(email, password, {
-        full_name: fullName,
+        first_name: firstName,
+        last_name: lastName,
         user_type: userType || 'consumer',
       });
 
@@ -133,27 +145,8 @@ export default function SignupPage() {
         </div>
 
         <form onSubmit={handleSignup} className="space-y-4">
-          {/* Full Name */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => {
-                setFullName(e.target.value);
-                if (errors.fullName) setErrors({ ...errors, fullName: undefined });
-              }}
-              placeholder="John Doe"
-              disabled={loading}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
-            />
-            {errors.fullName && (
-              <p className="text-red-600 text-sm mt-1">{errors.fullName}</p>
-            )}
-          </div>
-
+          {/* Email, password, confirm password, first name, last name — in
+              that order. */}
           {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">
@@ -218,12 +211,70 @@ export default function SignupPage() {
             )}
           </div>
 
-          {/* Terms */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-gray-700 text-center">
-              By signing up, you agree to our Terms of Service and Privacy Policy
-            </p>
+          {/* First Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              First Name
+            </label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => {
+                setFirstName(e.target.value);
+                if (errors.firstName) setErrors({ ...errors, firstName: undefined });
+              }}
+              placeholder="John"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
+            {errors.firstName && (
+              <p className="text-red-600 text-sm mt-1">{errors.firstName}</p>
+            )}
           </div>
+
+          {/* Last Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Last Name
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                if (errors.lastName) setErrors({ ...errors, lastName: undefined });
+              }}
+              placeholder="Doe"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
+            {errors.lastName && (
+              <p className="text-red-600 text-sm mt-1">{errors.lastName}</p>
+            )}
+          </div>
+
+          {/* Terms — a real checkbox, not just informational text: explicit,
+              required, never pre-checked. */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => {
+                  setAgreedToTerms(e.target.checked);
+                  if (errors.terms) setErrors({ ...errors, terms: undefined });
+                }}
+                disabled={loading}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span className="text-sm text-gray-700">
+                I agree to the Terms of Service and Privacy Policy
+              </span>
+            </label>
+          </div>
+          {errors.terms && (
+            <p className="text-red-600 text-sm mt-1">{errors.terms}</p>
+          )}
 
           {/* Submit */}
           <button

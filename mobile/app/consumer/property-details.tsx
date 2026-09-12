@@ -13,6 +13,7 @@ import {
   sqftToSqm,
   sqmToSqft,
   isVacantLandType,
+  isNoLotType,
   OTHER_PROPERTY_TYPE,
   type SizeUnit,
 } from '../../config/marketConfig';
@@ -86,8 +87,11 @@ export default function PropertyDetails() {
   );
 
   const [formData, setFormData] = useState<PropertyDetailsFormData>({
-    bedrooms: 3,
-    bathrooms: 2,
+    // No default bedroom/bathroom count — a house and a condo don't share a
+    // plausible guess, so this starts at 0 rather than assuming a typical
+    // 3-bed/2-bath home.
+    bedrooms: 0,
+    bathrooms: 0,
     square_feet: 2000,
     // 0 is a deliberately invalid placeholder, not a real year — the field
     // starts genuinely blank (see yearText below) and validateAll already
@@ -95,13 +99,23 @@ export default function PropertyDetails() {
     // slip through to submission.
     year_built: 0,
     property_type: market.propertyTypes[0],
-    condition: 'Good',
+    // No default condition — validateAll requires an explicit selection
+    // below rather than silently submitting "Good" for a property nobody
+    // actually looked at.
+    condition: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Raw land has no building on it, so a construction year doesn't apply —
   // "Vacant Lot"/"Vacant Land"/"Land" across every market in marketConfig.ts.
+  // It also has no rooms, condition, or floor area to speak of — the only
+  // size question that applies to it is Lot Area.
   const isLand = isVacantLandType(formData.property_type);
+
+  // A condo/apartment/flat unit doesn't come with its own parcel of land —
+  // the building as a whole sits on land, not the individual unit — so Lot
+  // Area doesn't apply to it the way it does to a house or townhouse.
+  const isNoLot = isNoLotType(formData.property_type);
 
   // Free-text fallback for when none of the market's own categories fit (or
   // the address's country couldn't be resolved at all — see market above).
@@ -147,14 +161,22 @@ export default function PropertyDetails() {
     // this point. Without this check, tapping the toggle before typing
     // anything populates the field with a phantom "2000"/"186" that looks
     // exactly like the prefill this field isn't supposed to have.
-    if (!sizeText.trim()) return;
-    // Re-derive the displayed text from the canonical sqft value rather than
-    // converting the displayed text again, which would drift with each toggle.
-    setSizeText(
-      unit === 'sqft'
-        ? String(Math.round(formData.square_feet))
-        : String(Math.round(sqftToSqm(formData.square_feet)))
-    );
+    if (sizeText.trim()) {
+      // Re-derive the displayed text from the canonical sqft value rather than
+      // converting the displayed text again, which would drift with each toggle.
+      setSizeText(
+        unit === 'sqft'
+          ? String(Math.round(formData.square_feet))
+          : String(Math.round(sqftToSqm(formData.square_feet)))
+      );
+    }
+    if (lotAreaText.trim() && formData.lot_size) {
+      setLotAreaText(
+        unit === 'sqft'
+          ? String(Math.round(formData.lot_size))
+          : String(Math.round(sqftToSqm(formData.lot_size)))
+      );
+    }
   };
 
   const handleSizeChange = (text: string) => {
@@ -162,6 +184,20 @@ export default function PropertyDetails() {
     const value = parseFloat(text) || 0;
     const sqft = sizeUnit === 'sqft' ? value : sqmToSqft(value);
     updateFormData('square_feet', Math.round(sqft));
+  };
+
+  // lot_size follows the same "canonical sqft, converted only for display"
+  // convention as square_feet above, and shares the same sizeUnit toggle —
+  // both are area measurements in the same market's convention, so a second
+  // independent toggle would just be a confusing second control for the same
+  // choice.
+  const [lotAreaText, setLotAreaText] = useState('');
+
+  const handleLotAreaChange = (text: string) => {
+    setLotAreaText(text);
+    const value = parseFloat(text) || 0;
+    const sqft = sizeUnit === 'sqft' ? value : sqmToSqft(value);
+    updateFormData('lot_size', text.trim() ? Math.round(sqft) : undefined);
   };
 
   const validateAll = (): boolean => {
@@ -173,13 +209,32 @@ export default function PropertyDetails() {
     if (formData.bathrooms < 0 || formData.bathrooms > 10) {
       newErrors.bathrooms = 'Please enter 0-10 bathrooms';
     }
-    if (formData.square_feet < 100 || formData.square_feet > 50000) {
+    // Floor area doesn't apply to vacant land (see isLand below) — nothing to
+    // validate for a field that isn't shown.
+    if (!isLand && (formData.square_feet < 100 || formData.square_feet > 50000)) {
       // Bounds are stored in sqft; report them back in whichever unit the
       // user is currently looking at so the message matches what they typed.
       newErrors.square_feet =
         sizeUnit === 'sqft'
           ? 'Please enter 100-50,000 sq ft'
           : `Please enter ${Math.round(sqftToSqm(100))}-${Math.round(sqftToSqm(50000)).toLocaleString()} sq m`;
+    }
+    // Lot Area is the only size field vacant land has, so it's required
+    // there; for everything else with a lot (i.e. not a no-lot condo/
+    // apartment type) it's a helpful but optional extra.
+    if (!isNoLot) {
+      if (isLand && !formData.lot_size) {
+        newErrors.lot_size =
+          sizeUnit === 'sqft' ? 'Please enter the lot area in sq ft' : 'Please enter the lot area in sq m';
+      } else if (
+        formData.lot_size !== undefined &&
+        (formData.lot_size < 100 || formData.lot_size > 5000000)
+      ) {
+        newErrors.lot_size =
+          sizeUnit === 'sqft'
+            ? 'Please enter 100-5,000,000 sq ft'
+            : `Please enter ${Math.round(sqftToSqm(100))}-${Math.round(sqftToSqm(5000000)).toLocaleString()} sq m`;
+      }
     }
     // Optional for vacant land — see isLand above — so a blank year_built
     // (still 0, its unfilled placeholder value) doesn't block submission.
@@ -191,6 +246,11 @@ export default function PropertyDetails() {
     }
     if (isOtherType && !customPropertyType.trim()) {
       newErrors.property_type = 'Please specify the property type';
+    }
+    // No default condition (see formData above) — require an explicit pick
+    // for anything with a structure to describe; vacant land has none.
+    if (!isLand && !formData.condition) {
+      newErrors.condition = 'Please select a condition';
     }
 
     setErrors(newErrors);
@@ -238,8 +298,9 @@ export default function PropertyDetails() {
         <Text style={styles.subtitle}>{currentProperty?.address}</Text>
       </View>
 
-      {/* Type & Condition — asked first: what the property IS shapes which of
-          the questions below even apply (e.g. Year Built for vacant land). */}
+      {/* Property type — asked first: what the property IS shapes which of
+          the questions below even apply (e.g. Condition and Year Built don't
+          apply to vacant land; Lot Area doesn't apply to a condo/apartment). */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Property type</Text>
 
@@ -275,63 +336,52 @@ export default function PropertyDetails() {
             error={errors.property_type}
           />
         )}
+      </View>
 
-        <Text style={styles.label}>Condition</Text>
-        <View style={styles.conditionGrid}>
-          {CONDITIONS.map((condition) => {
-            const active = formData.condition === condition;
-            return (
-              <TouchableOpacity
-                key={condition}
-                style={[pill.base, active ? pill.on : pill.off, styles.conditionButton]}
-                onPress={() => updateFormData('condition', condition)}
-              >
-                <Text style={active ? pill.textOn : pill.textOff}>{condition}</Text>
-              </TouchableOpacity>
-            );
-          })}
+      {/* Layout — not applicable to vacant land. */}
+      {!isLand && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Layout</Text>
+          <Stepper
+            label="Bedroom(s)"
+            value={formData.bedrooms}
+            onChange={(next) => updateFormData('bedrooms', next)}
+            max={10}
+          />
+          <Stepper
+            label="Bathroom(s)"
+            value={formData.bathrooms}
+            onChange={(next) => updateFormData('bathrooms', next)}
+            max={10}
+            step={0.5}
+          />
+          <Stepper
+            label="Parking"
+            value={parseInt(parkingText, 10) || 0}
+            onChange={(next) => handleParkingChange(String(next))}
+            max={10}
+          />
+          {(!!errors.bedrooms || !!errors.bathrooms) && (
+            <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
+          )}
         </View>
-      </View>
+      )}
 
-      {/* Rooms */}
+      {/* Size — Lot Area comes before Floor Area since it's the more
+          fundamental measurement (and the only one that applies to vacant
+          land); Floor Area doesn't apply to vacant land, and Lot Area
+          doesn't apply to a condo/apartment unit (isNoLot). */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Rooms</Text>
-        <Stepper
-          label="Bedrooms"
-          value={formData.bedrooms}
-          onChange={(next) => updateFormData('bedrooms', next)}
-          max={10}
-        />
-        <Stepper
-          label="Bathrooms"
-          value={formData.bathrooms}
-          onChange={(next) => updateFormData('bathrooms', next)}
-          max={10}
-          step={0.5}
-        />
-        <Stepper
-          label="Parking"
-          value={parseInt(parkingText, 10) || 0}
-          onChange={(next) => handleParkingChange(String(next))}
-          max={10}
-        />
-        {(!!errors.bedrooms || !!errors.bathrooms) && (
-          <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
-        )}
-      </View>
-
-      {/* Size & Age */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Size and age</Text>
+        <Text style={styles.sectionTitle}>Size</Text>
 
         <View style={styles.sizeLabelRow}>
-          <Text style={styles.label}>Floor area</Text>
+          <Text style={styles.label}>Area units</Text>
           <View style={styles.segmented}>
             <TouchableOpacity
               style={[pill.base, styles.segmentButton, sizeUnit === 'sqm' ? pill.on : pill.off]}
               onPress={() => handleUnitChange('sqm')}
             >
-              <Text style={sizeUnit === 'sqm' ? pill.textOn : pill.textOff}>m²</Text>
+              <Text style={sizeUnit === 'sqm' ? pill.textOn : pill.textOff}>sq m</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[pill.base, styles.segmentButton, sizeUnit === 'sqft' ? pill.on : pill.off]}
@@ -342,23 +392,65 @@ export default function PropertyDetails() {
           </View>
         </View>
 
-        <TextInput
-          placeholder={sizeUnit === 'sqft' ? 'e.g., 2000' : 'e.g., 186'}
-          keyboardType="numeric"
-          value={sizeText}
-          onChangeText={handleSizeChange}
-          error={errors.square_feet}
-        />
+        {!isNoLot && (
+          <>
+            <Text style={[styles.label, { marginTop: theme.space.xs }]}>Lot area</Text>
+            <TextInput
+              placeholder={sizeUnit === 'sqft' ? 'e.g., 5000' : 'e.g., 465'}
+              keyboardType="numeric"
+              value={lotAreaText}
+              onChangeText={handleLotAreaChange}
+              error={errors.lot_size}
+            />
+          </>
+        )}
 
-        <TextInput
-          label="Year Built"
-          placeholder={isLand ? 'e.g., 1985 — leave blank if not applicable' : 'e.g., 1985'}
-          keyboardType="numeric"
-          value={yearText}
-          onChangeText={handleYearChange}
-          error={errors.year_built}
-        />
+        {!isLand && (
+          <>
+            <Text style={styles.label}>Floor area</Text>
+            <TextInput
+              placeholder={sizeUnit === 'sqft' ? 'e.g., 2000' : 'e.g., 186'}
+              keyboardType="numeric"
+              value={sizeText}
+              onChangeText={handleSizeChange}
+              error={errors.square_feet}
+            />
+          </>
+        )}
       </View>
+
+      {/* State — Condition and Year Built, neither applicable to vacant
+          land (no structure to describe or date). */}
+      {!isLand && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>State</Text>
+          <View style={styles.conditionGrid}>
+            {CONDITIONS.map((condition) => {
+              const active = formData.condition === condition;
+              return (
+                <TouchableOpacity
+                  key={condition}
+                  style={[pill.base, active ? pill.on : pill.off, styles.conditionButton]}
+                  onPress={() => updateFormData('condition', condition)}
+                >
+                  <Text style={active ? pill.textOn : pill.textOff}>{condition}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {!!errors.condition && <Text style={styles.errorText}>{errors.condition}</Text>}
+
+          <TextInput
+            label="Year Built"
+            placeholder="e.g., 1985"
+            keyboardType="numeric"
+            value={yearText}
+            onChangeText={handleYearChange}
+            error={errors.year_built}
+            style={{ marginTop: theme.space['2xl'] }}
+          />
+        </View>
+      )}
 
       {/* Navigation */}
       <View style={styles.footer}>

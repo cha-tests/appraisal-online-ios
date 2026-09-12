@@ -43,7 +43,7 @@ export async function signIn(email: string, password: string) {
 export async function signUp(
   email: string,
   password: string,
-  metadata?: { full_name?: string; user_type?: string }
+  metadata?: { first_name?: string; last_name?: string; user_type?: string }
 ) {
   try {
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -51,7 +51,8 @@ export async function signUp(
       password,
       options: {
         data: {
-          full_name: metadata?.full_name || '',
+          first_name: metadata?.first_name || '',
+          last_name: metadata?.last_name || '',
           user_type: metadata?.user_type || 'consumer',
         },
       },
@@ -66,7 +67,8 @@ export async function signUp(
         id: authData.user.id,
         email,
         user_type: metadata?.user_type || 'consumer',
-        full_name: metadata?.full_name || '',
+        first_name: metadata?.first_name || '',
+        last_name: metadata?.last_name || '',
       })
       .select()
       .single();

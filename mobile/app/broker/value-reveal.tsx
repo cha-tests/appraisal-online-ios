@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
+import { formatCurrency } from '../../config/marketConfig';
 
 interface ValueMetrics {
   estimatedLeadsPerMonth: number;
@@ -20,6 +21,10 @@ export default function ValueReveal() {
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
   const [metrics, setMetrics] = useState<ValueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  // The broker's country, derived from their selected cities — cities carry
+  // their own country, but selectedCities in the store is just a list of
+  // IDs, so this needs its own lookup rather than being available directly.
+  const [countryCode, setCountryCode] = useState<string | null>(null);
 
   useEffect(() => {
     const calculateMetrics = async () => {
@@ -27,9 +32,11 @@ export default function ValueReveal() {
         // Get marketing allocation for selected cities
         const allocations = await brokerService.getMarketingAllocation('temp-user');
 
+        setCountryCode(await brokerService.getBrokerCountryCode(selectedCities));
+
         // Calculate conservative estimates
         const avgLeadsPerMonth = selectedCities.length * 3; // Conservative estimate
-        const avgLeadValue = 5000; // Conservative estimate
+        const avgLeadValue = 5000; // Conservative estimate (minor currency units)
 
         setMetrics({
           estimatedLeadsPerMonth: avgLeadsPerMonth,
@@ -99,25 +106,27 @@ export default function ValueReveal() {
         </Text>
       </Card>
 
-      {/* Value Breakdown */}
+      {/* Value Breakdown — one panel with dividers between items, matching
+          "How You Get Leads" and "Why This Works" below, rather than three
+          separate cards that read as tappable options. */}
       <Text style={styles.sectionTitle}>What This Means</Text>
 
-      <Card variant="default" style={styles.metricCard}>
+      <Card variant="default" style={styles.whatThisMeansCard}>
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>💰</Text>
           <View style={styles.metricCardText}>
             <Text style={styles.metricCardLabel}>Potential Monthly Revenue</Text>
             <Text style={styles.metricCardValue}>
-              ${monthlyRevenuePotential.toLocaleString()}
+              {formatCurrency(monthlyRevenuePotential * 100, countryCode)}
             </Text>
             <Text style={styles.metricCardHelper}>
-              @ ~${metrics.estimatedLeadValue / 100} average lead value
+              @ ~{formatCurrency(metrics.estimatedLeadValue, countryCode)} average lead value
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.metricCard}>
+        <View style={styles.divider} />
+
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>📍</Text>
           <View style={styles.metricCardText}>
@@ -128,9 +137,9 @@ export default function ValueReveal() {
             </Text>
           </View>
         </View>
-      </Card>
 
-      <Card variant="default" style={styles.metricCard}>
+        <View style={styles.divider} />
+
         <View style={styles.metricCardContent}>
           <Text style={styles.metricCardIcon}>🏆</Text>
           <View style={styles.metricCardText}>
@@ -190,55 +199,89 @@ export default function ValueReveal() {
         </View>
       </Card>
 
-      {/* Key Benefits */}
-      <Text style={styles.sectionTitle}>Why This Works</Text>
+      {/* Key Benefits — one bordered panel with dividers between items,
+          matching "How You Get Leads" above, rather than three separate
+          bordered cards. Three stacked cards read as tappable options (the
+          same shape selectable cards use elsewhere in the app); a single
+          panel reads unambiguously as one block of information. Extra
+          marginTop on the heading (see whyThisWorksTitle) gives it room to
+          breathe from the card above, which — unlike the metric cards —
+          carries no bottom margin of its own. */}
+      <Text style={[styles.sectionTitle, styles.whyThisWorksTitle]}>Why This Works</Text>
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Pre-Qualified Leads</Text>
-        <Text style={styles.benefitText}>
-          Every lead has already been valued and expressed interest in professional help
-        </Text>
+      <Card variant="outlined" style={styles.benefitsCard}>
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Pre-Qualified Leads</Text>
+            <Text style={styles.benefitText}>
+              Every lead has already been valued and expressed interest in professional help
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Supply-Driven Marketing</Text>
+            <Text style={styles.benefitText}>
+              We spend marketing dollars on YOUR cities because you're a member
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.benefitItem}>
+          <Text style={styles.benefitIcon}>✅</Text>
+          <View style={styles.benefitContent}>
+            <Text style={styles.benefitTitle}>Money-Back Guarantee</Text>
+            <Text style={styles.benefitText}>
+              Full refund within your tier's window if you're not satisfied
+            </Text>
+          </View>
+        </View>
       </Card>
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Supply-Driven Marketing</Text>
-        <Text style={styles.benefitText}>
-          We spend marketing dollars on YOUR cities because you're a member
-        </Text>
-      </Card>
+      {/* CTA — the Free tier has nothing to pay for, so it skips straight to
+          activation instead of the paid tier's payment flow (rating-prompt
+          -> paywall -> checkout). The broker profile itself was already
+          created back in onboarding.tsx's handleSubmit, so "Submit" here
+          just confirms and moves on to the welcome/activation screen. */}
+      {(() => {
+        const isFree = selectedTier === 'Basic Annual';
+        return (
+          <>
+            <View style={styles.ctaSection}>
+              <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
+              <Text style={styles.ctaSubtitle}>
+                {isFree
+                  ? 'Submit to activate your free membership'
+                  : 'Choose your plan and complete payment to activate your membership'}
+              </Text>
+            </View>
 
-      <Card variant="outlined" style={styles.benefitCard}>
-        <Text style={styles.benefitIcon}>✅</Text>
-        <Text style={styles.benefitTitle}>Money-Back Guarantee</Text>
-        <Text style={styles.benefitText}>
-          Full refund within your tier's window if you're not satisfied
-        </Text>
-      </Card>
-
-      {/* CTA */}
-      <View style={styles.ctaSection}>
-        <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
-        <Text style={styles.ctaSubtitle}>
-          Choose your plan and complete payment to activate your membership
-        </Text>
-      </View>
-
-      <View style={styles.footer}>
-        <Button
-          title="Continue to Payment"
-          size="large"
-          onPress={() => router.push('/broker/rating-prompt')}
-          style={{ marginBottom: 12 }}
-        />
-        <Button
-          title="Back"
-          variant="outline"
-          size="large"
-          onPress={() => router.back()}
-        />
-      </View>
+            <View style={styles.footer}>
+              <Button
+                title={isFree ? 'Submit' : 'Continue to Payment'}
+                size="large"
+                onPress={() =>
+                  router.push(isFree ? '/broker/welcome' : '/broker/rating-prompt')
+                }
+                style={{ marginBottom: 12 }}
+              />
+              <Button
+                title="Back"
+                variant="outline"
+                size="large"
+                onPress={() => router.back()}
+              />
+            </View>
+          </>
+        );
+      })()}
     </SafeAreaWrapper>
   );
 }
@@ -299,12 +342,13 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 16,
   },
-  metricCard: {
-    marginBottom: 12,
+  whatThisMeansCard: {
+    marginBottom: 24,
   },
   metricCardContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    paddingVertical: 14,
   },
   metricCardIcon: {
     fontSize: 28,
@@ -367,15 +411,26 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E7EB',
   },
-  benefitCard: {
-    marginBottom: 12,
-    paddingVertical: 16,
+  whyThisWorksTitle: {
+    marginTop: 24,
+  },
+  benefitsCard: {
+    marginBottom: 24,
     backgroundColor: '#F9FAFB',
     borderColor: '#E5E7EB',
   },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 16,
+  },
   benefitIcon: {
-    fontSize: 24,
-    marginBottom: 8,
+    fontSize: 20,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  benefitContent: {
+    flex: 1,
   },
   benefitTitle: {
     fontSize: 16,

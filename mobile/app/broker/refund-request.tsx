@@ -7,6 +7,8 @@ import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
+import { brokerService } from '../../services/broker.service';
+import { formatCurrency, formatDate } from '../../config/marketConfig';
 import { Subscription } from '../../types';
 
 export default function RefundRequest() {
@@ -23,6 +25,7 @@ export default function RefundRequest() {
   } | null>(null);
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [countryCode, setCountryCode] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -38,6 +41,11 @@ export default function RefundRequest() {
         // Check refund eligibility
         const elig = await subscriptionService.checkRefundEligibility(user.id);
         setEligibility(elig);
+
+        // Broker's market, for date formatting — see broker.service.ts's
+        // getBrokerCountryCode for why this needs its own lookup.
+        const { profile } = await brokerService.getProfile(user.id);
+        setCountryCode(await brokerService.getBrokerCountryCode(profile?.selected_cities ?? []));
       } catch (err) {
         console.error('Error loading refund data:', err);
         Alert.alert('Error', 'Failed to load refund information');
@@ -142,7 +150,7 @@ export default function RefundRequest() {
       <View style={styles.header}>
         <Text style={styles.title}>Request a Refund</Text>
         <Text style={styles.subtitle}>
-          You have until {eligibility.expiresAt} to request a refund
+          You have until {eligibility.expiresAt ? formatDate(new Date(eligibility.expiresAt), countryCode) : ''} to request a refund
         </Text>
       </View>
 
@@ -155,7 +163,7 @@ export default function RefundRequest() {
         <View style={styles.divider} />
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Refund Amount</Text>
-          <Text style={styles.detailValue}>${(subscription.price / 100).toFixed(2)}</Text>
+          <Text style={styles.detailValue}>{formatCurrency(subscription.price, countryCode)}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.detailRow}>

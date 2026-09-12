@@ -196,6 +196,21 @@ export const brokerService = {
     }
   },
 
+  /**
+   * Resolves a broker's market for display formatting (currency, date
+   * order) from their selected city IDs — broker_profiles.selected_cities
+   * and the subscription store's selectedCities are both just ID lists, so
+   * screens that need to know "which country is this broker in" (value
+   * reveal's revenue estimate, the welcome/refund screens' dates) all
+   * needed this same lookup; centralised here instead of repeated per screen.
+   */
+  async getBrokerCountryCode(cityIds: string[]): Promise<string | null> {
+    if (!cityIds.length) return null;
+    const { cities } = await this.getCities();
+    const match = cities?.find((c) => cityIds.includes(c.id));
+    return match?.country ?? null;
+  },
+
   // Get cities filtered by country
   async getCitiesByCountry(country: string) {
     try {

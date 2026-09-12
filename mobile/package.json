@@ -6,6 +6,7 @@
   "scripts": {
     "start": "expo start",
     "dev": "expo start",
+    "dev:phone": "printf '\\x1b[B\\n' | EXPO_PACKAGER_PROXY_URL=https://$CODESPACE_NAME-8090.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN expo start --port 8090",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -29,6 +30,7 @@
     "expo": "~57.0.20",
     "expo-blur": "~57.0.2",
     "expo-constants": "~57.0.17",
+    "expo-crypto": "~15.0.7",
     "expo-device": "~57.0.1",
     "expo-file-system": "~57.0.6",
     "expo-font": "~57.0.3",

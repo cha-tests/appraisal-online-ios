@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -9,7 +9,7 @@ import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
-import { formatCurrency } from '../../config/marketConfig';
+import { formatCurrency, getMarketConfig } from '../../config/marketConfig';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -41,6 +41,22 @@ export default function BrokerDashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
+  // Broker's own market, for the aggregate "Avg Lead Value" metric below —
+  // per-lead values (see the recent-leads list) already use each lead's own
+  // property country instead, since a broker's leads can span cities.
+  const [countryCode, setCountryCode] = useState<string | null>(null);
+
+  // "Avg Lead Value" below is shown abbreviated ("$5K"), which
+  // formatCurrency isn't built for — it derives just the currency symbol
+  // (₱, A$, £, S$, ...) for the broker's market instead, via the same
+  // Intl-derived-from-currency-code approach formatCurrency itself uses.
+  const currencySymbol = useMemo(() => {
+    const { currency } = getMarketConfig(countryCode);
+    const part = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
+      .formatToParts(0)
+      .find((p) => p.type === 'currency');
+    return part?.value ?? '$';
+  }, [countryCode]);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -53,6 +69,7 @@ export default function BrokerDashboard() {
         const { profile } = await brokerService.getProfile(user.id);
         if (profile) {
           setBrokerProfile(profile);
+          setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
         }
 
         // Fetch subscription
@@ -60,12 +77,14 @@ export default function BrokerDashboard() {
         if (sub) {
           setSubscription(sub);
 
-          // Check refund eligibility
+          // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
+          // daysSincePurchase is legitimately 0 on the day of purchase, and
+          // a truthy check treated that as "no value", showing 0 days left
+          // instead of the full window on day one.
           const eligibility = await subscriptionService.checkRefundEligibility(user.id);
+          const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
           setRefundInfo({
-            daysRemaining: eligibility.daysSincePurchase
-              ? Math.max(0, (eligibility.refundWindow || 30) - eligibility.daysSincePurchase)
-              : 0,
+            daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
             canRefund: eligibility.eligible,
           });
         }
@@ -138,7 +157,10 @@ export default function BrokerDashboard() {
     );
   }
 
-  const brokerName = brokerProfile?.company_name || 'Broker';
+  // Greet the person who signed up, not their company — first_name comes
+  // from the sign-up form (see auth/signup.tsx), while company_name is the
+  // business name collected later in broker/onboarding.tsx.
+  const brokerName = user?.first_name || 'Broker';
 
   return (
     <SafeAreaWrapper scrollable>
@@ -160,8 +182,10 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Refund Window Alert (if applicable) */}
-      {refundInfo && refundInfo.canRefund && (
+      {/* Refund Window Alert (if applicable) — not shown for the Free plan
+          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
+          has nothing to refund. */}
+      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
         <Card variant="outlined" style={styles.refundAlertCard}>
           <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
           <Text style={styles.refundAlertText}>
@@ -189,7 +213,7 @@ export default function BrokerDashboard() {
             <Text style={styles.metricLabel}>Conversion Rate</Text>
           </Card>
           <Card variant="default" style={styles.metricCard}>
-            <Text style={styles.metricValue}>${(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
+            <Text style={styles.metricValue}>{currencySymbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
             <Text style={styles.metricLabel}>Avg Lead Value</Text>
           </Card>
         </View>
@@ -272,22 +296,28 @@ export default function BrokerDashboard() {
         </View>
       )}
 
-      {/* Tips Section */}
+      {/* Tips Section — one panel with a divider between items, matching
+          the pattern used for similar item lists elsewhere in the app,
+          rather than two separate cards that read as tappable options. */}
       <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Quick Tips</Text>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>⚡</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Respond Quickly</Text>
-          <Text style={styles.tipText}>Contact leads within 24 hours for best conversion</Text>
+      <Card variant="outlined" style={styles.tipsCard}>
+        <View style={styles.tipRow}>
+          <Text style={styles.tipIcon}>⚡</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Respond Quickly</Text>
+            <Text style={styles.tipText}>Contact leads within 24 hours for best conversion</Text>
+          </View>
         </View>
-      </Card>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>📸</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Complete Your Profile</Text>
-          <Text style={styles.tipText}>Add a photo and bio to attract more connections</Text>
+        <View style={styles.tipDivider} />
+
+        <View style={styles.tipRow}>
+          <Text style={styles.tipIcon}>📸</Text>
+          <View style={styles.tipContent}>
+            <Text style={styles.tipTitle}>Complete Your Profile</Text>
+            <Text style={styles.tipText}>Add a photo and bio to attract more connections</Text>
+          </View>
         </View>
       </Card>
 
@@ -491,13 +521,19 @@ const styles = StyleSheet.create({
   viewAllContainer: {
     marginBottom: 24,
   },
-  tipCard: {
+  tipsCard: {
     marginBottom: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     backgroundColor: '#F9FAFB',
     borderColor: '#E5E7EB',
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  tipDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   tipIcon: {
     fontSize: 20,
