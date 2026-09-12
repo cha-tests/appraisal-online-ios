@@ -52,6 +52,7 @@ export default function BrokerOnboarding() {
   const [loadingCities, setLoadingCities] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+  const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [citySearch, setCitySearch] = useState('');
   const [error, setError] = useState('');
@@ -433,13 +434,16 @@ export default function BrokerOnboarding() {
             </View>
           ) : (
             <>
+              <Text style={styles.dropdownLabel}>Country</Text>
               <TouchableOpacity
                 style={styles.countryDropdown}
                 onPress={() => setCountryPickerVisible(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.countryDropdownText}>
-                  {selectedCountry ? COUNTRY_LABELS[selectedCountry] ?? selectedCountry : 'Select country'}
+                <Text
+                  style={[styles.countryDropdownText, !selectedCountry && styles.dropdownPlaceholder]}
+                >
+                  {selectedCountry ? COUNTRY_LABELS[selectedCountry] ?? selectedCountry : 'Select your country'}
                 </Text>
                 <Text style={styles.countryDropdownChevron}>▾</Text>
               </TouchableOpacity>
@@ -493,55 +497,123 @@ export default function BrokerOnboarding() {
                 </TouchableOpacity>
               </Modal>
 
-              {/* Cities are seeded per-country as real data comes in (see
-                  supabase/migrations' city seeds) — a country with none yet
-                  shows an empty state rather than a silently blank list. */}
-              {cities.some((c) => c.country === selectedCountry) && (
-                <TextInput
-                  placeholder="Search cities"
-                  value={citySearch}
-                  onChangeText={setCitySearch}
-                  autoCapitalize="none"
-                />
-              )}
-              {cities.some((c) => c.country === selectedCountry) ? (
-                <FlatList
-                data={cities
-                  .filter((c) => c.country === selectedCountry)
-                  .filter(
-                    (c) =>
-                      !citySearch.trim() ||
-                      c.name.toLowerCase().includes(citySearch.trim().toLowerCase()) ||
-                      c.state?.toLowerCase().includes(citySearch.trim().toLowerCase())
-                  )}
-                renderItem={({ item }) => {
-                  const isSelected = formData.selectedCities.includes(item.id);
-
-                  return (
-                    <TouchableOpacity
-                      style={[styles.cityItem, isSelected && styles.cityItemSelected]}
-                      onPress={() => handleCityToggle(item.id)}
-                    >
-                      <View style={styles.cityItemContent}>
-                        <Text style={[styles.cityItemName, isSelected && styles.cityItemNameSelected]}>
-                          {item.name}{item.state ? `, ${item.state}` : ''}
-                        </Text>
-                      </View>
-                      <View style={[styles.cityCheckbox, isSelected && styles.cityCheckboxActive]}>
-                        {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                />
-              ) : (
-                <Text style={styles.noCitiesText}>
-                  No cities available yet in {selectedCountry ? COUNTRY_LABELS[selectedCountry] : 'this country'}
-                  {' '}— check back soon, or contact support if you'd like to be notified.
+              <Text style={styles.dropdownLabel}>Cities or Towns</Text>
+              <TouchableOpacity
+                style={styles.countryDropdown}
+                onPress={() => setCityPickerVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.countryDropdownText,
+                    !formData.selectedCities.length && styles.dropdownPlaceholder,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formData.selectedCities.length
+                    ? cities
+                        .filter((c) => formData.selectedCities.includes(c.id))
+                        .map((c) => c.name)
+                        .join(', ')
+                    : 'Select your city or town'}
                 </Text>
-              )}
+                <Text style={styles.countryDropdownChevron}>▾</Text>
+              </TouchableOpacity>
+
+              <Modal
+                visible={cityPickerVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                  setCityPickerVisible(false);
+                  setCitySearch('');
+                }}
+              >
+                <TouchableOpacity
+                  style={styles.modalOverlay}
+                  activeOpacity={1}
+                  onPress={() => {
+                    setCityPickerVisible(false);
+                    setCitySearch('');
+                  }}
+                >
+                  <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+                    <Text style={styles.modalTitle}>Select Cities or Towns</Text>
+                    {/* Cities are seeded per-country as real data comes in
+                        (see supabase/migrations' city seeds) — a country
+                        with none yet shows an empty state here instead of a
+                        silently blank list. */}
+                    {cities.some((c) => c.country === selectedCountry) ? (
+                      <>
+                        <TextInput
+                          placeholder="Search cities or towns"
+                          value={citySearch}
+                          onChangeText={setCitySearch}
+                          autoCapitalize="none"
+                        />
+                        <FlatList
+                          data={cities
+                            .filter((c) => c.country === selectedCountry)
+                            .filter(
+                              (c) =>
+                                !citySearch.trim() ||
+                                c.name.toLowerCase().includes(citySearch.trim().toLowerCase()) ||
+                                c.state?.toLowerCase().includes(citySearch.trim().toLowerCase())
+                            )
+                            // Selected cities float to the top, so a broker
+                            // can see what they've already picked without
+                            // scrolling back through the whole (searched)
+                            // list every time they reopen this.
+                            .sort((a, b) => {
+                              const aSel = formData.selectedCities.includes(a.id) ? 0 : 1;
+                              const bSel = formData.selectedCities.includes(b.id) ? 0 : 1;
+                              return aSel - bSel;
+                            })}
+                          keyExtractor={(item) => item.id}
+                          style={[styles.countryList, styles.cityPickerList]}
+                          renderItem={({ item }) => {
+                            const isSelected = formData.selectedCities.includes(item.id);
+
+                            return (
+                              <TouchableOpacity
+                                style={[styles.cityItem, isSelected && styles.cityItemSelected]}
+                                onPress={() => handleCityToggle(item.id)}
+                              >
+                                <View style={styles.cityItemContent}>
+                                  <Text
+                                    style={[styles.cityItemName, isSelected && styles.cityItemNameSelected]}
+                                  >
+                                    {item.name}
+                                    {item.state ? `, ${item.state}` : ''}
+                                  </Text>
+                                </View>
+                                <View style={[styles.cityCheckbox, isSelected && styles.cityCheckboxActive]}>
+                                  {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          }}
+                        />
+                        <Button
+                          title="Done"
+                          size="small"
+                          onPress={() => {
+                            setCityPickerVisible(false);
+                            setCitySearch('');
+                          }}
+                          style={{ marginTop: 12 }}
+                        />
+                      </>
+                    ) : (
+                      <Text style={styles.noCitiesText}>
+                        No cities available yet in{' '}
+                        {selectedCountry ? COUNTRY_LABELS[selectedCountry] : 'this country'} — check back
+                        soon, or contact support if you'd like to be notified.
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
             </>
           )}
 
@@ -872,6 +944,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   countryDropdownText: {
+    flex: 1,
+    marginRight: 8,
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
@@ -879,6 +953,16 @@ const styles = StyleSheet.create({
   countryDropdownChevron: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  dropdownLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  dropdownPlaceholder: {
+    fontWeight: '400',
+    color: '#9CA3AF',
   },
   modalOverlay: {
     flex: 1,
@@ -898,6 +982,12 @@ const styles = StyleSheet.create({
   countryList: {
     flexGrow: 0,
     marginTop: 8,
+  },
+  // Bounded so a long, searchable city list (PH alone can run 100+ rows)
+  // scrolls within itself instead of growing until it pushes the Done
+  // button below modalCard's maxHeight and off-screen.
+  cityPickerList: {
+    maxHeight: 340,
   },
   modalTitle: {
     fontSize: 18,
