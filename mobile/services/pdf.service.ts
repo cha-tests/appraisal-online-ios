@@ -284,6 +284,18 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   .comp-card { border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px 14px; margin-top: 10px; }
   .comp-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
   .comp-details { display: flex; gap: 16px; font-size: 11px; color: #4B5563; margin-top: 4px; }
+  /* A numbered section heading (e.g. "6. Estimated Value Range") must never
+     be the last line on a page with its own content starting on the next —
+     break-after keeps it glued to whatever follows; break-inside keeps a
+     multi-line heading from splitting mid-line. Both the modern and the
+     older -webkit/page-break aliases are set since expo-print's underlying
+     renderer varies by platform. */
+  .narrative h2, .narrative h3, .narrative h4 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
   .narrative h2 { font-size: 16px; color: #2563EB; margin-top: 20px; }
   .narrative h3 { font-size: 14px; color: #2563EB; margin-top: 16px; }
   .narrative h4 { font-size: 12px; color: #1F2937; margin-top: 12px; }

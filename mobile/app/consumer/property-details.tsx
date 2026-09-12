@@ -394,7 +394,7 @@ export default function PropertyDetails() {
 
         {!isNoLot && (
           <>
-            <Text style={styles.label}>Lot area</Text>
+            <Text style={[styles.label, { marginTop: theme.space.xs }]}>Lot area</Text>
             <TextInput
               placeholder={sizeUnit === 'sqft' ? 'e.g., 5000' : 'e.g., 465'}
               keyboardType="numeric"
@@ -447,7 +447,7 @@ export default function PropertyDetails() {
             value={yearText}
             onChangeText={handleYearChange}
             error={errors.year_built}
-            style={{ marginTop: theme.space.md }}
+            style={{ marginTop: theme.space['2xl'] }}
           />
         </View>
       )}
