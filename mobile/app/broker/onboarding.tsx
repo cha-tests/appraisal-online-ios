@@ -561,23 +561,28 @@ export default function BrokerOnboarding() {
                           autoCapitalize="none"
                         />
                         <FlatList
-                          data={cities
-                            .filter((c) => c.country === selectedCountry)
-                            .filter(
-                              (c) =>
-                                !citySearch.trim() ||
-                                c.name.toLowerCase().includes(citySearch.trim().toLowerCase()) ||
-                                c.state?.toLowerCase().includes(citySearch.trim().toLowerCase())
-                            )
-                            // Selected cities float to the top, so a broker
-                            // can see what they've already picked without
-                            // scrolling back through the whole (searched)
-                            // list every time they reopen this.
-                            .sort((a, b) => {
-                              const aSel = formData.selectedCities.includes(a.id) ? 0 : 1;
-                              const bSel = formData.selectedCities.includes(b.id) ? 0 : 1;
-                              return aSel - bSel;
-                            })}
+                          data={(() => {
+                            const countryCities = cities.filter((c) => c.country === selectedCountry);
+                            const query = citySearch.trim().toLowerCase();
+                            const matchesQuery = (c: City) =>
+                              !query ||
+                              c.name.toLowerCase().includes(query) ||
+                              !!c.state?.toLowerCase().includes(query);
+
+                            // Already-selected cities always stay visible at
+                            // the top, even mid-search — otherwise typing a
+                            // search term could hide a pick you'd already
+                            // made, making it look like it got deselected.
+                            // Only the *unselected* results are filtered by
+                            // the search text.
+                            const selected = countryCities.filter((c) =>
+                              formData.selectedCities.includes(c.id)
+                            );
+                            const unselectedMatches = countryCities.filter(
+                              (c) => !formData.selectedCities.includes(c.id) && matchesQuery(c)
+                            );
+                            return [...selected, ...unselectedMatches];
+                          })()}
                           keyExtractor={(item) => item.id}
                           style={[styles.countryList, styles.cityPickerList]}
                           renderItem={({ item }) => {
