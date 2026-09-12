@@ -52,8 +52,10 @@ the data model lives in the repo itself and should be read there.
   a computer estimate. It is not a licensed appraisal. Banks, courts, and
   government agencies do not accept this as a formal valuation."
 - **Consent:** no pre-checked boxes, ever. Broker contact requires explicit
-  opt-in. Phone capture is optional and only requested *after* the consumer
-  agrees to broker contact. Email preferences are granular and revocable.
+  opt-in, separate from phone capture — a consumer's mobile number is
+  collected as a required field at account signup itself (used for the
+  account, not broker contact), not deferred until after the broker-contact
+  opt-in. Email preferences are granular and revocable.
 - **Marketing allocation:** monthly per-city budget weighting is
   Lifetime × 3 + Premium × 2 + Basic × 1, published on the internal founder
   dashboard. Lifetime and Premium signup screens carry the commitment: "We
