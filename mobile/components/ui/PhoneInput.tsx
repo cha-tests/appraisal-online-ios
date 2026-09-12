@@ -4,6 +4,7 @@ import {
   Text,
   TextInput as RNTextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Modal,
   FlatList,
   StyleSheet,
@@ -102,7 +103,8 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
           activeOpacity={1}
           onPress={() => setPickerVisible(false)}
         >
-          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+          <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Select Country Code</Text>
             <FlatList
               data={PHONE_COUNTRIES}
@@ -120,6 +122,7 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
               )}
             />
           </View>
+          </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
     </View>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator, Image, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TouchableWithoutFeedback, FlatList, ActivityIndicator, Image, Alert, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -465,35 +465,43 @@ export default function BrokerOnboarding() {
                     setCountrySearch('');
                   }}
                 >
-                  <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
-                    <Text style={styles.modalTitle}>Select Country</Text>
-                    <TextInput
-                      placeholder="Search countries"
-                      value={countrySearch}
-                      onChangeText={setCountrySearch}
-                      autoCapitalize="none"
-                    />
-                    <FlatList
-                      data={COUNTRY_LIST.filter((c) =>
-                        c.name.toLowerCase().includes(countrySearch.trim().toLowerCase())
-                      )}
-                      keyExtractor={(item) => item.code}
-                      style={styles.countryList}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity
-                          style={styles.countryOptionRow}
-                          onPress={() => {
-                            setSelectedCountry(item.code);
-                            setCountryPickerVisible(false);
-                            setCountrySearch('');
-                          }}
-                        >
-                          <Text style={styles.countryOptionText}>{COUNTRY_LABELS[item.code]}</Text>
-                          {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </View>
+                  {/* TouchableWithoutFeedback (not onStartShouldSetResponder
+                      on a plain View) is what actually stops a tap here from
+                      bubbling up to the overlay's dismiss handler above —
+                      the View-based version let a tap land on the overlay
+                      first when the touch started inside the search
+                      TextInput, closing the modal instead of focusing it. */}
+                  <TouchableWithoutFeedback onPress={() => {}}>
+                    <View style={styles.modalCard}>
+                      <Text style={styles.modalTitle}>Select Country</Text>
+                      <TextInput
+                        placeholder="Search countries"
+                        value={countrySearch}
+                        onChangeText={setCountrySearch}
+                        autoCapitalize="none"
+                      />
+                      <FlatList
+                        data={COUNTRY_LIST.filter((c) =>
+                          c.name.toLowerCase().includes(countrySearch.trim().toLowerCase())
+                        )}
+                        keyExtractor={(item) => item.code}
+                        style={styles.countryList}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={styles.countryOptionRow}
+                            onPress={() => {
+                              setSelectedCountry(item.code);
+                              setCountryPickerVisible(false);
+                              setCountrySearch('');
+                            }}
+                          >
+                            <Text style={styles.countryOptionText}>{COUNTRY_LABELS[item.code]}</Text>
+                            {selectedCountry === item.code && <Text style={styles.countryOptionCheck}>✓</Text>}
+                          </TouchableOpacity>
+                        )}
+                      />
+                    </View>
+                  </TouchableWithoutFeedback>
                 </TouchableOpacity>
               </Modal>
 
@@ -537,7 +545,8 @@ export default function BrokerOnboarding() {
                     setCitySearch('');
                   }}
                 >
-                  <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+                  <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalCard}>
                     <Text style={styles.modalTitle}>Select Cities or Towns</Text>
                     {/* Cities are seeded per-country as real data comes in
                         (see supabase/migrations' city seeds) — a country
@@ -612,6 +621,7 @@ export default function BrokerOnboarding() {
                       </Text>
                     )}
                   </View>
+                  </TouchableWithoutFeedback>
                 </TouchableOpacity>
               </Modal>
             </>
