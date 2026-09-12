@@ -7,6 +7,8 @@ import {
   Modal,
   FlatList,
   StyleSheet,
+  StyleProp,
+  ViewStyle,
 } from 'react-native';
 import { PHONE_COUNTRIES, DEFAULT_PHONE_COUNTRY, type PhoneCountry } from '../../config/marketConfig';
 
@@ -19,6 +21,10 @@ interface PhoneInputProps {
   onChangeText: (value: string) => void;
   error?: string;
   editable?: boolean;
+  /** Overrides the container's default marginBottom (16) — for callers that
+   * render their own content (e.g. a helper line) right below and want to
+   * control that gap directly instead of stacking on top of this one. */
+  style?: StyleProp<ViewStyle>;
 }
 
 // Longest dial code among PHONE_COUNTRIES is 4 chars ("+971"); sorting by
@@ -40,7 +46,7 @@ function parseValue(value: string): { country: PhoneCountry; local: string } {
   return { country: DEFAULT_PHONE_COUNTRY, local: value.replace(/^\+/, '') };
 }
 
-export function PhoneInput({ label, value, onChangeText, error, editable = true }: PhoneInputProps) {
+export function PhoneInput({ label, value, onChangeText, error, editable = true, style }: PhoneInputProps) {
   const parsed = useMemo(() => parseValue(value), [value]);
   const [country, setCountry] = useState<PhoneCountry>(parsed.country);
   const [local, setLocal] = useState(parsed.local);
@@ -66,7 +72,7 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true 
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <View style={[styles.row, error && styles.rowError]}>
         <TouchableOpacity
