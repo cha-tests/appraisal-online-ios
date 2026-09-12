@@ -97,16 +97,20 @@ from the code:
 
 ## Implementation notes (recent work, worth pinning down)
 
-- **Broker launch markets stay US/PH only.** `mobile/config/marketConfig.ts`
-  additionally wires up Australia, UK and Singapore, but only for the
-  *consumer* side — address-search autocomplete, size-unit/currency
-  display, phone country codes (`AUTOCOMPLETE_COUNTRIES`). Broker
-  signup's city picker (`broker/onboarding.tsx`) still only offers PH/US
-  cities, matching "Launch markets" above. Don't read that 5-country list
-  as an expansion of broker markets — it's consumer-side convenience only
-  (a homeowner there can still get a valuation in their own
-  currency/units), and any AU/UK/SG "broker" accounts are test data, not a
-  real rollout.
+- **Broker signup's country picker is now open to every country** (see
+  `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
+  AU and US are pinned to the top, the rest listed alphabetically with a
+  search box. This is ahead of `cities` actually being seeded for most of
+  them: selecting a country with no cities yet shows an empty state
+  ("No cities available yet...") rather than blocking the country from
+  being chosen at all. Treat this as the picker being future-ready, not as
+  every listed country being an active launch market yet — a broker can
+  only actually select cities (and thus receive leads) in a country that
+  has real seeded `cities` rows, which today is still just PH (149 cities)
+  plus a handful of one-off test cities. `marketConfig.ts`'s separate
+  5-country `AUTOCOMPLETE_COUNTRIES` list (US, PH, AU, GB, SG) is unrelated
+  — that's consumer-side address search/currency display, not broker
+  markets.
 - **Property type is one universal list** across every market — House,
   Apartment/Unit, Townhouse, Villa, Condo, Vacant Land, Others
   (`PROPERTY_TYPES` in `marketConfig.ts`) — replacing what used to be a
