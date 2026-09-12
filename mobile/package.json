@@ -6,7 +6,7 @@
   "scripts": {
     "start": "expo start",
     "dev": "expo start",
-    "dev:phone": "expo start --tunnel",
+    "dev:phone": "printf '\\x1b[B\\n' | expo start --tunnel --port 8090",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
