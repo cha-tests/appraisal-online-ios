@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
   cityCount: {
     fontSize: 12,
     color: '#9CA3AF',
-    marginTop: 12,
+    marginTop: -8,
     textAlign: 'center',
   },
   noCitiesText: {
