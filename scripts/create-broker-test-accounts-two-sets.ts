@@ -58,7 +58,7 @@ async function cityFor(country: string): Promise<string> {
 }
 
 async function createAccount(country: string, set: SetSpec) {
-  const email = `testbroker.${country.toLowerCase()}.${set.emailTag}@appraisalonline.ai`;
+  const email = `${country.toLowerCase()}${set.emailTag}@aol.ai`;
   const stamp = set.createdAt.toISOString();
   console.log(`\n${email}:`);
 
