@@ -270,7 +270,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
      the PDF renderer itself (not just once around the whole flowed body),
      which is what pagination needs here since the HTML is one continuous
      document split across pages, not individually-sized page elements. */
-  @page { margin: 40px; }
+  @page { margin: 1in; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 0; margin: 0; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
