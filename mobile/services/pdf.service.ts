@@ -92,14 +92,12 @@ async function generateLocalPdf(
   const { uri } = await Print.printToFileAsync({
     html,
     base64: false,
-    // Android-only: its print pipeline has its own page margins (default 0),
-    // separate from the HTML's own CSS body padding below — iOS has no such
-    // option and relies on that padding alone, so both need to agree for the
-    // margin to look the same on both platforms. Top is smaller than the
-    // other sides — this margin and the body's own padding-top (see the
-    // <style> block) both add space above the title on the first page, and
-    // together at 40px each left an oversized gap there.
-    margins: { left: 40, top: 16, right: 40, bottom: 40 },
+    // The real margin now lives entirely in the HTML's own @page rule (see
+    // the <style> block) so it repeats on every page, not just around the
+    // first/last. This native option is Android-only and would stack on top
+    // of @page's margin if left non-zero, so it's zeroed out here to let
+    // @page be the single source of truth on both platforms.
+    margins: { left: 0, top: 0, right: 0, bottom: 0 },
   });
 
   const cleanAddress = propertyAddress
@@ -268,7 +266,12 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 <head>
 <meta charset="utf-8" />
 <style>
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 16px 40px 40px 40px; }
+  /* Sets the real page margin, applied uniformly to every printed page by
+     the PDF renderer itself (not just once around the whole flowed body),
+     which is what pagination needs here since the HTML is one continuous
+     document split across pages, not individually-sized page elements. */
+  @page { margin: 40px; }
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 0; margin: 0; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
   .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
