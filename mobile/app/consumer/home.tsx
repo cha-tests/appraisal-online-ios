@@ -11,6 +11,7 @@ import {
   Modal,
   FlatList,
   Alert,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
@@ -323,7 +324,8 @@ export default function ConsumerHome() {
             activeOpacity={1}
             onPress={() => setCountryPickerVisible(false)}
           >
-            <View style={styles.countryPickerCard} onStartShouldSetResponder={() => true}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={styles.countryPickerCard}>
               <Text style={styles.modalTitle}>Search in which country?</Text>
               <FlatList
                 data={COUNTRY_OPTIONS}
@@ -351,6 +353,7 @@ export default function ConsumerHome() {
                 )}
               />
             </View>
+            </TouchableWithoutFeedback>
           </TouchableOpacity>
         </Modal>
 

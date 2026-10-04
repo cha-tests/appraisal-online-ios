@@ -175,7 +175,6 @@ function GateScreen() {
           autoCapitalize="none"
           editable={!loading}
         />
-        <PhoneInput label="Mobile number" value={phone} onChangeText={setPhone} editable={!loading} />
         <TextInput
           label="Password"
           placeholder="At least 8 characters"
@@ -183,7 +182,20 @@ function GateScreen() {
           onChangeText={setPassword}
           secureTextEntry
           editable={!loading}
+          style={{ marginTop: 12 }}
         />
+        <View style={{ marginTop: 12 }}>
+          <PhoneInput
+            label="Mobile number"
+            value={phone}
+            onChangeText={setPhone}
+            editable={!loading}
+            style={{ marginBottom: 0 }}
+          />
+          <Text style={styles.phoneHelper}>
+            Only shared with a professional if you opt in to be contacted on a report.
+          </Text>
+        </View>
 
         <TouchableOpacity
           style={styles.gateTermsRow}
@@ -501,6 +513,7 @@ export default function SignupScreen() {
               onChangeText={setPhone}
               editable={!loading}
               error={errors.phone}
+              style={{ marginBottom: 0 }}
             />
             <Text style={styles.phoneHelper}>
               Only shared with a professional if you opt in to be contacted on a report.

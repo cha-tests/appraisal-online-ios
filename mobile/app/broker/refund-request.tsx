@@ -8,7 +8,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { brokerService } from '../../services/broker.service';
-import { formatDate } from '../../config/marketConfig';
+import { formatCurrency, formatDate } from '../../config/marketConfig';
 import { Subscription } from '../../types';
 
 export default function RefundRequest() {
@@ -163,7 +163,7 @@ export default function RefundRequest() {
         <View style={styles.divider} />
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Refund Amount</Text>
-          <Text style={styles.detailValue}>${(subscription.price / 100).toFixed(2)}</Text>
+          <Text style={styles.detailValue}>{formatCurrency(subscription.price, countryCode)}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.detailRow}>

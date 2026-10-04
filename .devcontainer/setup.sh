@@ -32,7 +32,7 @@ env_or_placeholder() {
 cat > mobile/.env <<EOF
 EXPO_PUBLIC_SUPABASE_URL=$(env_or_placeholder EXPO_PUBLIC_SUPABASE_URL "https://placeholder.supabase.co")
 EXPO_PUBLIC_SUPABASE_ANON_KEY=$(env_or_placeholder EXPO_PUBLIC_SUPABASE_ANON_KEY "placeholder-anon-key")
-EXPO_PUBLIC_GEMINI_API_KEY=$(env_or_placeholder EXPO_PUBLIC_GEMINI_API_KEY "placeholder")
+EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY=$(env_or_placeholder EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY "placeholder")
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=$(env_or_placeholder EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY "pk_test_placeholder")
 EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=$(env_or_placeholder EXPO_PUBLIC_GOOGLE_PLACES_API_KEY "placeholder")
 EOF
@@ -44,7 +44,7 @@ if [ -z "${EXPO_PUBLIC_SUPABASE_URL:-}" ]; then
   echo "    Pure UI/navigation testing works fine as-is."
   echo "    To enable real backend testing from any device: add"
   echo "      EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY,"
-  echo "      EXPO_PUBLIC_GEMINI_API_KEY, EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,"
+  echo "      EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY, EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,"
   echo "      EXPO_PUBLIC_GOOGLE_PLACES_API_KEY"
   echo "    as Codespaces secrets (github.com/settings/codespaces -> Repository"
   echo "    access -> this repo), then create a new codespace."
