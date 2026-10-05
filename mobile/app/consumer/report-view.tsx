@@ -168,7 +168,7 @@ export default function ReportView() {
 
       {/* Broker opt-in */}
       {report.broker_contact_opted_in ? (
-        <Card variant="default" style={styles.optinWash}>
+        <Card variant="default" style={[styles.optinWash, styles.optinConnected]}>
           <Text style={styles.optinTitle}>You're connected</Text>
           <Text style={styles.optinText}>
             A qualified professional will reach out about this property. You can manage this
@@ -309,6 +309,10 @@ const styles = StyleSheet.create({
     paddingVertical: theme.space.lg,
     paddingHorizontal: theme.space.lg + 2,
     marginTop: theme.space.lg,
+  },
+  optinConnected: {
+    backgroundColor: '#E8F5EC',
+    borderColor: '#BFE3CB',
   },
   optinTitle: {
     ...theme.type.label,

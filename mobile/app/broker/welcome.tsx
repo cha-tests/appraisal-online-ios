@@ -143,33 +143,33 @@ export default function Welcome() {
       {/* Quick Tips */}
       <Text style={styles.sectionTitle}>Quick Tips</Text>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>💡</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Complete Your Profile</Text>
-          <Text style={styles.tipText}>
-            Add a photo, bio, and credentials to stand out on the Find a Pro page
-          </Text>
+      <Card variant="default" style={styles.stepsCard}>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepIcon}>💡</Text>
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>Complete Your Profile</Text>
+            <Text style={styles.stepDescription}>Add a photo, bio, and credentials to stand out on the Find a Pro page</Text>
+          </View>
         </View>
-      </Card>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>⚡</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Set Notification Preferences</Text>
-          <Text style={styles.tipText}>
-            Choose how and when you receive leads (email, push, SMS if applicable)
-          </Text>
+        <View style={styles.stepDivider} />
+
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepIcon}>⚡</Text>
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>Set Notification Preferences</Text>
+            <Text style={styles.stepDescription}>Choose how and when you receive leads (email, push, SMS if applicable)</Text>
+          </View>
         </View>
-      </Card>
 
-      <Card variant="outlined" style={styles.tipCard}>
-        <Text style={styles.tipIcon}>📞</Text>
-        <View style={styles.tipContent}>
-          <Text style={styles.tipTitle}>Reach Out Quickly</Text>
-          <Text style={styles.tipText}>
-            Contact leads within 24 hours for best conversion rates
-          </Text>
+        <View style={styles.stepDivider} />
+
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepIcon}>📞</Text>
+          <View style={styles.stepContent}>
+            <Text style={styles.stepTitle}>Reach Out Quickly</Text>
+            <Text style={styles.stepDescription}>Contact leads within 24 hours for best conversion rates</Text>
+          </View>
         </View>
       </Card>
 
@@ -329,33 +329,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
-  },
-  tipCard: {
-    marginBottom: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
-  },
-  tipIcon: {
-    fontSize: 20,
-    marginRight: 12,
-    marginTop: 2,
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  tipText: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
   },
   supportCard: {
     backgroundColor: '#FEF3C7',
