@@ -15,13 +15,14 @@ import { brokerService } from '../../services/broker.service';
 import { disclaimerService } from '../../services/disclaimer.service';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
+import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
 import { BrokerTier, BrokerRole, City } from '../../types';
 
 const TOTAL_STEPS = 6;
 // Only these two are offered at signup for now, per the Sep 1 pricing
-// decision (₱5,000/year flat, no city cap yet) — 'Founder Lifetime' still
-// exists as a BrokerTier value (other screens reference it) but isn't
-// offered here until the founder-tier mechanics are actually built.
+// decision (₱5,000/year flat) — 'Founder Lifetime' still exists as a
+// BrokerTier value (other screens reference it) but isn't offered here
+// until the founder-tier mechanics are actually built.
 const TIERS: BrokerTier[] = ['Basic Annual', 'Premium Annual'];
 // Every country is selectable here, not just markets with cities already
 // seeded (see countries.ts) — PH/AU/US pinned to the top since they're the
@@ -160,10 +161,9 @@ export default function BrokerOnboarding() {
     setStep(step - 1);
   };
 
-  // No per-tier city cap for now ("Lead coverage = no limit for now") — a
-  // broker can select as many cities as they want regardless of plan.
   const handleCityToggle = (cityId: string) => {
     const currentCities = formData.selectedCities;
+    const cityLimit = BROKER_TIER_CITY_LIMITS[formData.tier];
 
     if (currentCities.includes(cityId)) {
       setFormData((prev) => ({
@@ -171,6 +171,12 @@ export default function BrokerOnboarding() {
         selectedCities: prev.selectedCities.filter((c) => c !== cityId),
       }));
     } else {
+      if (currentCities.length >= cityLimit) {
+        setError(
+          `${TIER_DETAILS[formData.tier].label} is limited to ${cityLimit} ${cityLimit === 1 ? 'city' : 'cities'}. Remove one to add another, or upgrade your tier.`
+        );
+        return;
+      }
       setError('');
       setFormData((prev) => ({
         ...prev,
@@ -386,7 +392,16 @@ export default function BrokerOnboarding() {
               key={tier}
               style={[styles.tierCard, formData.tier === tier && styles.tierCardActive]}
               onPress={() => {
-                setFormData((prev) => ({ ...prev, tier }));
+                const newLimit = BROKER_TIER_CITY_LIMITS[tier];
+                setFormData((prev) => ({
+                  ...prev,
+                  tier,
+                  // Switching to a lower city cap (e.g. Premium -> Basic)
+                  // must not leave more cities selected than the new tier
+                  // allows — trim to the first N already-chosen cities
+                  // rather than silently submitting an over-the-limit list.
+                  selectedCities: prev.selectedCities.slice(0, newLimit),
+                }));
                 setFormErrors({});
               }}
             >
@@ -396,7 +411,9 @@ export default function BrokerOnboarding() {
               </View>
 
               <View style={styles.tierFeatures}>
-                <Text style={styles.tierFeature}>📍 No limit on lead coverage cities</Text>
+                <Text style={styles.tierFeature}>
+                  📍 {BROKER_TIER_CITY_LIMITS[tier]} {BROKER_TIER_CITY_LIMITS[tier] === 1 ? 'city' : 'cities'}
+                </Text>
                 <Text style={styles.tierFeature}>
                   💬 {tier === 'Premium Annual' ? 'Real-time' : 'Weekly'} leads
                 </Text>
@@ -560,6 +577,7 @@ export default function BrokerOnboarding() {
                           onChangeText={setCitySearch}
                           autoCapitalize="none"
                         />
+                        {!!error && <Text style={styles.errorMessage}>{error}</Text>}
                         <FlatList
                           data={(() => {
                             const countryCities = cities.filter((c) => c.country === selectedCountry);
@@ -633,7 +651,8 @@ export default function BrokerOnboarding() {
           )}
 
           <Text style={styles.cityCount}>
-            Selected: {formData.selectedCities.length} {formData.selectedCities.length === 1 ? 'city' : 'cities'}
+            Selected: {formData.selectedCities.length} of {BROKER_TIER_CITY_LIMITS[formData.tier]}{' '}
+            {BROKER_TIER_CITY_LIMITS[formData.tier] === 1 ? 'city' : 'cities'}
           </Text>
         </View>
       )}

@@ -97,6 +97,29 @@ from the code:
 
 ## Implementation notes (recent work, worth pinning down)
 
+- **⚠️ PROVISIONAL — re-confirm before every build.** Broker signup is
+  currently down to 2 tiers (Free / Paid), dropping Founder Lifetime from
+  what's offered at signup. This was an explicit Oct 2026 decision made in
+  chat, not a Monetization Model v05 change, and the person who made it
+  flagged it as not final — check with them before each build whether this
+  is still the intended state or has reverted/changed again:
+  - **Free** (stored as `'Basic Annual'`, unchanged DB value — only its
+    signup-time label/price are repurposed) — $0, capped at **1 city**,
+    still gets routed leads via the **weekly digest** (not real-time) per
+    the existing "never send an empty digest" rule.
+  - **Paid** (stored as `'Premium Annual'`) — ₱5,000/year, capped at
+    **10 cities**, real-time email + push.
+  - City caps are enforced in `mobile/config/brokerTiers.ts`
+    (`BROKER_TIER_CITY_LIMITS`) and `mobile/app/broker/onboarding.tsx`'s
+    `handleCityToggle` — previously unenforced entirely (any tier could
+    select unlimited cities).
+  - `'Founder Lifetime'` ($499 one-time, 25 cities, SMS) still exists as a
+    valid `BrokerTier` value and its city cap is still defined, but it's
+    not offered in the onboarding flow's `TIERS` list.
+  - Still unresolved from before: Premium Annual's ₱5,000/year PHP pricing
+    vs. the $199/year figure in the tiers table above (see the existing
+    note below) — not touched by this change.
+
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a
