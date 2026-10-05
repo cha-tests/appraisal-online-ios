@@ -411,15 +411,18 @@ export const reportService = {
   async uploadTitleDocument(
     userId: string,
     reportId: string,
-    fileUri: string
+    fileUri: string,
+    mimeType: string = 'image/jpeg'
   ): Promise<{ success: boolean; path?: string; error?: string }> {
     try {
       const response = await fetch(fileUri);
       const blob = await response.blob();
-      const path = `${userId}/${reportId}/title.jpg`;
+      const ext =
+        mimeType === 'application/pdf' ? 'pdf' : mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      const path = `${userId}/${reportId}/title.${ext}`;
 
       const { error } = await supabase.storage.from('property-documents').upload(path, blob, {
-        contentType: 'image/jpeg',
+        contentType: mimeType,
         upsert: true,
       });
 

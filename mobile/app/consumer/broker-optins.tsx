@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -72,7 +73,11 @@ export default function BrokerOptins() {
   // spec — "don't require that yet... it's only for serious sellers").
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [intendsToSell, setIntendsToSell] = useState<boolean | null>(null);
-  const [titleUri, setTitleUri] = useState<string | null>(null);
+  const [titleFile, setTitleFile] = useState<{
+    uri: string;
+    mimeType: string;
+    name?: string;
+  } | null>(null);
 
   const pickTitlePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -82,8 +87,28 @@ export default function BrokerOptins() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
     if (!result.canceled && result.assets?.[0]) {
-      setTitleUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'image/jpeg', name: asset.fileName ?? undefined });
     }
+  };
+
+  const pickTitleFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      const asset = result.assets[0];
+      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'application/pdf', name: asset.name });
+    }
+  };
+
+  const chooseTitleSource = () => {
+    Alert.alert('Attach your land title', 'Is your title a photo or a file?', [
+      { text: 'Photo', onPress: pickTitlePhoto },
+      { text: 'File (PDF or document)', onPress: pickTitleFile },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   if (!report) {
@@ -167,8 +192,8 @@ export default function BrokerOptins() {
       // Title upload is optional and never blocks continuing — if it fails,
       // the opt-in itself should still go through.
       let titleUrl: string | undefined;
-      if (optedIn && titleUri && userId) {
-        const uploaded = await reportService.uploadTitleDocument(userId, report.id, titleUri);
+      if (optedIn && titleFile && userId) {
+        const uploaded = await reportService.uploadTitleDocument(userId, report.id, titleFile.uri, titleFile.mimeType);
         if (uploaded.success && uploaded.path) {
           titleUrl = uploaded.path;
         } else {
@@ -266,11 +291,15 @@ export default function BrokerOptins() {
           </View>
 
           <Text style={styles.titleLabel}>Land Title (Optional)</Text>
-          <TouchableOpacity style={styles.titleUploadBox} onPress={pickTitlePhoto}>
-            {titleUri ? (
-              <Image source={{ uri: titleUri }} style={styles.titlePreview} />
+          <TouchableOpacity style={styles.titleUploadBox} onPress={chooseTitleSource}>
+            {titleFile ? (
+              titleFile.mimeType.startsWith('image/') ? (
+                <Image source={{ uri: titleFile.uri }} style={styles.titlePreview} />
+              ) : (
+                <Text style={styles.titleUploadPrompt}>📄 {titleFile.name || 'Title file attached'} — tap to change</Text>
+              )
             ) : (
-              <Text style={styles.titleUploadPrompt}>Tap to attach a photo of your land title</Text>
+              <Text style={styles.titleUploadPrompt}>Tap to attach your land title (photo or file)</Text>
             )}
           </TouchableOpacity>
           <Text style={styles.titleHelper}>
