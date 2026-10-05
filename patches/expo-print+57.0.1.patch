@@ -1,0 +1,30 @@
+diff --git a/node_modules/expo-print/ios/ExpoWKViewPrintPDFRenderer.swift b/node_modules/expo-print/ios/ExpoWKViewPrintPDFRenderer.swift
+index 6eb5ba5..1edcd92 100644
+--- a/node_modules/expo-print/ios/ExpoWKViewPrintPDFRenderer.swift
++++ b/node_modules/expo-print/ios/ExpoWKViewPrintPDFRenderer.swift
+@@ -13,14 +13,23 @@ public class ExpoWKViewPrintPDFRenderer {
+   public func PDFFromWebView(webView: WKWebView, completionHandler: @escaping (_: Data, _: Int, _: Error?) -> Void) {
+     webView.evaluateJavaScript("document.body.scrollHeight", completionHandler: { _, error in
+       let renderer = UIPrintPageRenderer()
+-      renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
++      let formatter = webView.viewPrintFormatter()
++      // Apply the requested margins to every page, not just the first/last.
++      // The renderer's printableRect alone isn't honoured per-page for WKWebView content.
++      formatter.perPageContentInsets = UIEdgeInsets(
++        top: self.printableRect.minY,
++        left: self.printableRect.minX,
++        bottom: self.pageSize.height - self.printableRect.maxY,
++        right: self.pageSize.width - self.printableRect.maxX
++      )
++      renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
+ 
+       // Setting paperRect has no effect on actual page size, but HTML will not render
+       // without both paperRect and printableRect.
+       let paperRect = CGRect(x: 0, y: 0, width: self.pageSize.width, height: self.pageSize.height)
+       renderer.setValue(paperRect, forKey: "paperRect")
+ 
+-      renderer.setValue(self.printableRect, forKey: "printableRect")
++      renderer.setValue(paperRect, forKey: "printableRect")
+ 
+       let data = NSMutableData()
+       UIGraphicsBeginPDFContextToData(data, CGRect.zero, nil)

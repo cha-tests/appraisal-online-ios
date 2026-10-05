@@ -12,7 +12,8 @@
     "build": "npm run build --workspace=mobile",
     "test": "npm run test --workspace=mobile",
     "seed:db": "bash scripts/seed-db.sh",
-    "setup:env": "bash scripts/setup-env.sh"
+    "setup:env": "bash scripts/setup-env.sh",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "real-estate",
@@ -25,5 +26,8 @@
   "license": "PROPRIETARY",
   "overrides": {
     "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }
