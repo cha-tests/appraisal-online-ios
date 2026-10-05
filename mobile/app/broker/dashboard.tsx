@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -10,6 +10,7 @@ import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
 import { formatCurrency, getMarketConfig } from '../../config/marketConfig';
+import { currencySymbol } from '../../components/ui/CurrencyValue';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -46,17 +47,8 @@ export default function BrokerDashboard() {
   // property country instead, since a broker's leads can span cities.
   const [countryCode, setCountryCode] = useState<string | null>(null);
 
-  // "Avg Lead Value" below is shown abbreviated ("$5K"), which
-  // formatCurrency isn't built for — it derives just the currency symbol
-  // (₱, A$, £, S$, ...) for the broker's market instead, via the same
-  // Intl-derived-from-currency-code approach formatCurrency itself uses.
-  const currencySymbol = useMemo(() => {
-    const { currency } = getMarketConfig(countryCode);
-    const part = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
-      .formatToParts(0)
-      .find((p) => p.type === 'currency');
-    return part?.value ?? '$';
-  }, [countryCode]);
+  // Static symbol lookup (not Intl.formatToParts, which Hermes lacks on-device).
+  const symbol = currencySymbol(getMarketConfig(countryCode).currency);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -213,7 +205,7 @@ export default function BrokerDashboard() {
             <Text style={styles.metricLabel}>Conversion Rate</Text>
           </Card>
           <Card variant="default" style={styles.metricCard}>
-            <Text style={styles.metricValue}>{currencySymbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
+            <Text style={styles.metricValue}>{symbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
             <Text style={styles.metricLabel}>Avg Lead Value</Text>
           </Card>
         </View>

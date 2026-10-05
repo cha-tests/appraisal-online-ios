@@ -45,7 +45,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   EUR: '€',
 };
 
-function currencySymbol(currency: string): string {
+export function currencySymbol(currency: string): string {
   return CURRENCY_SYMBOLS[currency] ?? currency;
 }
 
