@@ -214,6 +214,31 @@ export function formatCurrency(amountMinorUnits: number, countryCode?: string | 
   }).format(amountMinorUnits / 100);
 }
 
+// `Intl.NumberFormat.prototype.formatToParts` — the obvious way to pull just
+// the currency symbol out of a formatted amount — isn't implemented in
+// Hermes on-device (it works in a browser, which made this look fine in a
+// web preview, but crashes immediately with "undefined is not a function"
+// in Expo Go/a real build). A static table for the app's markets sidesteps
+// the missing API entirely rather than depending on ICU coverage that
+// varies by engine and build. Single source of truth for every caller that
+// needs just the symbol (CurrencyValue.tsx, broker/dashboard.tsx) — formatCurrency
+// above stays on Intl's .format(), which IS implemented, for the full string.
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  PHP: '₱',
+  AUD: 'A$',
+  GBP: '£',
+  SGD: 'S$',
+  AED: 'AED',
+  CAD: 'CA$',
+  EUR: '€',
+};
+
+export function getCurrencySymbol(countryCode?: string | null): string {
+  const { currency } = getMarketConfig(countryCode);
+  return CURRENCY_SYMBOLS[currency] ?? currency;
+}
+
 const MONTH_ABBR = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

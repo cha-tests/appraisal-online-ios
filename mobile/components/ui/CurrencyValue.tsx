@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TextStyle, StyleProp } from 'react-native';
 import { theme } from '../../theme';
-import { getMarketConfig } from '../../config/marketConfig';
+import { getCurrencySymbol } from '../../config/marketConfig';
 
 interface CurrencyValueProps {
   /** Amount in minor units (centavos/cents) — same convention as formatCurrency. */
@@ -27,28 +27,6 @@ function flattenFontSize(style: StyleProp<TextStyle> | undefined): number {
     : theme.type.body.fontSize;
 }
 
-// `Intl.NumberFormat.prototype.formatToParts` — the obvious way to pull just
-// the currency symbol out — isn't implemented in Hermes on-device (it works
-// in a browser, which is what made this look fine in the web preview, but
-// crashes immediately with "undefined is not a function" in Expo Go). A
-// static table for the app's markets (see marketConfig.ts's MARKETS) sidesteps
-// the missing API entirely rather than depending on ICU coverage that varies
-// by engine and build.
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: '$',
-  PHP: '₱',
-  AUD: 'A$',
-  GBP: '£',
-  SGD: 'S$',
-  AED: 'AED',
-  CAD: 'CA$',
-  EUR: '€',
-};
-
-function currencySymbol(currency: string): string {
-  return CURRENCY_SYMBOLS[currency] ?? currency;
-}
-
 /**
  * Renders a hero currency figure with the symbol always in Archivo,
  * regardless of what font the digits use — use this for hero/display-sized
@@ -56,8 +34,7 @@ function currencySymbol(currency: string): string {
  * which is for ordinary body-text money (comparable-sale cards, etc).
  */
 export function CurrencyValue({ amountMinorUnits, countryCode, style, format = 'full' }: CurrencyValueProps) {
-  const { currency } = getMarketConfig(countryCode);
-  const symbol = currencySymbol(currency);
+  const symbol = getCurrencySymbol(countryCode);
   const major = amountMinorUnits / 100;
   const baseSize = flattenFontSize(style);
 

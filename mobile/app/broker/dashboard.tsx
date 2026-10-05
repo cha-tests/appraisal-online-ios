@@ -9,7 +9,7 @@ import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
-import { formatCurrency, getMarketConfig } from '../../config/marketConfig';
+import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -48,15 +48,10 @@ export default function BrokerDashboard() {
 
   // "Avg Lead Value" below is shown abbreviated ("$5K"), which
   // formatCurrency isn't built for — it derives just the currency symbol
-  // (₱, A$, £, S$, ...) for the broker's market instead, via the same
-  // Intl-derived-from-currency-code approach formatCurrency itself uses.
-  const currencySymbol = useMemo(() => {
-    const { currency } = getMarketConfig(countryCode);
-    const part = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
-      .formatToParts(0)
-      .find((p) => p.type === 'currency');
-    return part?.value ?? '$';
-  }, [countryCode]);
+  // (₱, A$, £, S$, ...) for the broker's market instead, via the shared
+  // static lookup (see marketConfig.ts's getCurrencySymbol for why — not
+  // Intl.formatToParts, which crashes on-device).
+  const currencySymbol = useMemo(() => getCurrencySymbol(countryCode), [countryCode]);
 
   useEffect(() => {
     const loadDashboardData = async () => {
