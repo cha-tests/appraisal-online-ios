@@ -2,12 +2,13 @@ import 'react-native-url-polyfill/auto';
 import '../polyfills/alert';
 import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { View, Text } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Archivo_400Regular, Archivo_500Medium, Archivo_600SemiBold, Archivo_700Bold } from '@expo-google-fonts/archivo';
 import { BodoniModa_600SemiBold } from '@expo-google-fonts/bodoni-moda';
 import { initStripe } from '../lib/stripe';
 import * as SplashScreen from 'expo-splash-screen';
-import { supabase, getCurrentUser } from '../services/supabase';
+import { supabase, getCurrentUser, isSupabaseConfigured } from '../services/supabase';
 import { useAuthStore } from '../stores/auth.store';
 import { brokerService } from '../services/broker.service';
 
@@ -91,6 +92,20 @@ export default function RootLayout() {
 
   if (!isReady || !fontsLoaded) {
     return null;
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#fff' }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+          Configuration error
+        </Text>
+        <Text style={{ fontSize: 14, textAlign: 'center', color: '#444' }}>
+          This build is missing its Supabase environment variables. Check the Production environment variables on
+          expo.dev and rebuild.
+        </Text>
+      </View>
+    );
   }
 
   return (
