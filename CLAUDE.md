@@ -97,49 +97,6 @@ from the code:
 
 ## Implementation notes (recent work, worth pinning down)
 
-- **⚠️ PROVISIONAL — re-confirm before every build.** Broker signup is
-  currently down to 2 tiers (Free / Paid), dropping Founder Lifetime from
-  what's offered at signup. This was an explicit Oct 2026 decision made in
-  chat, not a Monetization Model v05 change, and the person who made it
-  flagged it as not final — check with them before each build whether this
-  is still the intended state or has reverted/changed again:
-  - **Free** (stored as `'Basic Annual'`, unchanged DB value — only its
-    signup-time label/price are repurposed) — $0, capped at **1 city**,
-    still gets routed leads via the **weekly digest** (not real-time) per
-    the existing "never send an empty digest" rule.
-  - **Paid** (stored as `'Premium Annual'`) — ₱5,000/year, capped at
-    **10 cities**, real-time email + push.
-  - City caps are enforced in `mobile/config/brokerTiers.ts`
-    (`BROKER_TIER_CITY_LIMITS`) and `mobile/app/broker/onboarding.tsx`'s
-    `handleCityToggle` — previously unenforced entirely (any tier could
-    select unlimited cities).
-  - `'Founder Lifetime'` ($499 one-time, 25 cities, SMS) still exists as a
-    valid `BrokerTier` value and its city cap is still defined, but it's
-    not offered in the onboarding flow's `TIERS` list.
-  - Still unresolved from before: Premium Annual's ₱5,000/year PHP pricing
-    vs. the $199/year figure in the tiers table above (see the existing
-    note below) — not touched by this change.
-  - **Free tier previously received zero leads, silently.** A Free broker
-    never got a `subscriptions` row (that only happened via Stripe
-    checkout, which the Free path skips) — and `route_lead_to_brokers`
-    requires one with `status = 'active'` to match a broker to anything.
-    Fixed by calling the already-written-but-never-called
-    `subscriptionService.createFreeSubscription` from
-    `value-reveal.tsx`'s Free-tier submit (it was previously only wired
-    up in `paywall.tsx`, an unrelated screen).
-  - **Free-tier leads are now hidden from the broker's Lead Inbox (and
-    dashboard, lead-detail, etc.) until the next weekly release**, not
-    just un-notified — a further Oct 2026 provisional call, re-confirm
-    alongside the above. Uses `lead_routings.digest_date` (present since
-    the original schema, never previously populated) — set to the next
-    Monday 9 AM Philippine time for Free-tier matches, `NULL` (always
-    visible) for Premium/Founder. Enforced in the RLS policy on
-    `lead_routings` itself (migration 022), which the `leads`/
-    `properties`/`reports`/consumer-info policies all key off of via an
-    EXISTS subquery — so this cascades everywhere without app-code
-    changes. **No cron or digest email sender exists yet** — this only
-    gates visibility; nothing currently sends the Monday email itself.
-
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a
@@ -166,17 +123,10 @@ from the code:
   a "Good" default).
 - **Signup forms (broker + consumer)** are ordered email → password →
   confirm password → first name → last name → phone.
-- **Broker onboarding has a real Review step** before final submission,
-  and a Free-tier signup shows "Submit" instead of "Continue to Payment".
+- **Broker onboarding has a real Review step** before final submission.
 - **The generated PDF report** mirrors the property-details field order
   above, and displays floor/lot area in the property's own market unit
   (sq m or sq ft) instead of a fixed "Square Feet" label.
-- **Known discrepancy, unresolved:** broker onboarding's `TIER_DETAILS`
-  (`broker/onboarding.tsx`) currently displays Premium Annual as
-  "₱5,000/year" and Basic Annual as "Free" — not the $199/year and
-  $49/year figures in the tiers table above. Not yet resolved either
-  direction (update the table to match, or revert the onboarding screen)
-  — flag before shipping.
 
 ## Companion documents and precedence
 

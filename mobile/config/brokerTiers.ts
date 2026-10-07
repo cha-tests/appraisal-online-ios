@@ -1,22 +1,14 @@
 import { BrokerTier } from '../types';
 
 /**
- * Single source of truth for broker plan pricing and features.
+ * Single source of truth for broker plan pricing and features, matching
+ * CLAUDE.md's locked membership tiers table: Founder Lifetime $499 one-time
+ * (25 cities), Premium Annual $199/year (10 cities), Basic Annual $49/year
+ * (1 city). All three are offered at signup; none are free.
  *
- * Per the Sep 1 pricing decision (see broker/onboarding.tsx), only
- * 'Basic Annual' (Free) and 'Premium Annual' (₱5,000/year) are offered at
- * signup. 'Founder Lifetime' remains a valid BrokerTier value (other screens
- * reference it) but isn't reachable from onboarding until the founder-tier
- * mechanics are actually built.
- *
- * Previously this pricing lived duplicated (and drifted out of sync, still
- * showing the old $199/$49 USD figures) across paywall.tsx, checkout.tsx,
- * and subscription.service.ts — this file replaces all three copies.
- *
- * City caps (Oct 2026 decision, provisional — re-confirm before every
- * build): Free (Basic Annual) = 1 city, Paid (Premium Annual) = 10 cities.
- * Founder Lifetime's cap is carried over unchanged from the original tiers
- * table even though that tier isn't offered at signup yet.
+ * Previously this pricing lived duplicated (and drifted out of sync)
+ * across paywall.tsx, checkout.tsx, and subscription.service.ts — this file
+ * replaces all three copies.
  */
 export const BROKER_TIER_CITY_LIMITS: Record<BrokerTier, number> = {
   'Founder Lifetime': 25,
@@ -28,8 +20,8 @@ export const BROKER_TIER_PRICING: Record<
   { price: number; currency: string; refundWindow: number; billingCycle: 'lifetime' | 'annual' }
 > = {
   'Founder Lifetime': { price: 49900, currency: 'USD', refundWindow: 14, billingCycle: 'lifetime' },
-  'Premium Annual': { price: 500000, currency: 'PHP', refundWindow: 30, billingCycle: 'annual' },
-  'Basic Annual': { price: 0, currency: 'PHP', refundWindow: 30, billingCycle: 'annual' },
+  'Premium Annual': { price: 19900, currency: 'USD', refundWindow: 30, billingCycle: 'annual' },
+  'Basic Annual': { price: 4900, currency: 'USD', refundWindow: 30, billingCycle: 'annual' },
 };
 
 export const BROKER_TIER_FEATURES: Record<
@@ -62,7 +54,7 @@ export const BROKER_TIER_FEATURES: Record<
     cities: '1 city',
     leads: 'Weekly digest',
     channels: 'Email',
-    includes: ['Standard profile', 'Weekly Monday digest', 'No cost, ever'],
+    includes: ['Standard profile', 'Weekly Monday digest'],
   },
 };
 
