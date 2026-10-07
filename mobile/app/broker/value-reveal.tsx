@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
-import { subscriptionService } from '../../services/subscription.service';
 import { formatCurrency } from '../../config/marketConfig';
 
 interface ValueMetrics {
@@ -19,12 +17,10 @@ interface ValueMetrics {
 
 export default function ValueReveal() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
   const selectedCities = useSubscriptionStore((state) => state.selectedCities);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
   const [metrics, setMetrics] = useState<ValueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activating, setActivating] = useState(false);
   // The broker's country, derived from their selected cities — cities carry
   // their own country, but selectedCities in the store is just a list of
   // IDs, so this needs its own lookup rather than being available directly.
@@ -249,72 +245,23 @@ export default function ValueReveal() {
         </View>
       </Card>
 
-      {/* CTA — the Free tier has nothing to pay for, so it skips straight to
-          activation instead of the paid tier's payment flow (rating-prompt
-          -> paywall -> checkout). The broker profile itself was already
-          created back in onboarding.tsx's handleSubmit, but a Free broker
-          previously had no `subscriptions` row at all — route_lead_to_brokers
-          requires one with status='active' to match a broker to a lead, so
-          a Free broker could select cities and still never actually be
-          routed anything. createFreeSubscription (already written, but
-          previously only called from paywall.tsx — never from fresh
-          signup) creates that $0 active row before moving on. */}
-      {(() => {
-        const isFree = selectedTier === 'Basic Annual';
+      {/* CTA */}
+      <View style={styles.ctaSection}>
+        <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
+        <Text style={styles.ctaSubtitle}>
+          Choose your plan and complete payment to activate your membership
+        </Text>
+      </View>
 
-        const handleSubmit = async () => {
-          if (!isFree) {
-            router.push('/broker/rating-prompt');
-            return;
-          }
-          if (!user?.id) {
-            Alert.alert('Error', 'You must be signed in to activate your membership.');
-            return;
-          }
-          setActivating(true);
-          const result = await subscriptionService.createFreeSubscription(user.id);
-          setActivating(false);
-          if (!result.success) {
-            Alert.alert(
-              'Error',
-              result.error?.message || 'Failed to activate your free membership. Please try again.'
-            );
-            return;
-          }
-          router.push('/broker/welcome');
-        };
-
-        return (
-          <>
-            <View style={styles.ctaSection}>
-              <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
-              <Text style={styles.ctaSubtitle}>
-                {isFree
-                  ? 'Submit to activate your free membership'
-                  : 'Choose your plan and complete payment to activate your membership'}
-              </Text>
-            </View>
-
-            <View style={styles.footer}>
-              <Button
-                title={isFree ? 'Submit' : 'Continue to Payment'}
-                size="large"
-                onPress={handleSubmit}
-                loading={activating}
-                disabled={activating}
-                style={{ marginBottom: 12 }}
-              />
-              <Button
-                title="Back"
-                variant="outline"
-                size="large"
-                onPress={() => router.back()}
-                disabled={activating}
-              />
-            </View>
-          </>
-        );
-      })()}
+      <View style={styles.footer}>
+        <Button
+          title="Continue to Payment"
+          size="large"
+          onPress={() => router.push('/broker/rating-prompt')}
+          style={{ marginBottom: 12 }}
+        />
+        <Button title="Back" variant="outline" size="large" onPress={() => router.back()} />
+      </View>
     </SafeAreaWrapper>
   );
 }

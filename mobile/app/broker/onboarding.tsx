@@ -19,11 +19,7 @@ import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
 import { BrokerTier, BrokerRole, City } from '../../types';
 
 const TOTAL_STEPS = 6;
-// Only these two are offered at signup for now, per the Sep 1 pricing
-// decision (₱5,000/year flat) — 'Founder Lifetime' still exists as a
-// BrokerTier value (other screens reference it) but isn't offered here
-// until the founder-tier mechanics are actually built.
-const TIERS: BrokerTier[] = ['Basic Annual', 'Premium Annual'];
+const TIERS: BrokerTier[] = ['Founder Lifetime', 'Premium Annual', 'Basic Annual'];
 // Every country is selectable here, not just markets with cities already
 // seeded (see countries.ts) — PH/AU/US pinned to the top since they're the
 // primary launch market plus the two with the most current test activity.
@@ -33,13 +29,10 @@ const COUNTRY_LIST = orderedCountryList();
 const COUNTRY_LABELS: Record<string, string> = Object.fromEntries(
   COUNTRY_LIST.map((c) => [c.code, `${countryFlagEmoji(c.code)} ${c.name}`])
 );
-// 'Basic Annual' and 'Premium Annual' are the stored tier values (unchanged,
-// so this needs no database migration) — only their signup-time label and
-// price are repurposed here for the Free / ₱5,000-a-year plan.
 const TIER_DETAILS = {
   'Founder Lifetime': { label: 'Founder Lifetime', price: '$499 one-time', refund: '14 days' },
-  'Premium Annual': { label: '₱5,000 Annually', price: '₱5,000/year', refund: '30 days' },
-  'Basic Annual': { label: 'Free', price: 'Free', refund: '30 days' },
+  'Premium Annual': { label: 'Premium Annual', price: '$199/year', refund: '30 days' },
+  'Basic Annual': { label: 'Basic Annual', price: '$49/year', refund: '30 days' },
 };
 
 export default function BrokerOnboarding() {
@@ -161,7 +154,7 @@ export default function BrokerOnboarding() {
     setStep(step - 1);
   };
 
-  const handleCityToggle = (cityId: string) => {
+  const handleCityToggle = async (cityId: string) => {
     const currentCities = formData.selectedCities;
     const cityLimit = BROKER_TIER_CITY_LIMITS[formData.tier];
 
@@ -177,6 +170,18 @@ export default function BrokerOnboarding() {
         );
         return;
       }
+
+      // Founder Lifetime is capped at 30 founders per city (CLAUDE.md: "Never
+      // sell Lifetime into a city at its 30-founder cap") — the other tiers
+      // have no such per-city member cap.
+      if (formData.tier === 'Founder Lifetime') {
+        const { available } = await brokerService.checkFounderCapacity(cityId);
+        if (!available) {
+          setError('This city has reached the maximum Founder members. Choose another.');
+          return;
+        }
+      }
+
       setError('');
       setFormData((prev) => ({
         ...prev,
@@ -605,11 +610,18 @@ export default function BrokerOnboarding() {
                           style={[styles.countryList, styles.cityPickerList]}
                           renderItem={({ item }) => {
                             const isSelected = formData.selectedCities.includes(item.id);
+                            const isFull =
+                              item.founder_count_lifetime >= 30 && formData.tier === 'Founder Lifetime';
 
                             return (
                               <TouchableOpacity
-                                style={[styles.cityItem, isSelected && styles.cityItemSelected]}
+                                style={[
+                                  styles.cityItem,
+                                  isSelected && styles.cityItemSelected,
+                                  isFull && !isSelected && styles.cityItemDisabled,
+                                ]}
                                 onPress={() => handleCityToggle(item.id)}
+                                disabled={isFull && !isSelected}
                               >
                                 <View style={styles.cityItemContent}>
                                   <Text
@@ -618,8 +630,19 @@ export default function BrokerOnboarding() {
                                     {item.name}
                                     {item.state ? `, ${item.state}` : ''}
                                   </Text>
+                                  {formData.tier === 'Founder Lifetime' && (
+                                    <Text style={styles.cityItemCapacity}>
+                                      {item.founder_count_lifetime}/30 founders
+                                    </Text>
+                                  )}
                                 </View>
-                                <View style={[styles.cityCheckbox, isSelected && styles.cityCheckboxActive]}>
+                                <View
+                                  style={[
+                                    styles.cityCheckbox,
+                                    isSelected && styles.cityCheckboxActive,
+                                    isFull && !isSelected && styles.cityCheckboxDisabled,
+                                  ]}
+                                >
                                   {isSelected && <Text style={styles.checkmark}>✓</Text>}
                                 </View>
                               </TouchableOpacity>
