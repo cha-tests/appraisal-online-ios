@@ -59,10 +59,10 @@ export default function ForgotPasswordScreen() {
       const result = await authService.requestPasswordReset(email);
 
       if (result.success) {
-        Alert.alert('Success', `Password reset link sent to ${email}. Check your email.`);
-        setStep('password');
+        Alert.alert('Success', `A verification code was sent to ${email}. Check your email.`);
+        setStep('code');
       } else {
-        setError(result.error || 'Failed to send reset code');
+        setError(result.error?.message || 'Failed to send reset code');
       }
     } catch (err) {
       setError('Failed to send reset code');
@@ -84,7 +84,7 @@ export default function ForgotPasswordScreen() {
       if (result.success) {
         setStep('password');
       } else {
-        setError(result.error || 'Invalid code. Please try again.');
+        setError(result.error?.message || 'Invalid code. Please try again.');
       }
     } catch (err) {
       setError('Invalid code. Please try again.');
@@ -107,7 +107,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('Success', 'Your password has been reset. Please sign in.');
         router.push('/auth/login');
       } else {
-        setError(result.error || 'Failed to reset password');
+        setError(result.error?.message || 'Failed to reset password');
       }
     } catch (err) {
       setError('Failed to reset password');
