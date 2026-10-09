@@ -215,13 +215,16 @@ export const authService = {
     }
   },
 
-  // Verify email with OTP
+  // Verify the password-reset code sent to the broker/consumer's email —
+  // the only caller is forgot-password.tsx's code step, so this needs
+  // type 'recovery', not 'signup' (verifying a signup confirmation code is a
+  // separate flow this function was never used for).
   async verifyOTP(email: string, token: string) {
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
-        type: 'signup',
+        type: 'recovery',
       });
 
       if (error) throw error;
