@@ -69,6 +69,9 @@ export default function BrokerOptins() {
   // consent decision, separate from the broker-contact opt-in itself (see
   // CLAUDE.md's "Consent" rule).
   const [sharePhone, setSharePhone] = useState(false);
+  // Mandatory once opted in, but no default — left blank until the
+  // consumer actively enters a number (see handleContinue's validation).
+  const [brokerCount, setBrokerCount] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -172,6 +175,16 @@ export default function BrokerOptins() {
         return;
       }
 
+      let brokerCountToSave: number | undefined;
+      if (optedIn) {
+        const parsedCount = parseInt(brokerCount, 10);
+        if (!brokerCount.trim() || !Number.isInteger(parsedCount) || parsedCount < 1) {
+          setError('Please enter how many professionals you want to connect with.');
+          return;
+        }
+        brokerCountToSave = parsedCount;
+      }
+
       setLoading(true);
 
       let phoneToSave: string | undefined;
@@ -212,7 +225,8 @@ export default function BrokerOptins() {
         phoneToSave,
         optedIn ? isOwner ?? undefined : undefined,
         optedIn ? intendsToSell ?? undefined : undefined,
-        titleUrl
+        titleUrl,
+        brokerCountToSave
       );
 
       if (result.success) {
@@ -259,6 +273,27 @@ export default function BrokerOptins() {
           <Toggle value={optedIn} onToggle={setOptedIn} />
         </View>
       </Card>
+
+      {/* Required whenever optedIn — see handleContinue's validation. Left
+          blank rather than defaulted to any number, so the consumer has to
+          make an actual choice instead of silently accepting a preset count. */}
+      {optedIn && (
+        <View style={styles.brokerCountSection}>
+          <Text style={styles.brokerCountLabel}>
+            How many professionals would you like to connect with?
+          </Text>
+          <TextInput
+            placeholder="e.g., 3"
+            value={brokerCount}
+            onChangeText={(text) => {
+              setBrokerCount(text.replace(/[^\d]/g, ''));
+              if (error) setError('');
+            }}
+            keyboardType="number-pad"
+            error={error && error.includes('professionals you want') ? error : undefined}
+          />
+        </View>
+      )}
 
       {/* Editable so a wrong number or country code (from signup) can be
           corrected here — but whether it's actually sent is its own
@@ -358,7 +393,7 @@ export default function BrokerOptins() {
       </Card>
 
       {/* Error Message */}
-      {!!error && !error.includes('mobile number') && (
+      {!!error && !error.includes('mobile number') && !error.includes('professionals you want') && (
         <Text style={styles.errorMessage}>{error}</Text>
       )}
 
@@ -460,6 +495,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.text,
     flex: 1,
+  },
+  brokerCountSection: {
+    marginBottom: 24,
+  },
+  brokerCountLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.color.text,
+    marginBottom: 12,
   },
   phoneSection: {
     marginBottom: 24,

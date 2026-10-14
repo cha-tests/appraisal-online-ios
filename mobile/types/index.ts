@@ -123,6 +123,10 @@ export interface Report {
   intends_to_sell?: boolean;
   title_url?: string;
   title_submitted_at?: string;
+  // Required in the UI whenever broker_contact_opted_in is set true (see
+  // broker-optins.tsx) — how many professionals the consumer wants matched
+  // to them.
+  requested_broker_count?: number;
   status: 'generating' | 'generated' | 'error' | 'deleted';
   pdf_url?: string;
   created_at: string;

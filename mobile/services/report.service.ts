@@ -446,7 +446,8 @@ export const reportService = {
     phone?: string,
     isOwner?: boolean,
     intendsToSell?: boolean,
-    titleUrl?: string
+    titleUrl?: string,
+    requestedBrokerCount?: number
   ) {
     try {
       const updates: Record<string, unknown> = {
@@ -455,6 +456,7 @@ export const reportService = {
       };
       if (isOwner !== undefined) updates.is_owner = isOwner;
       if (intendsToSell !== undefined) updates.intends_to_sell = intendsToSell;
+      if (requestedBrokerCount !== undefined) updates.requested_broker_count = requestedBrokerCount;
       if (titleUrl) {
         updates.title_url = titleUrl;
         updates.title_submitted_at = new Date().toISOString();

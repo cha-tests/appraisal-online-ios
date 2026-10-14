@@ -29,6 +29,19 @@ function ProfileRow({
   );
 }
 
+/** Non-interactive row — no chevron, nothing to tap. For account fields
+ * that aren't editable from here (e.g. the login email). */
+function StaticRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowText}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.rowValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function BrokerProfileSummary() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -146,6 +159,7 @@ export default function BrokerProfileSummary() {
           value={fullName || 'Not set'}
           onPress={() => editField('full_name')}
         />
+        <StaticRow label="Email" value={user?.email || 'Not set'} />
         <ProfileRow
           label="Company Name"
           value={profile?.company_name || 'Not set'}
