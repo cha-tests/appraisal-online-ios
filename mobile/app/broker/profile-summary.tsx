@@ -48,6 +48,7 @@ export default function BrokerProfileSummary() {
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profile, setProfile] = useState<BrokerProfile | null>(null);
+  const [cityNames, setCityNames] = useState<string[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -55,7 +56,14 @@ export default function BrokerProfileSummary() {
         if (!user?.id) return;
         setLoading(true);
         const { profile: brokerProfile } = await brokerService.getProfile(user.id);
-        if (brokerProfile) setProfile(brokerProfile);
+        if (brokerProfile) {
+          setProfile(brokerProfile);
+          if (brokerProfile.selected_cities?.length) {
+            const { cities } = await brokerService.getCities();
+            const selectedSet = new Set(brokerProfile.selected_cities);
+            setCityNames((cities || []).filter((c) => selectedSet.has(c.id)).map((c) => c.name));
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -185,6 +193,7 @@ export default function BrokerProfileSummary() {
           value={profile?.bio || 'Not set'}
           onPress={() => editField('bio')}
         />
+        <StaticRow label="Cities" value={cityNames.length ? cityNames.join(', ') : 'Not set'} />
       </View>
     </SafeAreaWrapper>
   );
