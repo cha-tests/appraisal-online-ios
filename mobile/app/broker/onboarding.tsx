@@ -232,6 +232,17 @@ export default function BrokerOnboarding() {
         }
       }
 
+      // createProfile always inserts selected_cities as [] — this is what
+      // actually persists the cities picked in step 4 (previously nothing
+      // did; formData.selectedCities only ever reached the ephemeral
+      // subscription store, used for value-reveal.tsx's estimates, never
+      // the database). Also covers a returning broker re-running this flow
+      // with a changed city selection, since getProfile found a profile.
+      const citiesResult = await brokerService.updateCities(userId, formData.tier, formData.selectedCities);
+      if (!citiesResult.success) {
+        throw new Error(citiesResult.error?.message || 'Failed to save selected cities');
+      }
+
       // KYC — uploads should already exist by the time step 2 was passed,
       // but re-check defensively rather than trust component state alone.
       if (!kycIdUri || !kycSelfieUri) {

@@ -387,6 +387,19 @@ export const brokerService = {
 
       if (error) throw error;
 
+      // A city this broker just added may already have leads sitting
+      // unrouted — created while no broker (or none with an active
+      // subscription) had selected it yet, so route_lead_to_brokers
+      // matched nobody at the time and never got retried (see migration
+      // 027). Catches this broker up on those now. Best-effort: a failure
+      // here shouldn't undo the city selection that already succeeded.
+      const { error: routingError } = await supabase.rpc('route_orphaned_leads_to_broker', {
+        p_broker_id: userId,
+      });
+      if (routingError) {
+        console.error('Orphaned-lead routing failed (non-blocking):', routingError);
+      }
+
       return { success: true, profile: data as BrokerProfile };
     } catch (error) {
       return {
