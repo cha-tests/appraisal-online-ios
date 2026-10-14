@@ -172,7 +172,7 @@ export default function BrokerDashboard() {
         </View>
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => router.push('/broker/profile')}
+          onPress={() => router.push('/broker/profile-summary')}
         >
           <Text style={styles.profileIcon}>👤</Text>
         </TouchableOpacity>
@@ -226,7 +226,7 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/broker/profile')}
+          onPress={() => router.push('/broker/profile-summary')}
         >
           <Text style={styles.actionIcon}>🏢</Text>
           <Text style={styles.actionLabel}>Profile</Text>

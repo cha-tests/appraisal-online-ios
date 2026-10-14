@@ -179,6 +179,22 @@ export function IconEyeOff(props: IconProps) {
   );
 }
 
+/** Edit-photo badge on an avatar. */
+export function IconPencil(props: IconProps) {
+  const { size, color, strokeWidth } = defaults(props);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 /**
  * "Generating" spinner rays. Rotate the whole component (see loading.tsx) —
  * this only draws one frame; two rays render at opacity .5 to match the

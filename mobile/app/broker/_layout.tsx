@@ -23,6 +23,7 @@ export default function BrokerLayout() {
         <Stack.Screen name="lead-inbox" />
         <Stack.Screen name="lead-detail" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="profile-summary" />
         <Stack.Screen name="settings" />
         <Stack.Screen name="refund-request" />
       </Stack>

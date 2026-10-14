@@ -7,6 +7,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { IconPencil } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { authService } from '../../services/auth.service';
@@ -185,30 +186,45 @@ export default function BrokerProfileScreen() {
 
       {/* Profile Photo Section */}
       <Card variant="default" style={styles.photoCard}>
-        <View style={styles.photoContainer}>
-          {formData.profile_photo_url ? (
+        {formData.profile_photo_url ? (
+          <View style={styles.photoWrapper}>
             <Image
               source={{ uri: formData.profile_photo_url }}
               style={styles.photoPlaceholder}
               resizeMode="cover"
             />
-          ) : (
+            <TouchableOpacity
+              style={styles.photoEditBadge}
+              onPress={pickProfilePhoto}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color={theme.color.onAccent} />
+              ) : (
+                <IconPencil size={14} color={theme.color.onAccent} strokeWidth={2.5} />
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.photoContainer}>
             <View style={styles.photoPlaceholder}>
               <Text style={styles.photoIcon}>📸</Text>
             </View>
-          )}
-          <Button
-            title={formData.profile_photo_url ? 'Change Photo' : 'Add Photo'}
-            variant="outline"
-            size="small"
-            onPress={pickProfilePhoto}
-            loading={uploadingPhoto}
-            disabled={uploadingPhoto}
-          />
-        </View>
-        <Text style={styles.photoHelper}>
-          Add a professional photo to your profile to attract more connections
-        </Text>
+            <Button
+              title="Add Photo"
+              variant="outline"
+              size="small"
+              onPress={pickProfilePhoto}
+              loading={uploadingPhoto}
+              disabled={uploadingPhoto}
+            />
+          </View>
+        )}
+        {!formData.profile_photo_url && (
+          <Text style={styles.photoHelper}>
+            Add a professional photo to your profile to attract more connections
+          </Text>
+        )}
       </Card>
 
       {/* Company Information */}
@@ -367,6 +383,22 @@ const styles = StyleSheet.create({
   photoContainer: {
     alignItems: 'center',
     marginBottom: 16,
+  },
+  photoWrapper: {
+    position: 'relative',
+  },
+  photoEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.color.text,
+    borderWidth: 2,
+    borderColor: theme.color.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   photoPlaceholder: {
     width: 100,

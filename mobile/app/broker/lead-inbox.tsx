@@ -189,7 +189,7 @@ export default function LeadInbox() {
   );
 
   return (
-    <SafeAreaWrapper>
+    <SafeAreaWrapper onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Your Leads</Text>

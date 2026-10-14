@@ -345,13 +345,6 @@ export default function ConsumerSettings() {
           style={{ marginBottom: 12 }}
         />
         <Button
-          title="Back to Account"
-          variant="outline"
-          size="large"
-          onPress={() => router.back()}
-          style={{ marginBottom: 12 }}
-        />
-        <Button
           title="Sign Out"
           variant="outline"
           size="large"
