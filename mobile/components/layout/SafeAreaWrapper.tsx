@@ -77,10 +77,9 @@ export function SafeAreaWrapper({
   return (
     <View style={styles.container}>
       {content}
-      <BackButton
-        onPress={onBackPress}
-        style={{ position: 'absolute', top: topInset, left: leftInset, marginBottom: 0 }}
-      />
+      <View style={[styles.backBar, { height: topInset + BACK_BUTTON_SPACE, paddingTop: topInset, paddingLeft: leftInset }]}>
+        <BackButton onPress={onBackPress} style={{ marginBottom: 0 }} />
+      </View>
     </View>
   );
 }
@@ -92,5 +91,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  backBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    justifyContent: 'center',
+    backgroundColor: theme.color.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.color.border,
   },
 });
