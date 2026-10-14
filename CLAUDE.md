@@ -157,6 +157,30 @@ from the code:
   anything it lets through. Expect both thresholds to need retuning once
   real broker submissions start coming in.
 
+## Known gaps — re-check before every TestFlight build
+
+- **Orphaned lead backlog has no automatic catch-up yet.** Root cause (fixed):
+  broker onboarding never persisted `broker_profiles.selected_cities` to the
+  database at all — every real broker signup left it as `{}`, so
+  `route_lead_to_brokers` (migration 008) never had anything real to match,
+  regardless of a lead's city. `onboarding.tsx`'s `handleSubmit` now actually
+  calls `brokerService.updateCities`, and migration 027's
+  `route_orphaned_leads_to_broker` retroactively routes any lead with zero
+  `lead_routings` rows to a broker the moment *that broker* saves a matching
+  city. What's still missing: this only fires on that one event — an
+  existing broker who already covers a city, or a lead stuck before this fix
+  shipped, is not caught up until someone (any broker) touches their city
+  list again. Two possible remaining pieces, not yet decided or built:
+  1. A one-time sweep across all brokers/leads to catch up the backlog that
+     already exists, runnable any time without new infrastructure.
+  2. A recurring scheduled job (e.g. Supabase `pg_cron`) so a stuck lead
+     gets caught up on its own, without depending on broker action — this
+     is new infrastructure for the project and may need enabling on the
+     Supabase plan.
+  Ask the user whether either has been done before assuming leads route
+  reliably in a build — if not, flag it rather than silently shipping with
+  the gap still open.
+
 ## Companion documents and precedence
 
 Ask specific questions rather than guessing. When these conflict:
