@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 
 export default function HowWeMakeMoney() {
@@ -12,13 +13,7 @@ export default function HowWeMakeMoney() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
+        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>How We Make Money</Text>
         <Text style={styles.subtitle}>
           A transparent look at our business model

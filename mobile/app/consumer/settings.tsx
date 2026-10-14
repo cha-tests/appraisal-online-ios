@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { useAuthStore } from '../../stores/auth.store';
@@ -172,13 +173,7 @@ export default function ConsumerSettings() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
+        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Settings & Privacy</Text>
       </View>
 

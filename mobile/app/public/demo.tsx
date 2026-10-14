@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 
 export default function DemoContent() {
@@ -12,13 +13,7 @@ export default function DemoContent() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
+        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>See How It Works</Text>
         <Text style={styles.subtitle}>
           Explore sample reports, alerts, and broker profiles

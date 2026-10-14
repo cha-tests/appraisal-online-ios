@@ -1,17 +1,26 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { IconArrowLeft } from './icons';
 import { theme } from '../../theme';
 
 interface BackButtonProps {
   onPress: () => void;
+  /** Override the default stacked-layout spacing (marginBottom) — pass this
+   * when the button sits inline in a row next to a title instead of above
+   * one, e.g. { marginBottom: 0, marginRight: theme.space.md }. */
+  style?: ViewStyle;
 }
 
-/** 40px circular back button used on Confirm address / Property details /
- * Report / Broker headers. */
-export function BackButton({ onPress }: BackButtonProps) {
+/** Bare back arrow at the top-left of a screen, used on every screen with a
+ * back action. No circle/border — just the glyph. */
+export function BackButton({ onPress, style }: BackButtonProps) {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.button} activeOpacity={0.7}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.button, style]}
+      activeOpacity={0.6}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+    >
       <IconArrowLeft />
     </TouchableOpacity>
   );
@@ -19,13 +28,7 @@ export function BackButton({ onPress }: BackButtonProps) {
 
 const styles = StyleSheet.create({
   button: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-    justifyContent: 'center',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
     marginBottom: theme.space.lg,
   },
 });

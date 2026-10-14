@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Linking, TouchableOpacity, ActivityIndicator, A
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
@@ -175,9 +176,7 @@ export default function LeadDetail() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.back()} style={{ marginBottom: 0 }} />
         <View
           style={[
             styles.statusBadge,
@@ -386,14 +385,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
-  },
-  backButton: {
-    paddingRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
   },
   statusBadge: {
     paddingHorizontal: 12,

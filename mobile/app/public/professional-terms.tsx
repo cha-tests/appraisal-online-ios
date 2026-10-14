@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
-import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 
 export default function ProfessionalTerms() {
@@ -12,13 +12,7 @@ export default function ProfessionalTerms() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
+        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Professional Terms</Text>
         <Text style={styles.subtitle}>For Real Estate Brokers & Agents</Text>
         <Text style={styles.lastUpdated}>Last updated: August 21, 2026</Text>

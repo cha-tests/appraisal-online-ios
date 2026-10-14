@@ -6,6 +6,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
@@ -179,9 +180,7 @@ export default function BrokerProfileScreen() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => router.back()} style={{ marginBottom: 0, marginRight: 16 }} />
         <Text style={styles.headerTitle}>Edit Profile</Text>
       </View>
 
@@ -355,14 +354,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
-  },
-  backButton: {
-    paddingRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
   },
   headerTitle: {
     fontSize: 24,

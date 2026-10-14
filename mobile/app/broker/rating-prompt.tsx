@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as StoreReview from 'expo-store-review';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 
 export default function RatingPrompt() {
@@ -32,13 +33,7 @@ export default function RatingPrompt() {
   return (
     <SafeAreaWrapper scrollable>
       {/* Header */}
-      <Button
-        title="← Back"
-        variant="outline"
-        size="small"
-        onPress={() => router.back()}
-        style={{ alignSelf: 'flex-start', marginBottom: 16 }}
-      />
+      <BackButton onPress={() => router.back()} />
       <View style={styles.header}>
         <Text style={styles.title}>How are we doing?</Text>
         <Text style={styles.subtitle}>

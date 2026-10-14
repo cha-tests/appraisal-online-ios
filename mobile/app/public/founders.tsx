@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
+import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { brokerService } from '../../services/broker.service';
@@ -77,13 +78,7 @@ export default function FoundersPage() {
     <SafeAreaWrapper scrollable>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start', marginBottom: 16 }}
-        />
+        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Founder Membership Availability</Text>
         <Text style={styles.subtitle}>
           Limited to 30 qualified professionals per city
