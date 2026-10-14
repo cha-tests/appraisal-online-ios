@@ -247,9 +247,7 @@ export default function ConsumerAccount() {
 
       <TouchableOpacity
         style={styles.settingItem}
-        onPress={() => {
-          Alert.alert('Coming Soon', 'Profile customization features are coming soon');
-        }}
+        onPress={() => router.push('/consumer/profile')}
       >
         <View>
           <Text style={styles.settingLabel}>Profile</Text>

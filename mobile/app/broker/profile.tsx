@@ -246,7 +246,7 @@ export default function BrokerProfileScreen() {
       {/* Account Settings Link */}
       <Card variant="outlined" style={styles.settingsCard}>
         <Text style={styles.settingsTitle}>Account Settings</Text>
-        <TouchableOpacity onPress={() => Alert.alert('Feature', 'Settings coming soon')}>
+        <TouchableOpacity onPress={() => router.push('/broker/settings')}>
           <Text style={styles.settingsLink}>Manage Notifications & Preferences →</Text>
         </TouchableOpacity>
       </Card>
