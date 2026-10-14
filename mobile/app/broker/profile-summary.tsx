@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { IconChevronRight, IconPencil } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
@@ -32,6 +33,7 @@ export default function BrokerProfileSummary() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profile, setProfile] = useState<BrokerProfile | null>(null);
 
   useEffect(() => {
@@ -49,7 +51,44 @@ export default function BrokerProfileSummary() {
     load();
   }, [user?.id]);
 
-  const goToEdit = () => router.push('/broker/profile');
+  const editField = (field: string) =>
+    router.push({ pathname: '/broker/edit-field', params: { field } });
+
+  // Same upload-immediately approach as the full edit screen — the storage
+  // round-trip already has its own success/failure feedback, and the result
+  // shows on this screen right away rather than needing a separate save step.
+  const pickProfilePhoto = async () => {
+    if (!user?.id) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Photo library access is needed to add a profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    try {
+      setUploadingPhoto(true);
+      const uploaded = await brokerService.uploadProfilePhoto(user.id, result.assets[0].uri);
+      if (!uploaded.success || !uploaded.url) {
+        Alert.alert('Error', uploaded.error || 'Failed to upload photo');
+        return;
+      }
+
+      const { profile: updated } = await brokerService.updateProfile(user.id, {
+        profile_photo_url: uploaded.url,
+      });
+      if (updated) setProfile(updated);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const fullName = [user?.first_name, user?.last_name, user?.suffix]
+    .filter(Boolean)
+    .join(' ');
 
   if (loading) {
     return (
@@ -65,7 +104,7 @@ export default function BrokerProfileSummary() {
     <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       <Text style={styles.title}>Profile</Text>
 
-      <TouchableOpacity style={styles.identityCard} onPress={goToEdit} activeOpacity={0.7}>
+      <View style={styles.identityCard}>
         <View style={styles.avatarWrapper}>
           {profile?.profile_photo_url ? (
             <Image
@@ -78,32 +117,57 @@ export default function BrokerProfileSummary() {
               <Text style={styles.avatarIcon}>📸</Text>
             </View>
           )}
-          <View style={styles.avatarEditBadge}>
-            <IconPencil size={12} color={theme.color.onAccent} strokeWidth={2.5} />
-          </View>
+          <TouchableOpacity
+            style={styles.avatarEditBadge}
+            onPress={pickProfilePhoto}
+            disabled={uploadingPhoto}
+          >
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={theme.color.onAccent} />
+            ) : (
+              <IconPencil size={12} color={theme.color.onAccent} strokeWidth={2.5} />
+            )}
+          </TouchableOpacity>
         </View>
         <View style={styles.identityText}>
+          {!!fullName && (
+            <Text style={styles.identityFullName} numberOfLines={1}>
+              {fullName}
+            </Text>
+          )}
           <Text style={styles.identityName} numberOfLines={1}>
             {profile?.company_name || 'Add your company name'}
           </Text>
           {!!profile?.tier && <Text style={styles.identityBadge}>{profile.tier}</Text>}
         </View>
-      </TouchableOpacity>
+      </View>
 
       <View style={styles.list}>
         <ProfileRow
           label="Company Name"
           value={profile?.company_name || 'Not set'}
-          onPress={goToEdit}
+          onPress={() => editField('company_name')}
         />
         <ProfileRow
           label="Real Estate License #"
           value={profile?.license_number || 'Not set'}
-          onPress={goToEdit}
+          onPress={() => editField('license_number')}
         />
-        <ProfileRow label="Phone" value={profile?.phone || 'Not set'} onPress={goToEdit} />
-        <ProfileRow label="Website" value={profile?.website || 'Not set'} onPress={goToEdit} />
-        <ProfileRow label="Bio" value={profile?.bio || 'Not set'} onPress={goToEdit} />
+        <ProfileRow
+          label="Phone"
+          value={profile?.phone || 'Not set'}
+          onPress={() => editField('phone')}
+        />
+        <ProfileRow
+          label="Website"
+          value={profile?.website || 'Not set'}
+          onPress={() => editField('website')}
+        />
+        <ProfileRow
+          label="Bio"
+          value={profile?.bio || 'Not set'}
+          onPress={() => editField('bio')}
+        />
       </View>
     </SafeAreaWrapper>
   );
@@ -156,6 +220,12 @@ const styles = StyleSheet.create({
   },
   identityText: {
     flex: 1,
+  },
+  identityFullName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+    marginBottom: 2,
   },
   identityName: {
     fontSize: 18,
