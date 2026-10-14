@@ -99,7 +99,5 @@ const styles = StyleSheet.create({
     right: 0,
     justifyContent: 'center',
     backgroundColor: theme.color.bg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.color.border,
   },
 });
