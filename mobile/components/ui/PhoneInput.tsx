@@ -58,7 +58,13 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
     // "0917...", UK: "07...") — that leading 0 is dropped once a dial code
     // is prepended, or the combined number is one digit too long and wrong.
     const digitsOnly = nextLocal.replace(/[^\d]/g, '').replace(/^0+/, '');
-    onChangeText(`${nextCountry.dialCode}${digitsOnly}`);
+    // No digits typed yet — emit a real empty string rather than a bare
+    // dial code ("+63"). Callers that treat this field as optional (e.g.
+    // broker-optins.tsx) check `if (phone)` to decide whether to validate
+    // at all; a leftover dial code with no digits was always truthy there,
+    // so clearing the field still tripped "please enter a valid number"
+    // instead of being treated as skipped.
+    onChangeText(digitsOnly ? `${nextCountry.dialCode}${digitsOnly}` : '');
   };
 
   const handleLocalChange = (text: string) => {
