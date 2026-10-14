@@ -22,6 +22,7 @@ import { signOut } from '../../services/supabase';
 import { BrokerProfile } from '../../types';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { theme } from '../../theme';
 
 const KYC_STATUS_LABEL: Record<string, string> = {
   pending: '⏳ Under review',
@@ -143,7 +144,7 @@ export default function BrokerSettings() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading settings...</Text>
         </View>
       </SafeAreaWrapper>
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   header: {
     marginBottom: 24,
@@ -443,24 +444,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
     marginTop: 12,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 24,
     marginBottom: 12,
   },
   sectionHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
     marginTop: -8,
   },
@@ -478,12 +479,12 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   preferenceHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   timeSelectCard: {
     marginBottom: 16,
@@ -492,7 +493,7 @@ const styles = StyleSheet.create({
   quietHourLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   timeOption: {
@@ -500,35 +501,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     marginBottom: 8,
   },
   timeOptionSelected: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#2563EB',
+    backgroundColor: theme.color.accentWash,
+    borderColor: theme.color.accent,
   },
   timeOptionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
   },
   timeOptionTextSelected: {
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
   },
   privacyCard: {
     marginBottom: 16,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   privacyTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   privacyText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   infoCard: {
@@ -541,12 +542,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   upgradeCard: {
     marginBottom: 16,
@@ -556,12 +557,12 @@ const styles = StyleSheet.create({
   upgradeTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   upgradeText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   founderCard: {
@@ -581,7 +582,7 @@ const styles = StyleSheet.create({
   },
   infoDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     marginVertical: 8,
   },
   footer: {

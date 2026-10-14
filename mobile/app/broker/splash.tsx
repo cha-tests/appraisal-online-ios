@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { signOut } from '../../services/supabase';
 import { useAuthStore } from '../../stores/auth.store';
+import { theme } from '../../theme';
 
 export default function BrokerSplash() {
   const router = useRouter();
@@ -120,13 +121,13 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textAlign: 'center',
     marginBottom: 12,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 24,
     marginHorizontal: 8,
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   valueCard: {
@@ -154,12 +155,12 @@ const styles = StyleSheet.create({
   valueTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   valueDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   ctaSection: {
@@ -171,12 +172,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   ctaDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {
@@ -185,6 +186,6 @@ const styles = StyleSheet.create({
   footerNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
 });

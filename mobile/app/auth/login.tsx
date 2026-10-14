@@ -13,6 +13,7 @@ import {
   clearPendingValuationStash,
 } from '../../services/pendingValuationCompletion';
 import { useReportStore } from '../../stores/report.store';
+import { theme } from '../../theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -154,12 +155,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   form: {
     marginBottom: 24,
@@ -176,6 +177,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
 });

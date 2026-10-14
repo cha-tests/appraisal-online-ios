@@ -10,6 +10,7 @@ import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
 import { Lead, BrokerProfile, Subscription } from '../../types';
 import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
+import { theme } from '../../theme';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -145,7 +146,7 @@ export default function BrokerDashboard() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading your dashboard...</Text>
         </View>
       </SafeAreaWrapper>
@@ -338,7 +339,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   header: {
     flexDirection: 'row',
@@ -352,11 +353,11 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   tierBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   tierText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   profileButton: {
     width: 44,
@@ -379,14 +380,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   refundAlertCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
     borderColor: '#BBDFD4',
     marginBottom: 20,
   },
   refundAlertTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 6,
   },
   refundAlertText: {
@@ -407,12 +408,12 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 4,
   },
   metricLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
   },
   quickActionsGrid: {
@@ -435,21 +436,21 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   leadCard: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   leadCardHeader: {
     flexDirection: 'row',
@@ -460,13 +461,13 @@ const styles = StyleSheet.create({
   leadAddress: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flex: 1,
   },
   leadValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   leadCardFooter: {
     flexDirection: 'row',
@@ -475,12 +476,12 @@ const styles = StyleSheet.create({
   },
   leadEmail: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   leadStatus: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -504,12 +505,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -518,8 +519,8 @@ const styles = StyleSheet.create({
   },
   tipsCard: {
     marginBottom: 12,
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
   },
   tipRow: {
     flexDirection: 'row',
@@ -528,7 +529,7 @@ const styles = StyleSheet.create({
   },
   tipDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   tipIcon: {
     fontSize: 20,
@@ -541,12 +542,12 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   tipText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   supportCard: {

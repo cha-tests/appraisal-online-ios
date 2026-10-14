@@ -13,6 +13,7 @@ import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { brokerService } from '../../services/broker.service';
+import { theme } from '../../theme';
 
 interface CityStatus {
   id: string;
@@ -103,7 +104,7 @@ export default function FoundersPage() {
       {/* Cities List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading city availability...</Text>
         </View>
       ) : filteredCities.length > 0 ? (
@@ -142,7 +143,7 @@ export default function FoundersPage() {
                     styles.progressFill,
                     {
                       width: `${Math.min(item.percentageFilled, 100)}%`,
-                      backgroundColor: item.available ? '#10B981' : '#EF4444',
+                      backgroundColor: item.available ? theme.color.success : theme.color.danger,
                     },
                   ]}
                 />
@@ -215,12 +216,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   infoCard: {
     backgroundColor: '#F0F9FF',
@@ -230,12 +231,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   loadingContainer: {
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   cityCard: {
     marginBottom: 12,
@@ -262,12 +263,12 @@ const styles = StyleSheet.create({
   cityName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   citySlots: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -275,7 +276,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusOpen: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
   },
   statusFull: {
     backgroundColor: '#FEE2E2',
@@ -283,11 +284,11 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 8,
@@ -298,17 +299,17 @@ const styles = StyleSheet.create({
   },
   availableSlots: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   statsCard: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
     marginTop: 20,
   },
   statsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   statItem: {
@@ -316,21 +317,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   statLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   statValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 64,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -339,12 +340,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   footer: {
     marginBottom: 32,

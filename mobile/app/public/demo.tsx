@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function DemoContent() {
   const router = useRouter();
@@ -186,18 +187,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 16,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 24,
   },
@@ -208,19 +209,19 @@ const styles = StyleSheet.create({
   reportAddress: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   reportValue: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 4,
   },
   reportMeta: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   disclaimerCard: {
     backgroundColor: '#FEF3C7',
@@ -246,21 +247,21 @@ const styles = StyleSheet.create({
   comparableAddress: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   comparableDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 2,
   },
   comparablePrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   comparableDistance: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   alertCard: {
     backgroundColor: '#F0F9FF',
@@ -274,23 +275,23 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 8,
   },
   alertAddress: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   alertValue: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 4,
   },
   alertMeta: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     textAlign: 'center',
   },
   digestCard: {
@@ -299,12 +300,12 @@ const styles = StyleSheet.create({
   digestTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   digestSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
   },
   digestItem: {
@@ -312,16 +313,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   digestItemAddress: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
   },
   digestItemValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#10B981',
+    color: theme.color.success,
   },
   brokerCard: {
     backgroundColor: '#F0F9FF',
@@ -350,14 +351,14 @@ const styles = StyleSheet.create({
   brokerName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   brokerBadge: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    color: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   },
   brokerBio: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
   },
   brokerContactItem: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   featureItem: {
     flexDirection: 'row',
@@ -384,19 +385,19 @@ const styles = StyleSheet.create({
   },
   featureIcon: {
     fontSize: 24,
-    color: '#10B981',
+    color: theme.color.success,
     marginRight: 12,
     marginTop: -2,
   },
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   featureDesc: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {

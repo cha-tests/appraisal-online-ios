@@ -22,6 +22,7 @@ import { formatCurrency } from '../../config/marketConfig';
 import { shortAddressLabel } from '../../utils/addressComponents';
 import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { beginSignOut } from '../../utils/signOutGuard';
+import { theme } from '../../theme';
 
 export default function ConsumerAccount() {
   const router = useRouter();
@@ -134,7 +135,7 @@ export default function ConsumerAccount() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
@@ -199,7 +200,7 @@ export default function ConsumerAccount() {
                 </Text>
               </View>
               {openingReportId === item.id ? (
-                <ActivityIndicator size="small" color="#9CA3AF" />
+                <ActivityIndicator size="small" color={theme.color.textFaint} />
               ) : (
                 <Text style={styles.reportDate}>
                   {new Date(item.created_at).toLocaleDateString()}
@@ -287,12 +288,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   email: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   allowanceCard: {
     marginBottom: 24,
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
   allowanceTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   allowanceContent: {
@@ -315,38 +316,38 @@ const styles = StyleSheet.create({
   allowanceUsed: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#EF4444',
+    color: theme.color.danger,
   },
   allowanceRemaining: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   allowanceLabel: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
   },
   allowanceBar: {
     flex: 1,
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
   allowanceFill: {
     height: '100%',
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.color.danger,
     borderRadius: 4,
   },
   allowanceHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   reportCard: {
@@ -354,11 +355,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   reportCardContent: {
     flex: 1,
@@ -366,22 +367,22 @@ const styles = StyleSheet.create({
   reportAddress: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   reportValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   reportDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -390,12 +391,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -405,21 +406,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   settingLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   settingHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   settingArrow: {
     fontSize: 18,
-    color: '#D1D5DB',
+    color: theme.color.track,
   },
   supportCard: {
     backgroundColor: '#FEF3C7',

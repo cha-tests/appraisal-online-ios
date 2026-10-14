@@ -18,6 +18,7 @@ import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
 import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
 import { BrokerTier, BrokerRole, City } from '../../types';
+import { theme } from '../../theme';
 
 const TOTAL_STEPS = 6;
 const TIERS: BrokerTier[] = ['Founder Lifetime', 'Premium Annual', 'Basic Annual'];
@@ -464,7 +465,7 @@ export default function BrokerOnboarding() {
 
           {loadingCities ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator color="#2563EB" />
+              <ActivityIndicator color={theme.color.accent} />
             </View>
           ) : (
             <>
@@ -848,41 +849,41 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#2563EB',
+    backgroundColor: theme.color.accent,
   },
   stepIndicator: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   stepDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 16,
     lineHeight: 20,
   },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   roleRow: {
@@ -898,41 +899,41 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   roleOptionActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   roleOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   roleOptionTextActive: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   roleHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginBottom: 20,
   },
   uploadBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     minHeight: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
     overflow: 'hidden',
   },
   uploadPrompt: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
@@ -942,21 +943,21 @@ const styles = StyleSheet.create({
   },
   kycStatusNote: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: 16,
     textAlign: 'center',
   },
   tierCard: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   tierCardActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   tierHeader: {
     flexDirection: 'row',
@@ -967,12 +968,12 @@ const styles = StyleSheet.create({
   tierName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   tierPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   tierFeatures: {
     marginBottom: 12,
@@ -980,7 +981,7 @@ const styles = StyleSheet.create({
   },
   tierFeature: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 6,
   },
   tierRadio: {
@@ -988,12 +989,12 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignSelf: 'flex-end',
   },
   tierRadioActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   loadingContainer: {
     paddingVertical: 32,
@@ -1005,11 +1006,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
     marginBottom: 16,
   },
   countryDropdownText: {
@@ -1017,11 +1018,11 @@ const styles = StyleSheet.create({
     marginRight: 8,
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   countryDropdownChevron: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   dropdownLabel: {
     fontSize: 13,
@@ -1031,7 +1032,7 @@ const styles = StyleSheet.create({
   },
   dropdownPlaceholder: {
     fontWeight: '400',
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   modalOverlay: {
     flex: 1,
@@ -1044,7 +1045,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     maxHeight: '75%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -1061,7 +1062,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1071,16 +1072,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   countryOptionText: {
     fontSize: 15,
-    color: '#1F2937',
+    color: theme.color.text,
   },
   countryOptionCheck: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   cityItem: {
     flexDirection: 'row',
@@ -1089,7 +1090,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   cityItemSelected: {
     backgroundColor: '#F0F9FF',
@@ -1103,52 +1104,52 @@ const styles = StyleSheet.create({
   cityItemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   cityItemNameSelected: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   cityItemCapacity: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   cityCheckbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cityCheckboxActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   cityCheckboxDisabled: {
-    borderColor: '#DBEAFE',
+    borderColor: theme.color.accentWash,
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
     fontSize: 14,
     fontWeight: '700',
   },
   cityCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: -8,
     textAlign: 'center',
   },
   noCitiesText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     textAlign: 'center',
     paddingVertical: 24,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
   },
@@ -1165,12 +1166,12 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   preferenceHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   infoCard: {
     marginTop: 16,
@@ -1180,12 +1181,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   reviewCard: {
@@ -1194,7 +1195,7 @@ const styles = StyleSheet.create({
   reviewSectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 10,
@@ -1207,18 +1208,18 @@ const styles = StyleSheet.create({
   },
   reviewLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   reviewValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flexShrink: 1,
     textAlign: 'right',
   },
   reviewDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   footer: {
     marginBottom: 32,

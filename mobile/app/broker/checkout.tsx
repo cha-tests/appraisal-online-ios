@@ -13,6 +13,7 @@ import { BROKER_TIER_PRICING, formatTierPrice } from '../../config/brokerTiers';
 // lib/stripe is platform-split: the real SDK on native, inert stubs on web.
 // Importing through it keeps the native-only module out of the web bundle.
 import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
+import { theme } from '../../theme';
 
 const TIER_PRICING = BROKER_TIER_PRICING;
 
@@ -190,7 +191,7 @@ export default function Checkout() {
       {/* Payment Status */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Setting up secure payment...</Text>
         </View>
       ) : clientSecret && paymentIntentId ? (
@@ -288,12 +289,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   summaryCard: {
     marginBottom: 24,
@@ -305,22 +306,22 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   summaryPrice: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     marginVertical: 12,
   },
   summaryTotal: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 12,
   },
   noticeCard: {
@@ -343,12 +344,12 @@ const styles = StyleSheet.create({
   noticeTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   noticeText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -364,12 +365,12 @@ const styles = StyleSheet.create({
   instructionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   instructionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   securityCard: {
@@ -385,17 +386,17 @@ const styles = StyleSheet.create({
   },
   securityText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
     flex: 1,
   },
   termsCard: {
     marginBottom: 24,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   termsText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   errorMessage: {
@@ -414,9 +415,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cardField: {
-    backgroundColor: '#FFFFFF',
-    textColor: '#1F2937',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    textColor: theme.color.text,
+    borderColor: theme.color.border,
   },
   errorCard: {
     marginBottom: 24,

@@ -9,6 +9,7 @@ import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { theme } from '../../theme';
 
 interface LeadDetail extends Lead {
   consumer_phone?: string;
@@ -155,7 +156,7 @@ export default function LeadDetail() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -398,12 +399,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
   },
   statusConverted: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textTransform: 'capitalize',
   },
   propertyCard: {
@@ -413,24 +414,24 @@ const styles = StyleSheet.create({
   propertyAddress: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   propertyValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 4,
   },
   propertyMeta: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 20,
   },
@@ -443,7 +444,7 @@ const styles = StyleSheet.create({
   },
   infoIcon: {
     fontSize: 15,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '700',
   },
   infoCard: {
@@ -457,17 +458,17 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
   },
   infoValue: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     fontWeight: '600',
   },
   infoValueMuted: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
   },
   titleLink: {
@@ -477,7 +478,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
   comparableAddress: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   comparableDetails: {
@@ -502,14 +503,14 @@ const styles = StyleSheet.create({
   },
   comparableDetailLabel: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
     marginBottom: 2,
   },
   comparableDetailValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   statusActions: {
     flexDirection: 'row',
@@ -517,20 +518,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   notesCard: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
     marginBottom: 24,
     marginTop: 20,
   },
   notesTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   notesText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   bottomPadding: {

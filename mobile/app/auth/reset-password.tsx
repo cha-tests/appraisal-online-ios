@@ -8,6 +8,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { Card } from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { authService } from '../../services/auth.service';
+import { theme } from '../../theme';
 
 // Supabase's password-recovery email opens this screen with the session
 // tokens in the URL's hash fragment (#access_token=...&refresh_token=...&
@@ -193,12 +194,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   form: {
     marginBottom: 24,

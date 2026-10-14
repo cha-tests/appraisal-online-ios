@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function HowItWorks() {
   const router = useRouter();
@@ -140,18 +141,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 12,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 24,
     marginBottom: 16,
   },
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
   stepNumberText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   stepContent: {
     flex: 1,
@@ -181,12 +182,12 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   stepDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -206,12 +207,12 @@ const styles = StyleSheet.create({
   reportItemTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   reportItemDesc: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   ctaContainer: {

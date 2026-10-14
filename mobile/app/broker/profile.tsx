@@ -12,6 +12,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { authService } from '../../services/auth.service';
 import { BrokerProfile } from '../../types';
+import { theme } from '../../theme';
 
 export default function BrokerProfileScreen() {
   const router = useRouter();
@@ -170,7 +171,7 @@ export default function BrokerProfileScreen() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
@@ -358,7 +359,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   photoCard: {
     alignItems: 'center',
@@ -383,14 +384,14 @@ const styles = StyleSheet.create({
   },
   photoHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     marginTop: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 24,
   },
@@ -420,14 +421,14 @@ const styles = StyleSheet.create({
   previewName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   previewBadge: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    color: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -440,7 +441,7 @@ const styles = StyleSheet.create({
   },
   previewBio: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
   },
   previewContact: {
@@ -448,23 +449,23 @@ const styles = StyleSheet.create({
   },
   previewContactItem: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   settingsCard: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
     marginBottom: 24,
     marginTop: 24,
   },
   settingsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   settingsLink: {
     fontSize: 14,
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
   },
   footer: {
@@ -474,7 +475,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.color.border,
   },
   signOutButton: {
     alignItems: 'center',

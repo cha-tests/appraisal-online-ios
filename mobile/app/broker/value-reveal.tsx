@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { formatCurrency } from '../../config/marketConfig';
+import { theme } from '../../theme';
 
 interface ValueMetrics {
   estimatedLeadsPerMonth: number;
@@ -64,7 +65,7 @@ export default function ValueReveal() {
     return (
       <SafeAreaWrapper>
         <View style={styles.container}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Calculating your opportunity...</Text>
         </View>
       </SafeAreaWrapper>
@@ -275,11 +276,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -288,12 +289,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   mainMetric: {
     alignItems: 'center',
@@ -301,25 +302,25 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
     marginBottom: 8,
   },
   metricValue: {
     fontSize: 56,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 8,
   },
   metricHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   whatThisMeansCard: {
@@ -340,19 +341,19 @@ const styles = StyleSheet.create({
   },
   metricCardLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
     marginBottom: 4,
   },
   metricCardValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   metricCardHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   howItWorksItem: {
     flexDirection: 'row',
@@ -363,7 +364,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -371,7 +372,7 @@ const styles = StyleSheet.create({
   howItWorksNumberText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   howItWorksContent: {
     flex: 1,
@@ -379,25 +380,25 @@ const styles = StyleSheet.create({
   howItWorksTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   howItWorksText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   whyThisWorksTitle: {
     marginTop: 24,
   },
   benefitsCard: {
     marginBottom: 24,
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
   },
   benefitItem: {
     flexDirection: 'row',
@@ -415,12 +416,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   benefitText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   ctaSection: {
@@ -433,12 +434,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   ctaSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {

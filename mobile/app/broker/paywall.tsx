@@ -8,6 +8,7 @@ import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { BROKER_TIER_PRICING, BROKER_TIER_FEATURES, formatTierPrice } from '../../config/brokerTiers';
+import { theme } from '../../theme';
 
 const TIER_PRICING = BROKER_TIER_PRICING;
 const TIER_FEATURES = BROKER_TIER_FEATURES;
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -238,12 +239,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 24,
   },
   tierCard: {
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
   tierName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   priceContainer: {
     alignItems: 'flex-end',
@@ -266,11 +267,11 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   billingCycle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 2,
   },
   quickFeatures: {
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.color.border,
   },
   quickFeature: {
     alignItems: 'center',
@@ -289,13 +290,13 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 20,
   },
@@ -307,16 +308,16 @@ const styles = StyleSheet.create({
   },
   inclusionCheck: {
     fontSize: 18,
-    color: '#10B981',
+    color: theme.color.success,
     marginRight: 10,
     fontWeight: '700',
   },
   inclusionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   protectionCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
     borderColor: '#BBDFD4',
     marginBottom: 24,
     marginTop: 16,
@@ -324,7 +325,7 @@ const styles = StyleSheet.create({
   protectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 6,
   },
   protectionText: {
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
   benefitNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginRight: 16,
     minWidth: 32,
   },
@@ -350,12 +351,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   benefitDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   termsSection: {
@@ -363,7 +364,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   termsCheckbox: {
     flexDirection: 'row',
@@ -374,18 +375,18 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     marginRight: 12,
     marginTop: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxBoxChecked: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -394,11 +395,11 @@ const styles = StyleSheet.create({
   },
   termsLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   termsLink: {
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
   },
   faqSection: {
@@ -407,7 +408,7 @@ const styles = StyleSheet.create({
   faqTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   faqItem: {
@@ -416,16 +417,16 @@ const styles = StyleSheet.create({
   faqQ: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   faqA: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
   },

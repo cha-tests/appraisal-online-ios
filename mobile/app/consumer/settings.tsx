@@ -11,6 +11,7 @@ import { supabase, signOut } from '../../services/supabase';
 import { reportService } from '../../services/report.service';
 import { Report } from '../../types';
 import { beginSignOut } from '../../utils/signOutGuard';
+import { theme } from '../../theme';
 
 export default function ConsumerSettings() {
   const router = useRouter();
@@ -162,7 +163,7 @@ export default function ConsumerSettings() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading settings...</Text>
         </View>
       </SafeAreaWrapper>
@@ -212,7 +213,7 @@ export default function ConsumerSettings() {
       <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Broker Contact</Text>
 
       {loadingConnected ? (
-        <ActivityIndicator color="#2563EB" style={{ marginVertical: 12 }} />
+        <ActivityIndicator color={theme.color.accent} style={{ marginVertical: 12 }} />
       ) : connectedReports.length > 0 ? (
         <>
           <Text style={styles.brokerContactHelper}>
@@ -372,7 +373,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   header: {
     marginBottom: 24,
@@ -380,13 +381,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   preferencesCard: {
@@ -402,16 +403,16 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   preferenceHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   brokerContactHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -431,7 +432,7 @@ const styles = StyleSheet.create({
   connectedReportAddress: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   connectedReportStatus: {
@@ -440,12 +441,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   emptyConnectedCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
     marginBottom: 12,
   },
   emptyConnectedText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
   },
   privacyCard: {
@@ -456,12 +457,12 @@ const styles = StyleSheet.create({
   privacyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   privacyText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   actionCard: {
@@ -470,18 +471,18 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   actionDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     marginBottom: 4,
   },
   actionWarning: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontStyle: 'italic',
   },
   linkItem: {
@@ -490,12 +491,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   linkText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   footer: {
     marginBottom: 32,

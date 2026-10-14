@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { supabase, getCurrentUser, isSupabaseConfigured } from '../services/supabase';
 import { useAuthStore } from '../stores/auth.store';
 import { brokerService } from '../services/broker.service';
+import { theme } from '../theme';
 
 // Initialize the Stripe SDK. lib/stripe is platform-split, so this is a no-op
 // on web (where the SDK has no implementation) without the web bundle ever
@@ -96,11 +97,11 @@ export default function RootLayout() {
 
   if (!isSupabaseConfigured) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#fff' }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, textAlign: 'center' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.color.bg }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, textAlign: 'center', color: theme.color.text }}>
           Configuration error
         </Text>
-        <Text style={{ fontSize: 14, textAlign: 'center', color: '#444' }}>
+        <Text style={{ fontSize: 14, textAlign: 'center', color: theme.color.textMuted }}>
           This build is missing its Supabase environment variables. Check the Production environment variables on
           expo.dev and rebuild.
         </Text>

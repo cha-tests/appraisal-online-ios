@@ -9,6 +9,7 @@ import { PhoneInput } from '../../components/ui/PhoneInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { authService } from '../../services/auth.service';
 import { useRequireAccount } from '../../hooks/useRequireAccount';
+import { theme } from '../../theme';
 
 export default function ConsumerProfile() {
   const router = useRouter();
@@ -135,12 +136,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 16,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 4,
   },
   form: {

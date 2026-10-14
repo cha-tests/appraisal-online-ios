@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 const PARTNERS = [
   {
@@ -192,35 +193,35 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 12,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   missionCard: {
     marginBottom: 24,
     backgroundColor: '#F3F4F6',
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
   },
   missionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   missionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 22,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 24,
     marginBottom: 16,
   },
@@ -239,12 +240,12 @@ const styles = StyleSheet.create({
   partnerName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   partnerDesc: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   benefitCard: {
     marginBottom: 12,
@@ -253,12 +254,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   benefitText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   opportunityCard: {
@@ -267,12 +268,12 @@ const styles = StyleSheet.create({
   opportunityTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   opportunityText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
   },
   emailLinkText: {
     fontSize: 13,
-    color: '#2563EB',
+    color: theme.color.accent,
     textDecorationLine: 'underline',
   },
   ctaContainer: {

@@ -19,6 +19,7 @@ import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { theme } from '../../theme';
 
 interface LeadWithRouting extends Lead {
   delivery_status?: string;
@@ -230,7 +231,7 @@ export default function LeadInbox() {
       {/* Leads List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading leads...</Text>
         </View>
       ) : filteredLeads.length > 0 ? (
@@ -266,12 +267,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   filterButtons: {
     flexDirection: 'row',
@@ -285,20 +286,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    borderColor: theme.color.border,
+    backgroundColor: theme.color.surface,
   },
   filterButtonActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   filterButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   filterButtonTextActive: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   listContent: {
     paddingBottom: 32,
@@ -310,15 +311,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   leadItem: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   leadItemHeader: {
     flexDirection: 'row',
@@ -329,13 +330,13 @@ const styles = StyleSheet.create({
   leadItemAddress: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
     maxWidth: '70%',
   },
   leadItemEmail: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   titleBadge: {
     alignSelf: 'flex-start',
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -363,7 +364,7 @@ const styles = StyleSheet.create({
   titleBadgeMutedText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   leadItemRight: {
     alignItems: 'flex-end',
@@ -371,7 +372,7 @@ const styles = StyleSheet.create({
   leadItemValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 6,
   },
   statusBadge: {
@@ -386,7 +387,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
   },
   statusConverted: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
   },
   statusText: {
     fontSize: 11,
@@ -402,12 +403,12 @@ const styles = StyleSheet.create({
   },
   leadItemChannel: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '500',
   },
   leadItemDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   loadingContainer: {
     flex: 1,
@@ -418,7 +419,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   emptyState: {
     alignItems: 'center',
@@ -431,12 +432,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     maxWidth: '80%',

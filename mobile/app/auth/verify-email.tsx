@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { authService } from '../../services/auth.service';
+import { theme } from '../../theme';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -85,19 +86,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
   email: {
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   infoCard: {
     backgroundColor: '#F0F9FF',
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 18,
     textAlign: 'center',
   },

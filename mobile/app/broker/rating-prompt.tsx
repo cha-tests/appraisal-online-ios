@@ -6,6 +6,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function RatingPrompt() {
   const router = useRouter();
@@ -130,13 +131,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   ratingPrompt: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -167,11 +168,11 @@ const styles = StyleSheet.create({
     color: '#FBBF24',
   },
   starEmpty: {
-    color: '#D1D5DB',
+    color: theme.color.track,
   },
   ratingLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -181,7 +182,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   infoItem: {
@@ -191,13 +192,13 @@ const styles = StyleSheet.create({
   },
   infoBullet: {
     fontSize: 16,
-    color: '#10B981',
+    color: theme.color.success,
     marginRight: 10,
     marginTop: -2,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     flex: 1,
     lineHeight: 20,
   },
@@ -207,7 +208,7 @@ const styles = StyleSheet.create({
   skipNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: 12,
   },
 });

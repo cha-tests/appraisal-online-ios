@@ -17,6 +17,7 @@ import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { disclaimerService } from '../../services/disclaimer.service';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { CLIENT_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_VERSION } from '../../config/disclaimers';
+import { theme } from '../../theme';
 
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
 function YesNoRow({
@@ -390,7 +391,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -399,12 +400,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 24,
   },
   optInCard: {
@@ -423,7 +424,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#10B981',
+    backgroundColor: theme.color.success,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -431,12 +432,12 @@ const styles = StyleSheet.create({
   connectedIcon: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
   },
   connectedTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 10,
     textAlign: 'center',
   },
@@ -449,7 +450,7 @@ const styles = StyleSheet.create({
   },
   connectedHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
     textAlign: 'center',
   },
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flex: 1,
   },
   phoneSection: {
@@ -470,12 +471,12 @@ const styles = StyleSheet.create({
   phoneLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   phoneHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 8,
     lineHeight: 18,
   },
@@ -488,7 +489,7 @@ const styles = StyleSheet.create({
   sharePhoneLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flex: 1,
     marginRight: 12,
   },
@@ -501,7 +502,7 @@ const styles = StyleSheet.create({
   qualifyLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 10,
   },
   yesNoRow: {
@@ -513,42 +514,42 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   yesNoOptionActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   yesNoText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   yesNoTextActive: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   titleLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 10,
   },
   titleUploadBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     minHeight: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
     overflow: 'hidden',
   },
   titleUploadPrompt: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
@@ -558,14 +559,14 @@ const styles = StyleSheet.create({
   },
   titleHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: 8,
     lineHeight: 17,
   },
   benefitsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   benefitItem: {
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
   },
   benefitText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     flex: 1,
   },
@@ -591,10 +592,10 @@ const styles = StyleSheet.create({
   skipText: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
   },

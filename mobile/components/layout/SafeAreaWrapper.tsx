@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from '../../theme';
 
 interface SafeAreaWrapperProps {
   children: React.ReactNode;
@@ -57,7 +58,7 @@ export function SafeAreaWrapper({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.bg,
   },
   scrollContent: {
     flexGrow: 1,

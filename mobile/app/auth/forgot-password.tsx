@@ -7,6 +7,7 @@ import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { Card } from '../../components/ui/Card';
 import { authService } from '../../services/auth.service';
+import { theme } from '../../theme';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -260,12 +261,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   form: {
     marginBottom: 24,
@@ -285,7 +286,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
   },
   footer: {
@@ -296,6 +297,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
 });

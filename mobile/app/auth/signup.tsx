@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   typeSelection: {
     gap: 12,
@@ -579,12 +579,12 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   typeCardSelected: {
-    borderColor: '#2563EB',
+    borderColor: theme.color.accent,
     borderWidth: 2,
   },
   typeDescription: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   },
   phoneHelper: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 6,
   },
   termsCard: {
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   termsLink: {
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
@@ -633,7 +633,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   // --- Gate ---
   gateAddress: {

@@ -5,6 +5,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function HowWeMakeMoney() {
   const router = useRouter();
@@ -186,13 +187,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 16,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   missionCard: {
     backgroundColor: '#F0FDF4',
@@ -206,14 +207,14 @@ const styles = StyleSheet.create({
   },
   missionText: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
     textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
     marginTop: 24,
   },
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
   flowNumberText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   flowContent: {
     flex: 1,
@@ -243,39 +244,39 @@ const styles = StyleSheet.create({
   flowTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   flowDesc: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   tierCard: {
     marginBottom: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
+    borderLeftColor: theme.color.accent,
   },
   tierBadge: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 8,
   },
   tierPrice: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   tierPeriod: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
   },
   tierFeature: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   refundCard: {
@@ -297,7 +298,7 @@ const styles = StyleSheet.create({
   },
   refundText: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
     textAlign: 'center',
   },
@@ -308,19 +309,19 @@ const styles = StyleSheet.create({
   },
   dontIcon: {
     fontSize: 20,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginRight: 12,
     marginTop: 2,
   },
   dontTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   dontDesc: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   sustainabilityCard: {
@@ -332,12 +333,12 @@ const styles = StyleSheet.create({
   sustainabilityTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   sustainabilityText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {
