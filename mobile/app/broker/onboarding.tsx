@@ -13,6 +13,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { disclaimerService } from '../../services/disclaimer.service';
+import { checkPhotoQuality } from '../../services/photoQuality.service';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
 import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
@@ -138,8 +139,19 @@ export default function BrokerOnboarding() {
         : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
 
     if (!result.canceled && result.assets?.[0]) {
-      if (kind === 'id') setKycIdUri(result.assets[0].uri);
-      else setKycSelfieUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+
+      // Catch an obviously blurry or glare-washed photo right away, rather
+      // than making the broker wait for a human reviewer to reject it —
+      // see photoQuality.service.ts for what this can and can't catch.
+      const quality = await checkPhotoQuality(uri);
+      if (!quality.ok) {
+        Alert.alert('Retake Photo', quality.message || 'Please retake this photo.');
+        return;
+      }
+
+      if (kind === 'id') setKycIdUri(uri);
+      else setKycSelfieUri(uri);
       setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
     }
   };

@@ -122,11 +122,40 @@ from the code:
   count (starts at 0) and no default Condition (a required selection, not
   a "Good" default).
 - **Signup forms (broker + consumer)** are ordered email → password →
-  confirm password → first name → last name → phone.
+  confirm password → first name → last name → suffix (optional) → phone.
+  Suffix (`users.suffix`, migration 023) is plain free text (Jr., Sr., III,
+  etc.), not a fixed dropdown.
 - **Broker onboarding has a real Review step** before final submission.
 - **The generated PDF report** mirrors the property-details field order
   above, and displays floor/lot area in the property's own market unit
   (sq m or sq ft) instead of a fixed "Square Feet" label.
+- **Admin KYC review panel: `web/app/admin`.** Approving/rejecting a
+  broker's uploaded ID + selfie used to only be possible by running
+  `scripts/review-kyc.ts` by hand with the service-role key — there's now
+  an in-app page for it. Gated by `users.is_admin` (migration 024,
+  defaults `false` for everyone — there's no self-service way to become an
+  admin by design; grant it directly in Supabase's SQL editor). Enforced
+  by RLS (new admin-scoped SELECT/UPDATE policies on `broker_profiles` and
+  a SELECT policy on the private `kyc-documents` storage bucket), not by
+  anything in the page itself — the page is just a client straight
+  against Supabase, matching how the rest of the web app already works, so
+  the real access boundary is the database, same as everywhere else in
+  this schema.
+- **KYC photo quality check (`mobile/services/photoQuality.service.ts`)**
+  runs on-device right after the ID photo or selfie is captured in broker
+  onboarding, and rejects an obviously blurry or glare-washed photo before
+  it's ever uploaded. It's a pixel-brightness heuristic (variance of the
+  Laplacian for blur; bright-and-locally-flat pixel area for glare), not a
+  trained classifier — the blur check is solid (verified against test
+  images, huge margin between sharp and blurry), but the glare check
+  can't fully tell a reflection apart from a legitimately light-colored
+  ID background or a plain white design element, which can score
+  similarly; its threshold is set conservatively (only flags a large,
+  obvious blowout) to avoid blocking real signups over a false alarm.
+  This is a pre-filter for obviously bad photos, not the actual
+  gatekeeper — the admin review panel above still makes the final call on
+  anything it lets through. Expect both thresholds to need retuning once
+  real broker submissions start coming in.
 
 ## Companion documents and precedence
 

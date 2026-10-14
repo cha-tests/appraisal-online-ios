@@ -264,6 +264,7 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [suffix, setSuffix] = useState('');
   // Consumer-only — see the phone comment on the User type. Brokers already
   // provide a phone number during broker/onboarding.tsx, so asking again
   // here would be a duplicate prompt for that account type.
@@ -352,6 +353,7 @@ export default function SignupScreen() {
       const result = await authService.signup(email, password, {
         first_name: firstName,
         last_name: lastName,
+        suffix: suffix.trim() || undefined,
         user_type: userType!,
         // Brokers provide their phone during onboarding instead — see the
         // field's own comment above for why it's consumer-only here.
@@ -456,7 +458,7 @@ export default function SignupScreen() {
       </View>
 
       {/* Form — email, password, confirm password, first name, last name,
-          phone (in that order). */}
+          suffix (optional), phone (in that order). */}
       <View style={styles.form}>
         <TextInput
           placeholder="Email"
@@ -503,6 +505,14 @@ export default function SignupScreen() {
           onChangeText={setLastName}
           editable={!loading}
           error={errors.lastName}
+          style={{ marginTop: 12 }}
+        />
+
+        <TextInput
+          placeholder="Suffix (optional) — Jr., Sr., III"
+          value={suffix}
+          onChangeText={setSuffix}
+          editable={!loading}
           style={{ marginTop: 12 }}
         />
 

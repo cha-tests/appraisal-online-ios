@@ -43,7 +43,7 @@ export async function signIn(email: string, password: string) {
 export async function signUp(
   email: string,
   password: string,
-  metadata?: { first_name?: string; last_name?: string; user_type?: string }
+  metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string }
 ) {
   try {
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -53,6 +53,7 @@ export async function signUp(
         data: {
           first_name: metadata?.first_name || '',
           last_name: metadata?.last_name || '',
+          suffix: metadata?.suffix || '',
           user_type: metadata?.user_type || 'consumer',
         },
       },
@@ -69,6 +70,7 @@ export async function signUp(
         user_type: metadata?.user_type || 'consumer',
         first_name: metadata?.first_name || '',
         last_name: metadata?.last_name || '',
+        suffix: metadata?.suffix || null,
       })
       .select()
       .single();
@@ -144,5 +146,92 @@ export async function signOut() {
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+/** Whether the signed-in user is flagged is_admin — gates web/app/admin. */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return false;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+
+    if (error) throw error;
+    return !!data?.is_admin;
+  } catch {
+    return false;
+  }
+}
+
+export interface PendingKycRow {
+  user_id: string;
+  company_name: string;
+  role: string;
+  license_number: string | null;
+  kyc_id_url: string | null;
+  kyc_selfie_url: string | null;
+  kyc_submitted_at: string;
+  users: { email: string; first_name: string; last_name: string; suffix: string | null } | null;
+}
+
+/**
+ * Brokers/salespersons awaiting a KYC decision, same query
+ * scripts/review-kyc.ts uses — now reachable from the admin RLS policies
+ * (migration 024) instead of only via the service-role key.
+ */
+export async function getPendingKyc(): Promise<{ success: boolean; rows?: PendingKycRow[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('broker_profiles')
+      .select(
+        'user_id, company_name, role, license_number, kyc_id_url, kyc_selfie_url, kyc_submitted_at, users(email, first_name, last_name, suffix)'
+      )
+      .eq('kyc_status', 'pending')
+      .order('kyc_submitted_at', { ascending: true });
+
+    if (error) throw error;
+    return { success: true, rows: (data || []) as unknown as PendingKycRow[] };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to load pending KYC submissions' };
+  }
+}
+
+const KYC_SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes — just long enough to review
+
+/** Signed URL for a private kyc-documents object (ID photo or selfie). */
+export async function getKycSignedUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from('kyc-documents')
+    .createSignedUrl(path, KYC_SIGNED_URL_TTL_SECONDS);
+
+  if (error) return null;
+  return data?.signedUrl || null;
+}
+
+/** Approve or reject a broker's KYC submission (admin only — RLS-enforced). */
+export async function decideKyc(
+  userId: string,
+  decision: 'approved' | 'rejected',
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('broker_profiles')
+      .update({
+        kyc_status: decision,
+        kyc_reviewed_at: new Date().toISOString(),
+        kyc_rejection_reason: decision === 'rejected' ? reason || null : null,
+      })
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || `Failed to mark as ${decision}` };
   }
 }

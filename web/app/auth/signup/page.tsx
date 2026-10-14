@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [userType, setUserType] = useState<UserType>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [suffix, setSuffix] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -65,6 +66,7 @@ export default function SignupPage() {
       const result = await signUp(email, password, {
         first_name: firstName,
         last_name: lastName,
+        suffix: suffix.trim() || undefined,
         user_type: userType || 'consumer',
       });
 
@@ -251,6 +253,21 @@ export default function SignupPage() {
             {errors.lastName && (
               <p className="text-red-600 text-sm mt-1">{errors.lastName}</p>
             )}
+          </div>
+
+          {/* Suffix — optional, same field for broker and consumer signup. */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Suffix <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={suffix}
+              onChange={(e) => setSuffix(e.target.value)}
+              placeholder="Jr., Sr., III"
+              disabled={loading}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50"
+            />
           </div>
 
           {/* Terms — a real checkbox, not just informational text: explicit,

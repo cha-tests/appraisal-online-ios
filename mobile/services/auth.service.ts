@@ -6,7 +6,7 @@ export const authService = {
   async signup(
     email: string,
     password: string,
-    metadata?: { first_name?: string; last_name?: string; user_type?: string; phone?: string }
+    metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
   ) {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -16,6 +16,7 @@ export const authService = {
           data: {
             first_name: metadata?.first_name || '',
             last_name: metadata?.last_name || '',
+            suffix: metadata?.suffix || '',
             user_type: metadata?.user_type || 'consumer',
             // Captured once here so a consumer never has to re-enter it when
             // opting in for professional contact later — see the phone
@@ -41,6 +42,7 @@ export const authService = {
           user_type: metadata?.user_type || 'consumer',
           first_name: metadata?.first_name || undefined,
           last_name: metadata?.last_name || undefined,
+          suffix: metadata?.suffix || undefined,
           phone: metadata?.phone || undefined,
           created_at: authData.user.created_at,
           updated_at: authData.user.updated_at || authData.user.created_at,

@@ -8,6 +8,7 @@ export interface User {
   user_type: UserType;
   first_name?: string;
   last_name?: string;
+  suffix?: string;
   // Collected at signup so it's on file once, then shared with a broker
   // automatically only if/when the consumer opts in for professional
   // contact on a report (see broker-optins.tsx) — never shared otherwise.
