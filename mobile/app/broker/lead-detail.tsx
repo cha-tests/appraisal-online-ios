@@ -52,24 +52,34 @@ export default function LeadDetail() {
 
         setLoading(true);
 
-        // Fetch lead with property and report details. report:report_id(...)
-        // is the correct join (leads.report_id -> reports.id) for every
-        // report field this screen needs — comparables/estimated_value
-        // included, rather than the invalid property:property_id(*,
-        // report:id(...)) nested embed this used to try (`id` isn't a real
-        // table/relationship, so that embed always failed the whole query).
-        const { data, error } = await supabase
+        // Two separate queries rather than one compound embed. leads,
+        // properties and reports all reference each other (reports and
+        // leads both have their own property_id), so asking PostgREST to
+        // embed both property and report off leads in a single request
+        // makes it unable to tell which path to "properties" is meant
+        // (PGRST201, "more than one relationship was found") — confirmed
+        // live, this isn't just a theoretical ambiguity. Fetching report
+        // fields as their own query sidesteps that entirely.
+        const { data: leadData, error: leadError } = await supabase
           .from('leads')
-          .select(
-            '*, property:property_id(*), report:report_id(comparables, estimated_value, title_url, is_owner, intends_to_sell)'
-          )
+          .select('*, property:property_id(*)')
           .eq('id', leadId)
           .single();
 
-        if (error) throw error;
-        if (data) {
-          setLead(data as any);
+        if (leadError) throw leadError;
+
+        let report: LeadDetail['report'];
+        if (leadData?.report_id) {
+          const { data: reportData, error: reportError } = await supabase
+            .from('reports')
+            .select('comparables, estimated_value, title_url, is_owner, intends_to_sell')
+            .eq('id', leadData.report_id)
+            .single();
+          if (reportError) throw reportError;
+          report = reportData;
         }
+
+        setLead({ ...leadData, report } as any);
       } catch (err) {
         console.error('Error loading lead:', err);
         Alert.alert('Error', 'Failed to load lead details');
