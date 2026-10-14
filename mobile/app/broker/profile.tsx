@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
@@ -25,8 +26,10 @@ export default function BrokerProfileScreen() {
     bio: '',
     phone: '',
     website: '',
+    profile_photo_url: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -44,6 +47,7 @@ export default function BrokerProfileScreen() {
             bio: brokerProfile.bio || '',
             phone: brokerProfile.phone || '',
             website: brokerProfile.website || '',
+            profile_photo_url: brokerProfile.profile_photo_url || '',
           });
         }
       } catch (err) {
@@ -87,6 +91,44 @@ export default function BrokerProfileScreen() {
       Alert.alert('Error', 'Failed to save profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Uploads immediately on pick rather than staging it for "Save Changes"
+  // — the storage round-trip already has its own success/failure feedback,
+  // and deferring it would mean silently losing the picked photo if the
+  // user backs out before saving the rest of the form.
+  const pickProfilePhoto = async () => {
+    if (!user?.id) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Photo library access is needed to add a profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    try {
+      setUploadingPhoto(true);
+      const uploaded = await brokerService.uploadProfilePhoto(user.id, result.assets[0].uri);
+      if (!uploaded.success || !uploaded.url) {
+        Alert.alert('Error', uploaded.error || 'Failed to upload photo');
+        return;
+      }
+
+      // Saved right away, independent of "Save Changes" below — otherwise
+      // the file would be uploaded but its link never persisted if the
+      // broker backs out before saving the rest of the form.
+      const { profile: updated } = await brokerService.updateProfile(user.id, {
+        profile_photo_url: uploaded.url,
+      } as any);
+
+      setFormData((prev) => ({ ...prev, profile_photo_url: uploaded.url! }));
+      if (updated) setProfile(updated);
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -146,16 +188,24 @@ export default function BrokerProfileScreen() {
       {/* Profile Photo Section */}
       <Card variant="default" style={styles.photoCard}>
         <View style={styles.photoContainer}>
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoIcon}>📸</Text>
-          </View>
+          {formData.profile_photo_url ? (
+            <Image
+              source={{ uri: formData.profile_photo_url }}
+              style={styles.photoPlaceholder}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.photoPlaceholder}>
+              <Text style={styles.photoIcon}>📸</Text>
+            </View>
+          )}
           <Button
-            title="Add Photo"
+            title={formData.profile_photo_url ? 'Change Photo' : 'Add Photo'}
             variant="outline"
             size="small"
-            onPress={() => {
-              Alert.alert('Feature', 'Photo upload coming soon');
-            }}
+            onPress={pickProfilePhoto}
+            loading={uploadingPhoto}
+            disabled={uploadingPhoto}
           />
         </View>
         <Text style={styles.photoHelper}>
@@ -213,9 +263,17 @@ export default function BrokerProfileScreen() {
 
           <Card variant="elevated" style={styles.previewCard}>
             <View style={styles.previewHeader}>
-              <View style={styles.previewPhotoContainer}>
-                <Text style={styles.previewPhotoIcon}>📸</Text>
-              </View>
+              {formData.profile_photo_url ? (
+                <Image
+                  source={{ uri: formData.profile_photo_url }}
+                  style={styles.previewPhotoContainer}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.previewPhotoContainer}>
+                  <Text style={styles.previewPhotoIcon}>📸</Text>
+                </View>
+              )}
               <View style={styles.previewInfo}>
                 <Text style={styles.previewName}>{formData.company_name || 'Company Name'}</Text>
                 <Text style={styles.previewBadge}>{profile.tier}</Text>

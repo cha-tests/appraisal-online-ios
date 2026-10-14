@@ -75,6 +75,41 @@ export const brokerService = {
   },
 
   /**
+   * Uploads a broker's profile photo to the public 'broker-photos' bucket
+   * at <user_id>/photo.jpg (migration 025) — unlike KYC documents, this is
+   * meant to be visible to consumers, so it returns a public URL rather
+   * than a storage path. `upsert: true` so re-uploading replaces cleanly.
+   */
+  async uploadProfilePhoto(
+    userId: string,
+    fileUri: string
+  ): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      const response = await fetch(fileUri);
+      const blob = await response.blob();
+      const path = `${userId}/photo.jpg`;
+
+      const { error } = await supabase.storage.from('broker-photos').upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage.from('broker-photos').getPublicUrl(path);
+      // Cache-bust so the new photo shows immediately — the path never
+      // changes on re-upload, so without this a cached copy of the old
+      // photo could keep showing under the same URL.
+      return { success: true, url: `${data.publicUrl}?t=${Date.now()}` };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload photo',
+      };
+    }
+  },
+
+  /**
    * Records that KYC documents were submitted and resets status to
    * 'pending' for admin review (see scripts/review-kyc.ts). Re-submitting
    * (e.g. after a rejection) is safe to call again — it just re-queues it.
