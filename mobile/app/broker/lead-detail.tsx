@@ -10,17 +10,20 @@ import { formatCurrency } from '../../config/marketConfig';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 
 interface LeadDetail extends Lead {
-  property_comparables?: any[];
   consumer_phone?: string;
-  // Populated by loadLeadDetail's join below (property:property_id(*, ...)).
+  // Populated by loadLeadDetail's join below (property:property_id(*)).
   property?: {
-    comparables?: any[];
     address_components?: { country_code?: string };
   };
-  // Clause 5/6 of the Sep 1 spec — only ever set if the consumer opted in
-  // and answered/attached these. A self-reported flag, never verified by
-  // the platform itself (see BROKER_DISCLAIMER_TEXT).
+  // comparables/estimated_value live on reports, not properties — fetched
+  // alongside title_url/is_owner/intends_to_sell in the same report:report_id
+  // embed below. Clause 5/6 of the Sep 1 spec — is_owner/intends_to_sell are
+  // only ever set if the consumer opted in and answered these. A
+  // self-reported flag, never verified by the platform itself (see
+  // BROKER_DISCLAIMER_TEXT).
   report?: {
+    comparables?: any[];
+    estimated_value?: number;
     title_url?: string;
     is_owner?: boolean;
     intends_to_sell?: boolean;
@@ -50,15 +53,15 @@ export default function LeadDetail() {
         setLoading(true);
 
         // Fetch lead with property and report details. report:report_id(...)
-        // is the correct join (leads.report_id -> reports.id) for the
-        // title/ownership fields — kept separate from the existing
-        // property:property_id(*, report:id(...)) embed above, which reads
-        // comparables/estimated_value through a different (pre-existing)
-        // path this change doesn't touch.
+        // is the correct join (leads.report_id -> reports.id) for every
+        // report field this screen needs — comparables/estimated_value
+        // included, rather than the invalid property:property_id(*,
+        // report:id(...)) nested embed this used to try (`id` isn't a real
+        // table/relationship, so that embed always failed the whole query).
         const { data, error } = await supabase
           .from('leads')
           .select(
-            '*, property:property_id(*, report:id(comparables, estimated_value)), report:report_id(title_url, is_owner, intends_to_sell)'
+            '*, property:property_id(*), report:report_id(comparables, estimated_value, title_url, is_owner, intends_to_sell)'
           )
           .eq('id', leadId)
           .single();
@@ -271,10 +274,10 @@ export default function LeadDetail() {
       </View>
 
       {/* Comparable Sales (if available) */}
-      {lead.property?.comparables && lead.property.comparables.length > 0 && (
+      {lead.report?.comparables && lead.report.comparables.length > 0 && (
         <>
           <Text style={styles.sectionTitle}>Comparable Sales</Text>
-          {lead.property.comparables.map((comp: any, index: number) => (
+          {lead.report.comparables.map((comp: any, index: number) => (
             <Card key={index} variant="default" style={styles.comparableCard}>
               <Text style={styles.comparableAddress}>{comp.address}</Text>
               <View style={styles.comparableDetails}>
