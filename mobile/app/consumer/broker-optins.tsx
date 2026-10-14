@@ -60,10 +60,15 @@ export default function BrokerOptins() {
   // isn't required on that path. See config/disclaimers.ts for the text.
   const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
-  // Optional — Clause 5 of the Sep 1 spec doesn't require a phone number to
-  // connect with a broker (email is always on file). Pre-filled from
-  // savedPhone when it exists, blank for accounts that predate phone-at-signup.
+  // Pre-filled from savedPhone when it exists, blank for accounts that
+  // predate phone-at-signup. Whether this actually gets sent to a broker is
+  // gated by sharePhone below, not by whether this field has a value —
+  // email is always on file either way (Clause 5 of the Sep 1 spec).
   const [phone, setPhone] = useState(savedPhone || '');
+  // Never pre-checked — sharing a phone number with a broker is its own
+  // consent decision, separate from the broker-contact opt-in itself (see
+  // CLAUDE.md's "Consent" rule).
+  const [sharePhone, setSharePhone] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -178,8 +183,9 @@ export default function BrokerOptins() {
             report_id: report.id,
           });
         }
-        if (phone) {
-          // Optional — only validated when they've actually entered something.
+        if (sharePhone) {
+          // Only validated when the consumer has actually turned sharing on
+          // — the field itself always holds whatever's on file, shared or not.
           const digitCount = phone.replace(/\D/g, '').length;
           if (digitCount < 7 || digitCount > 15) {
             setError('Please enter a valid mobile number');
@@ -258,18 +264,29 @@ export default function BrokerOptins() {
       </Card>
 
       {/* Editable so a wrong number or country code (from signup) can be
-          corrected here — optional, so leaving it blank doesn't block
-          continuing (see handleContinue). */}
+          corrected here — but whether it's actually sent is its own
+          decision via the toggle below, never implied by just having a
+          number on file (see CLAUDE.md's "Consent" rule and handleContinue). */}
       {optedIn && (
         <View style={styles.phoneSection}>
-          <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
+          <Text style={styles.phoneLabel}>Phone Number</Text>
           <PhoneInput
             value={phone}
             onChangeText={setPhone}
             error={error && error.includes('mobile number') ? error : undefined}
           />
+
+          <View style={styles.sharePhoneRow}>
+            <Text style={styles.sharePhoneLabel}>
+              Let a professional call or text me at this number
+            </Text>
+            <Toggle value={sharePhone} onToggle={setSharePhone} />
+          </View>
+
           <Text style={styles.phoneHelper}>
-            We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
+            {sharePhone
+              ? 'This number will be shared with the professional who contacts you.'
+              : "This stays private — they'll reach out by email unless you turn this on."}
           </Text>
         </View>
       )}
@@ -332,7 +349,7 @@ export default function BrokerOptins() {
         <View style={styles.benefitItem}>
           <Text style={styles.benefitBullet}>📞</Text>
           <Text style={styles.benefitText}>
-            They'll reach out via your preferred method (or email if no phone provided)
+            They'll reach out by email, or by phone too if you choose to share your number
           </Text>
         </View>
         <View style={styles.benefitItem}>
@@ -461,6 +478,19 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     lineHeight: 18,
+  },
+  sharePhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  sharePhoneLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 12,
   },
   qualifySection: {
     marginBottom: 24,
