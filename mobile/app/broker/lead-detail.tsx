@@ -209,7 +209,7 @@ export default function LeadDetail() {
           <Text style={styles.infoLabel}>Email</Text>
           <Text style={styles.infoValue}>{lead.consumer_email}</Text>
         </View>
-        {lead.consumer_phone && (
+        {!!lead.consumer_phone && (
           <>
             <View style={styles.divider} />
             <View style={styles.infoRow}>

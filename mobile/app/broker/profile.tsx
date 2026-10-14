@@ -280,7 +280,7 @@ export default function BrokerProfileScreen() {
               </View>
             </View>
 
-            {formData.bio && (
+            {!!formData.bio && (
               <>
                 <View style={styles.previewDivider} />
                 <Text style={styles.previewBio}>{formData.bio}</Text>
@@ -290,10 +290,10 @@ export default function BrokerProfileScreen() {
             <View style={styles.previewDivider} />
 
             <View style={styles.previewContact}>
-              {formData.phone && (
+              {!!formData.phone && (
                 <Text style={styles.previewContactItem}>📱 {formData.phone}</Text>
               )}
-              {formData.website && (
+              {!!formData.website && (
                 <Text style={styles.previewContactItem}>🌐 {formData.website}</Text>
               )}
             </View>
