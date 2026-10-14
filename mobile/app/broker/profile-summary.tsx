@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
-import { IconChevronRight } from '../../components/ui/icons';
+import { IconChevronRight, IconPencil } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { BrokerProfile } from '../../types';
@@ -66,27 +66,29 @@ export default function BrokerProfileSummary() {
       <Text style={styles.title}>Profile</Text>
 
       <TouchableOpacity style={styles.identityCard} onPress={goToEdit} activeOpacity={0.7}>
-        {profile?.profile_photo_url ? (
-          <Image
-            source={{ uri: profile.profile_photo_url }}
-            style={styles.avatar}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.avatar}>
-            <Text style={styles.avatarIcon}>📸</Text>
+        <View style={styles.avatarWrapper}>
+          {profile?.profile_photo_url ? (
+            <Image
+              source={{ uri: profile.profile_photo_url }}
+              style={styles.avatar}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarIcon}>📸</Text>
+            </View>
+          )}
+          <View style={styles.avatarEditBadge}>
+            <IconPencil size={12} color={theme.color.onAccent} strokeWidth={2.5} />
           </View>
-        )}
+        </View>
         <View style={styles.identityText}>
           <Text style={styles.identityName} numberOfLines={1}>
             {profile?.company_name || 'Add your company name'}
           </Text>
           {!!profile?.tier && <Text style={styles.identityBadge}>{profile.tier}</Text>}
         </View>
-        <IconChevronRight size={18} color={theme.color.track} />
       </TouchableOpacity>
-
-      {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
 
       <View style={styles.list}>
         <ProfileRow
@@ -101,6 +103,7 @@ export default function BrokerProfileSummary() {
         />
         <ProfileRow label="Phone" value={profile?.phone || 'Not set'} onPress={goToEdit} />
         <ProfileRow label="Website" value={profile?.website || 'Not set'} onPress={goToEdit} />
+        <ProfileRow label="Bio" value={profile?.bio || 'Not set'} onPress={goToEdit} />
       </View>
     </SafeAreaWrapper>
   );
@@ -123,6 +126,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  avatarWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
   avatar: {
     width: 56,
     height: 56,
@@ -130,10 +137,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarIcon: {
     fontSize: 28,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.color.text,
+    borderWidth: 2,
+    borderColor: theme.color.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   identityText: {
     flex: 1,
@@ -153,12 +172,6 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     alignSelf: 'flex-start',
-  },
-  bio: {
-    fontSize: 14,
-    color: theme.color.textMuted,
-    lineHeight: 20,
-    marginBottom: 24,
   },
   list: {
     marginTop: 8,
