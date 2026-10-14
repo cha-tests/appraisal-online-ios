@@ -11,7 +11,6 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
@@ -142,10 +141,9 @@ export default function ConsumerAccount() {
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Your Account</Text>
         <Text style={styles.email}>{user?.email}</Text>
       </View>

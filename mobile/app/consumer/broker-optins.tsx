@@ -6,7 +6,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Toggle } from '../../components/ui/Toggle';
@@ -134,9 +133,7 @@ export default function BrokerOptins() {
   // see account.tsx settings.
   if (report.broker_contact_opted_in) {
     return (
-      <SafeAreaWrapper scrollable>
-        <BackButton onPress={() => router.push('/consumer/report-view')} />
-
+      <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/report-view')}>
         {/* Leads with the confirmation itself rather than a "Want
             professional help?" header — that question is already answered
             at this point, so restating it above the answer just buries the
@@ -244,8 +241,7 @@ export default function BrokerOptins() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.push('/consumer/report-view')} />
+    <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/report-view')}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Want professional help?</Text>

@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { BackButton } from '../../components/ui/BackButton';
 import { CurrencyValue } from '../../components/ui/CurrencyValue';
 import { useReportStore } from '../../stores/report.store';
 import { pdfService } from '../../services/pdf.service';
@@ -89,9 +88,7 @@ export default function ReportView() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.push('/consumer/home')} />
-
+    <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/home')}>
       {/* Shown when Gemini failed and report.service.ts silently fell back to
           a generic placeholder valuation (see generateMockValuation) — that
           fallback exists so a real-API hiccup doesn't strand the user

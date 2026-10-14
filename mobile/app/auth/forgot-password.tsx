@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { Card } from '../../components/ui/Card';
 import { authService } from '../../services/auth.service';
@@ -119,10 +118,9 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>
           {step === 'email' && 'Enter your email address'}

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { theme } from '../../theme';
 
@@ -11,10 +10,9 @@ export default function HowWeMakeMoney() {
   const router = useRouter();
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>How We Make Money</Text>
         <Text style={styles.subtitle}>
           A transparent look at our business model

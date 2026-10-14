@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { useReportStore } from '../../stores/report.store';
 import { PropertyDetailsFormData } from '../../types';
@@ -289,8 +288,7 @@ export default function PropertyDetails() {
       style={{ flex: 1 }}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
-      <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.back()} />
+      <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       <ProgressBar progress={66} label="2 of 3" />
 
       <View style={styles.header}>

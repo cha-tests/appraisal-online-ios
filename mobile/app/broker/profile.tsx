@@ -6,7 +6,6 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
@@ -178,10 +177,9 @@ export default function BrokerProfileScreen() {
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} style={{ marginBottom: 0, marginRight: 16 }} />
         <Text style={styles.headerTitle}>Edit Profile</Text>
       </View>
 

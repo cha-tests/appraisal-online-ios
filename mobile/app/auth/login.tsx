@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { authService } from '../../services/auth.service';
@@ -95,8 +94,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.replace('/welcome')} />
+    <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Welcome Back</Text>

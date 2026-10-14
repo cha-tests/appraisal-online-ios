@@ -4,7 +4,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Card } from '../../components/ui/Card';
@@ -387,9 +386,8 @@ export default function SignupScreen() {
 
   if (!userType) {
     return (
-      <SafeAreaWrapper scrollable>
+      <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
         <View style={styles.header}>
-          <BackButton onPress={() => router.back()} />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Choose your account type</Text>
         </View>
@@ -436,10 +434,9 @@ export default function SignupScreen() {
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.replace('/welcome')} />
         <Text style={styles.title}>Create Your Account</Text>
         <Text style={styles.subtitle}>
           {userType === 'consumer' ? 'Homeowner' : 'Real Estate Professional'} Account

@@ -11,7 +11,6 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { TextInput } from '../../components/ui/TextInput';
@@ -152,10 +151,9 @@ export default function BrokerSettings() {
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <BackButton onPress={() => router.back()} />
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Manage your notification preferences</Text>
       </View>
