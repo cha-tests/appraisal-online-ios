@@ -130,12 +130,10 @@ export default function BrokerProfileSummary() {
           </TouchableOpacity>
         </View>
         <View style={styles.identityText}>
-          {!!fullName && (
-            <Text style={styles.identityFullName} numberOfLines={1}>
-              {fullName}
-            </Text>
-          )}
           <Text style={styles.identityName} numberOfLines={1}>
+            {fullName || 'Add your name'}
+          </Text>
+          <Text style={styles.identityCompany} numberOfLines={1}>
             {profile?.company_name || 'Add your company name'}
           </Text>
           {!!profile?.tier && <Text style={styles.identityBadge}>{profile.tier}</Text>}
@@ -143,6 +141,11 @@ export default function BrokerProfileSummary() {
       </View>
 
       <View style={styles.list}>
+        <ProfileRow
+          label="Full Name"
+          value={fullName || 'Not set'}
+          onPress={() => editField('full_name')}
+        />
         <ProfileRow
           label="Company Name"
           value={profile?.company_name || 'Not set'}
@@ -221,16 +224,16 @@ const styles = StyleSheet.create({
   identityText: {
     flex: 1,
   },
-  identityFullName: {
+  identityName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.color.text,
+    marginBottom: 2,
+  },
+  identityCompany: {
     fontSize: 14,
     fontWeight: '600',
     color: theme.color.textMuted,
-    marginBottom: 2,
-  },
-  identityName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.color.text,
     marginBottom: 4,
   },
   identityBadge: {

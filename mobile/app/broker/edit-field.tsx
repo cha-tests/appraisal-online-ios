@@ -7,10 +7,12 @@ import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
+import { authService } from '../../services/auth.service';
 import { BrokerProfile } from '../../types';
 import { theme } from '../../theme';
 
-type FieldKey = 'company_name' | 'license_number' | 'phone' | 'website' | 'bio';
+type ProfileFieldKey = 'company_name' | 'license_number' | 'phone' | 'website' | 'bio';
+type FieldKey = ProfileFieldKey | 'full_name';
 
 interface FieldConfig {
   title: string;
@@ -21,6 +23,12 @@ interface FieldConfig {
 }
 
 const FIELD_CONFIG: Record<FieldKey, FieldConfig> = {
+  full_name: {
+    title: 'Full Name',
+    label: 'Full Name',
+    placeholder: '',
+    required: true,
+  },
   company_name: {
     title: 'Company Name',
     label: 'Company Name',
@@ -51,27 +59,37 @@ const FIELD_CONFIG: Record<FieldKey, FieldConfig> = {
 };
 
 /** Single-field editor opened from a row on the profile summary screen —
- * saves just that one column instead of routing through the full edit form. */
+ * saves just that one column instead of routing through the full edit form.
+ * "full_name" is the one exception: it edits first/last/suffix on the
+ * account itself (the `users` table), not the broker_profiles row the other
+ * fields live on. */
 export default function EditProfileField() {
   const router = useRouter();
   const { field } = useLocalSearchParams<{ field: string }>();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const fieldKey: FieldKey = field && field in FIELD_CONFIG ? (field as FieldKey) : 'company_name';
   const config = FIELD_CONFIG[fieldKey];
+  const isFullName = fieldKey === 'full_name';
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isFullName);
   const [saving, setSaving] = useState(false);
   const [value, setValue] = useState('');
-  const [error, setError] = useState('');
+  const [firstName, setFirstName] = useState(user?.first_name || '');
+  const [lastName, setLastName] = useState(user?.last_name || '');
+  const [suffix, setSuffix] = useState(user?.suffix || '');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (isFullName) return;
+
     const load = async () => {
       try {
         if (!user?.id) return;
         setLoading(true);
         const { profile } = await brokerService.getProfile(user.id);
         if (profile) {
-          setValue((profile[fieldKey] as string | undefined) || '');
+          setValue((profile[fieldKey as ProfileFieldKey] as string | undefined) || '');
         }
       } finally {
         setLoading(false);
@@ -79,18 +97,18 @@ export default function EditProfileField() {
     };
 
     load();
-  }, [user?.id, fieldKey]);
+  }, [user?.id, fieldKey, isFullName]);
 
   const handleChange = (text: string) => {
     setValue(text);
-    if (error) setError('');
+    if (errors.value) setErrors({});
   };
 
-  const handleSave = async () => {
+  const handleSaveProfileField = async () => {
     if (!user?.id) return;
 
     if (config.required && !value.trim()) {
-      setError(`${config.label} is required`);
+      setErrors({ value: `${config.label} is required` });
       return;
     }
 
@@ -111,6 +129,35 @@ export default function EditProfileField() {
     }
   };
 
+  const handleSaveFullName = async () => {
+    if (!user?.id) return;
+
+    const newErrors: Record<string, string> = {};
+    if (!firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!lastName.trim()) newErrors.lastName = 'Last name is required';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
+    try {
+      setSaving(true);
+      const result = await authService.updateUserProfile(user.id, {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        suffix: suffix.trim() || undefined,
+      });
+
+      if (!result.success || !result.user) {
+        Alert.alert('Error', result.error?.message || 'Failed to save');
+        return;
+      }
+
+      setUser({ ...user, ...result.user });
+      router.back();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaWrapper onBackPress={() => router.back()}>
@@ -125,15 +172,40 @@ export default function EditProfileField() {
     <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       <Text style={styles.title}>{config.title}</Text>
 
-      {fieldKey === 'phone' ? (
-        <PhoneInput label={config.label} value={value} onChangeText={handleChange} error={error} />
+      {isFullName ? (
+        <>
+          <TextInput
+            label="First Name"
+            placeholder="First Name"
+            value={firstName}
+            onChangeText={setFirstName}
+            error={errors.firstName}
+          />
+          <TextInput
+            label="Last Name"
+            placeholder="Last Name"
+            value={lastName}
+            onChangeText={setLastName}
+            error={errors.lastName}
+            style={{ marginTop: 12 }}
+          />
+          <TextInput
+            label="Suffix (optional)"
+            placeholder="Jr., Sr., III"
+            value={suffix}
+            onChangeText={setSuffix}
+            style={{ marginTop: 12 }}
+          />
+        </>
+      ) : fieldKey === 'phone' ? (
+        <PhoneInput label={config.label} value={value} onChangeText={handleChange} error={errors.value} />
       ) : (
         <TextInput
           label={config.label}
           placeholder={config.placeholder}
           value={value}
           onChangeText={handleChange}
-          error={error}
+          error={errors.value}
           multiline={config.multiline}
           numberOfLines={config.multiline ? 4 : 1}
         />
@@ -142,7 +214,7 @@ export default function EditProfileField() {
       <Button
         title="Save"
         size="large"
-        onPress={handleSave}
+        onPress={isFullName ? handleSaveFullName : handleSaveProfileField}
         loading={saving}
         disabled={saving}
         style={{ marginTop: 8 }}
