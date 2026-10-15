@@ -193,7 +193,11 @@ export default function BrokerProfileSummary() {
           value={profile?.bio || 'Not set'}
           onPress={() => editField('bio')}
         />
-        <StaticRow label="Cities" value={cityNames.length ? cityNames.join(', ') : 'Not set'} />
+        <ProfileRow
+          label="Cities"
+          value={cityNames.length ? cityNames.join(', ') : 'Not set'}
+          onPress={() => router.push('/broker/edit-cities')}
+        />
       </View>
     </SafeAreaWrapper>
   );
