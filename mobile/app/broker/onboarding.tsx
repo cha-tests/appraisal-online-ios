@@ -105,8 +105,8 @@ export default function BrokerOnboarding() {
     if (stepNum === 1) {
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
     } else if (stepNum === 2) {
-      if (!kycIdUri) newErrors.kycId = 'Upload a photo of a valid ID';
-      if (!kycSelfieUri) newErrors.kycSelfie = 'Take a selfie to verify it matches your ID';
+      // ID + selfie are optional — a broker can finish signup without them.
+      // Only block on the disclaimer.
       if (!disclaimerAcknowledged) newErrors.disclaimer = 'Please acknowledge the notice before continuing';
     } else if (stepNum === 4) {
       if (formData.selectedCities.length === 0) {
@@ -243,22 +243,22 @@ export default function BrokerOnboarding() {
         throw new Error(citiesResult.error?.message || 'Failed to save selected cities');
       }
 
-      // KYC — uploads should already exist by the time step 2 was passed,
-      // but re-check defensively rather than trust component state alone.
-      if (!kycIdUri || !kycSelfieUri) {
-        throw new Error('Missing ID or selfie photo — please go back and add both');
-      }
-      const idUpload = await brokerService.uploadKycDocument(userId, kycIdUri, 'id');
-      if (!idUpload.success || !idUpload.path) {
-        throw new Error(idUpload.error || 'Failed to upload ID photo');
-      }
-      const selfieUpload = await brokerService.uploadKycDocument(userId, kycSelfieUri, 'selfie');
-      if (!selfieUpload.success || !selfieUpload.path) {
-        throw new Error(selfieUpload.error || 'Failed to upload selfie');
-      }
-      const kycResult = await brokerService.submitKyc(userId, idUpload.path, selfieUpload.path);
-      if (!kycResult.success) {
-        throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
+      // KYC is optional — only upload and submit when the broker actually
+      // provided both. A lone ID or lone selfie isn't meaningful for review,
+      // so it's treated the same as providing neither.
+      if (kycIdUri && kycSelfieUri) {
+        const idUpload = await brokerService.uploadKycDocument(userId, kycIdUri, 'id');
+        if (!idUpload.success || !idUpload.path) {
+          throw new Error(idUpload.error || 'Failed to upload ID photo');
+        }
+        const selfieUpload = await brokerService.uploadKycDocument(userId, kycSelfieUri, 'selfie');
+        if (!selfieUpload.success || !selfieUpload.path) {
+          throw new Error(selfieUpload.error || 'Failed to upload selfie');
+        }
+        const kycResult = await brokerService.submitKyc(userId, idUpload.path, selfieUpload.path);
+        if (!kycResult.success) {
+          throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
+        }
       }
 
       await disclaimerService.acceptDisclaimer(userId, 'broker', BROKER_DISCLAIMER_VERSION);
@@ -366,10 +366,10 @@ export default function BrokerOnboarding() {
         <View>
           <Text style={styles.sectionTitle}>Verify Your Identity</Text>
           <Text style={styles.stepDescription}>
-            Every new member goes through a quick verification check before their account is approved for leads.
+            Optional — you can finish signing up without it, but a verified ID and selfie get your account approved for leads faster.
           </Text>
 
-          <Text style={styles.fieldLabel}>Valid ID</Text>
+          <Text style={styles.fieldLabel}>Valid ID (Optional)</Text>
           <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
             {kycIdUri ? (
               <Image source={{ uri: kycIdUri }} style={styles.uploadPreview} />
@@ -379,7 +379,7 @@ export default function BrokerOnboarding() {
           </TouchableOpacity>
           {formErrors.kycId ? <Text style={styles.errorMessage}>{formErrors.kycId}</Text> : null}
 
-          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie</Text>
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie (Optional)</Text>
           <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
             {kycSelfieUri ? (
               <Image source={{ uri: kycSelfieUri }} style={styles.uploadPreview} />
@@ -402,9 +402,11 @@ export default function BrokerOnboarding() {
             {formErrors.disclaimer ? <Text style={styles.errorMessage}>{formErrors.disclaimer}</Text> : null}
           </View>
 
-          <Text style={styles.kycStatusNote}>
-            A person on our team reviews every submission — approval isn't instant, but you can finish signing up now.
-          </Text>
+          {(kycIdUri || kycSelfieUri) && (
+            <Text style={styles.kycStatusNote}>
+              A person on our team reviews every submission — approval isn't instant, but you can finish signing up now.
+            </Text>
+          )}
         </View>
       )}
 
@@ -467,9 +469,9 @@ export default function BrokerOnboarding() {
       {/* Step 4: City Selection */}
       {step === 4 && (
         <View>
-          <Text style={styles.sectionTitle}>Select Your Cities</Text>
+          <Text style={styles.sectionTitle}>Where Do You Want Leads From?</Text>
           <Text style={styles.stepDescription}>
-            Choose the cities where you'd like lead coverage.
+            Pick the cities or towns where you want to receive leads — not necessarily where you live or work.
           </Text>
 
           {!!error && <Text style={styles.errorMessage}>{error}</Text>}
@@ -551,7 +553,7 @@ export default function BrokerOnboarding() {
                 </TouchableOpacity>
               </Modal>
 
-              <Text style={styles.dropdownLabel}>Cities or Towns</Text>
+              <Text style={styles.dropdownLabel}>Cities or Towns Where You'll Get Leads</Text>
               <TouchableOpacity
                 style={styles.countryDropdown}
                 onPress={() => setCityPickerVisible(true)}
@@ -569,7 +571,7 @@ export default function BrokerOnboarding() {
                         .filter((c) => formData.selectedCities.includes(c.id))
                         .map((c) => c.name)
                         .join(', ')
-                    : 'Select your city or town'}
+                    : 'Select the cities where you want leads'}
                 </Text>
                 <Text style={styles.countryDropdownChevron}>▾</Text>
               </TouchableOpacity>
@@ -593,7 +595,7 @@ export default function BrokerOnboarding() {
                 >
                   <TouchableWithoutFeedback onPress={() => {}}>
                   <View style={styles.modalCard}>
-                    <Text style={styles.modalTitle}>Select Cities or Towns</Text>
+                    <Text style={styles.modalTitle}>Where Do You Want Leads From?</Text>
                     {/* Cities are seeded per-country as real data comes in
                         (see supabase/migrations' city seeds) — a country
                         with none yet shows an empty state here instead of a

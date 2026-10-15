@@ -203,7 +203,7 @@ export default function EditCities() {
         </TouchableOpacity>
       </Modal>
 
-      <Text style={styles.dropdownLabel}>Cities or Towns</Text>
+      <Text style={styles.dropdownLabel}>Cities or Towns Where You'll Get Leads</Text>
       <TouchableOpacity
         style={styles.countryDropdown}
         onPress={() => setCityPickerVisible(true)}
@@ -215,7 +215,7 @@ export default function EditCities() {
         >
           {selectedCities.length
             ? cities.filter((c) => selectedCities.includes(c.id)).map((c) => c.name).join(', ')
-            : 'Select your city or town'}
+            : 'Select the cities where you want leads'}
         </Text>
         <Text style={styles.countryDropdownChevron}>▾</Text>
       </TouchableOpacity>
@@ -239,7 +239,7 @@ export default function EditCities() {
         >
           <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Select Cities or Towns</Text>
+              <Text style={styles.modalTitle}>Where Do You Want Leads From?</Text>
               {cities.some((c) => c.country === selectedCountry) ? (
                 <>
                   <TextInput
