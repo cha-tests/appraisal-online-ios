@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Ale
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
+import { Button } from '../../components/ui/Button';
 import { IconChevronRight, IconPencil } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
@@ -234,13 +235,14 @@ export default function BrokerProfileSummary() {
       </View>
 
       <View style={styles.signOutSection}>
-        <TouchableOpacity onPress={handleSignOut} disabled={signingOut} style={styles.signOutButton}>
-          {signingOut ? (
-            <ActivityIndicator size="small" color={theme.color.danger} />
-          ) : (
-            <Text style={styles.signOutText}>Sign Out</Text>
-          )}
-        </TouchableOpacity>
+        <Button
+          title="Sign Out"
+          variant="outline"
+          size="large"
+          onPress={handleSignOut}
+          loading={signingOut}
+          disabled={signingOut}
+        />
       </View>
     </SafeAreaWrapper>
   );
@@ -347,14 +349,5 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     borderTopWidth: 1,
     borderTopColor: theme.color.border,
-  },
-  signOutButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  signOutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.color.danger,
   },
 });
