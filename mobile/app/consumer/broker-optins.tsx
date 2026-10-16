@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Toggle } from '../../components/ui/Toggle';
+import { AttachmentPreview } from '../../components/ui/AttachmentPreview';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
@@ -16,6 +15,7 @@ import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { disclaimerService } from '../../services/disclaimer.service';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { CLIENT_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_VERSION } from '../../config/disclaimers';
+import { chooseAttachmentSource, withRetry, PickedAttachment } from '../../utils/attachments';
 import { theme } from '../../theme';
 
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
@@ -85,39 +85,15 @@ export default function BrokerOptins() {
     uri: string;
     mimeType: string;
     name?: string;
+    isImage: boolean;
   } | null>(null);
-
-  const pickTitlePhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Photo library access is needed to attach your title.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'image/jpeg', name: asset.fileName ?? undefined });
-    }
-  };
-
-  const pickTitleFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
-      copyToCacheDirectory: true,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'application/pdf', name: asset.name });
-    }
-  };
-
-  const chooseTitleSource = () => {
-    Alert.alert('Attach your land title', 'Is your title a photo or a file?', [
-      { text: 'Photo', onPress: pickTitlePhoto },
-      { text: 'File (PDF or document)', onPress: pickTitleFile },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  // Set once uploadTitleDocument's upload actually succeeds — handleContinue
+  // reads this directly instead of re-uploading at submit time.
+  const [titleUploadPath, setTitleUploadPath] = useState<string | null>(null);
+  const [titleUploadStatus, setTitleUploadStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
+  // Bumped on every pick/remove so a slow upload that resolves after the
+  // file was replaced or cleared doesn't clobber the newer state.
+  const titleGenRef = useRef(0);
 
   if (!report) {
     return (
@@ -166,6 +142,50 @@ export default function BrokerOptins() {
     );
   }
 
+  // Uploads immediately on pick rather than staging it for handleContinue —
+  // the storage round-trip already has its own success/failure feedback
+  // (and a retry), and deferring it would mean the whole opt-in waits on a
+  // slow upload at the one moment the consumer wants to finish quickly.
+  const uploadTitleDocument = (picked: PickedAttachment) => {
+    if (!userId) return;
+    const myGen = ++titleGenRef.current;
+
+    setTitleFile({ uri: picked.uri, mimeType: picked.mimeType, name: picked.name, isImage: picked.isImage });
+    setTitleUploadPath(null);
+    setTitleUploadStatus('uploading');
+
+    withRetry(() => reportService.uploadTitleDocument(userId, report.id, picked.uri, picked.mimeType)).then(
+      (result) => {
+        // Superseded by a newer pick or a remove while this was in flight.
+        if (titleGenRef.current !== myGen) return;
+        setTitleUploadPath(result.success ? result.path ?? null : null);
+        setTitleUploadStatus(result.success ? 'uploaded' : 'error');
+      }
+    );
+  };
+
+  const pickTitleDocument = async () => {
+    const picked = await chooseAttachmentSource({
+      title: 'Attach Your Land Title',
+      allowCamera: true,
+      allowLibrary: true,
+      allowFiles: true,
+    });
+    if (!picked) return;
+    uploadTitleDocument(picked);
+  };
+
+  const retryTitleUpload = () => {
+    if (titleFile) uploadTitleDocument(titleFile);
+  };
+
+  const removeTitleDocument = () => {
+    titleGenRef.current++; // invalidate any in-flight upload
+    setTitleFile(null);
+    setTitleUploadPath(null);
+    setTitleUploadStatus(null);
+  };
+
   const handleContinue = async () => {
     try {
       setError('');
@@ -206,17 +226,10 @@ export default function BrokerOptins() {
         }
       }
 
-      // Title upload is optional and never blocks continuing — if it fails,
-      // the opt-in itself should still go through.
-      let titleUrl: string | undefined;
-      if (optedIn && titleFile && userId) {
-        const uploaded = await reportService.uploadTitleDocument(userId, report.id, titleFile.uri, titleFile.mimeType);
-        if (uploaded.success && uploaded.path) {
-          titleUrl = uploaded.path;
-        } else {
-          console.error('Title upload failed (non-blocking):', uploaded.error);
-        }
-      }
+      // Already uploaded in the background when picked (see
+      // uploadTitleDocument) — optional either way, so one still in flight
+      // or that failed just isn't included rather than blocking continuing.
+      const titleUrl: string | undefined = optedIn && titleUploadPath ? titleUploadPath : undefined;
 
       // Update report with opt-in status
       const result = await reportService.updateBrokerOptIn(
@@ -340,17 +353,20 @@ export default function BrokerOptins() {
           </View>
 
           <Text style={styles.titleLabel}>Land Title (Optional)</Text>
-          <TouchableOpacity style={styles.titleUploadBox} onPress={chooseTitleSource}>
-            {titleFile ? (
-              titleFile.mimeType.startsWith('image/') ? (
-                <Image source={{ uri: titleFile.uri }} style={styles.titlePreview} />
-              ) : (
-                <Text style={styles.titleUploadPrompt}>📄 {titleFile.name || 'Title file attached'} — tap to change</Text>
-              )
-            ) : (
+          {titleFile ? (
+            <AttachmentPreview
+              uri={titleFile.uri}
+              isImage={titleFile.isImage}
+              fileName={titleFile.name}
+              status={titleUploadStatus ?? 'uploaded'}
+              onRemove={removeTitleDocument}
+              onRetry={retryTitleUpload}
+            />
+          ) : (
+            <TouchableOpacity style={styles.titleUploadBox} onPress={pickTitleDocument}>
               <Text style={styles.titleUploadPrompt}>Tap to attach your land title (photo or file)</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           <Text style={styles.titleHelper}>
             Not required — but properties with a title on file are prioritized by our broker
             network. We don't verify titles ourselves; brokers review what's submitted.
@@ -592,10 +608,6 @@ const styles = StyleSheet.create({
     color: theme.color.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
-  },
-  titlePreview: {
-    width: '100%',
-    height: 140,
   },
   titleHelper: {
     fontSize: 12,

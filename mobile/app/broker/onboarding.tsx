@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TouchableWithoutFeedback, FlatList, ActivityIndicator, Image, Alert, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TouchableWithoutFeedback, FlatList, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
@@ -9,11 +8,13 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { AttachmentPreview } from '../../components/ui/AttachmentPreview';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { disclaimerService } from '../../services/disclaimer.service';
 import { checkPhotoQuality } from '../../services/photoQuality.service';
+import { chooseAttachmentSource, withRetry } from '../../utils/attachments';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
 import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
@@ -65,12 +66,22 @@ export default function BrokerOnboarding() {
     pushEnabled: true,
   });
 
-  // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo, held as
-  // local URIs until submit, then uploaded to the private 'kyc-documents'
-  // bucket. disclaimerAcknowledged gates progressing past this step —
-  // brokers can't reach lead access without accepting the broker disclaimer.
+  // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo. Each
+  // uploads to the private 'kyc-documents' bucket immediately on pick
+  // (rather than waiting for final submit) so a flaky connection gets
+  // caught — and retried — early, not at the one moment that matters most.
+  // `*Path` only ever holds a storage path once that upload has actually
+  // succeeded; handleSubmit reads it directly instead of re-uploading.
   const [kycIdUri, setKycIdUri] = useState<string | null>(null);
+  const [kycIdPath, setKycIdPath] = useState<string | null>(null);
+  const [kycIdStatus, setKycIdStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
   const [kycSelfieUri, setKycSelfieUri] = useState<string | null>(null);
+  const [kycSelfiePath, setKycSelfiePath] = useState<string | null>(null);
+  const [kycSelfieStatus, setKycSelfieStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
+  // Bumped on every pick/remove so a slow upload that resolves after the
+  // photo was replaced or cleared doesn't clobber the newer state.
+  const kycIdGenRef = useRef(0);
+  const kycSelfieGenRef = useRef(0);
   const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -119,41 +130,70 @@ export default function BrokerOnboarding() {
   };
 
   const pickKycImage = async (kind: 'id' | 'selfie') => {
-    const permission =
-      kind === 'selfie'
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const picked = await chooseAttachmentSource({
+      title: kind === 'id' ? 'Add a Valid ID' : 'Add a Selfie',
+    });
+    if (!picked) return;
 
-    if (!permission.granted) {
-      Alert.alert(
-        'Permission needed',
-        kind === 'selfie'
-          ? 'Camera access is needed to take a verification selfie.'
-          : 'Photo library access is needed to upload your ID.'
-      );
+    // Catch an obviously blurry or glare-washed photo right away, rather
+    // than making the broker wait for a human reviewer to reject it —
+    // see photoQuality.service.ts for what this can and can't catch.
+    const quality = await checkPhotoQuality(picked.uri);
+    if (!quality.ok) {
+      Alert.alert('Retake Photo', quality.message || 'Please retake this photo.');
       return;
     }
 
-    const result =
-      kind === 'selfie'
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7, cameraType: ImagePicker.CameraType.front })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+    setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
+    uploadKycImage(kind, picked.uri);
+  };
 
-    if (!result.canceled && result.assets?.[0]) {
-      const uri = result.assets[0].uri;
+  const uploadKycImage = (kind: 'id' | 'selfie', uri: string) => {
+    if (!user?.id) return;
+    const genRef = kind === 'id' ? kycIdGenRef : kycSelfieGenRef;
+    const myGen = ++genRef.current;
 
-      // Catch an obviously blurry or glare-washed photo right away, rather
-      // than making the broker wait for a human reviewer to reject it —
-      // see photoQuality.service.ts for what this can and can't catch.
-      const quality = await checkPhotoQuality(uri);
-      if (!quality.ok) {
-        Alert.alert('Retake Photo', quality.message || 'Please retake this photo.');
-        return;
+    if (kind === 'id') {
+      setKycIdUri(uri);
+      setKycIdPath(null);
+      setKycIdStatus('uploading');
+    } else {
+      setKycSelfieUri(uri);
+      setKycSelfiePath(null);
+      setKycSelfieStatus('uploading');
+    }
+
+    withRetry(() => brokerService.uploadKycDocument(user.id, uri, kind)).then((result) => {
+      // Superseded by a newer pick or a remove while this was in flight.
+      if (genRef.current !== myGen) return;
+
+      if (kind === 'id') {
+        setKycIdPath(result.success ? result.path ?? null : null);
+        setKycIdStatus(result.success ? 'uploaded' : 'error');
+      } else {
+        setKycSelfiePath(result.success ? result.path ?? null : null);
+        setKycSelfieStatus(result.success ? 'uploaded' : 'error');
       }
+    });
+  };
 
-      if (kind === 'id') setKycIdUri(uri);
-      else setKycSelfieUri(uri);
-      setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
+  const retryKycUpload = (kind: 'id' | 'selfie') => {
+    const uri = kind === 'id' ? kycIdUri : kycSelfieUri;
+    if (uri) uploadKycImage(kind, uri);
+  };
+
+  const removeKycImage = (kind: 'id' | 'selfie') => {
+    // Invalidate any in-flight upload for this field so its result, once it
+    // resolves, is ignored instead of reviving a photo the broker removed.
+    (kind === 'id' ? kycIdGenRef : kycSelfieGenRef).current++;
+    if (kind === 'id') {
+      setKycIdUri(null);
+      setKycIdPath(null);
+      setKycIdStatus(null);
+    } else {
+      setKycSelfieUri(null);
+      setKycSelfiePath(null);
+      setKycSelfieStatus(null);
     }
   };
 
@@ -243,19 +283,14 @@ export default function BrokerOnboarding() {
         throw new Error(citiesResult.error?.message || 'Failed to save selected cities');
       }
 
-      // KYC is optional — only upload and submit when the broker actually
-      // provided both. A lone ID or lone selfie isn't meaningful for review,
-      // so it's treated the same as providing neither.
-      if (kycIdUri && kycSelfieUri) {
-        const idUpload = await brokerService.uploadKycDocument(userId, kycIdUri, 'id');
-        if (!idUpload.success || !idUpload.path) {
-          throw new Error(idUpload.error || 'Failed to upload ID photo');
-        }
-        const selfieUpload = await brokerService.uploadKycDocument(userId, kycSelfieUri, 'selfie');
-        if (!selfieUpload.success || !selfieUpload.path) {
-          throw new Error(selfieUpload.error || 'Failed to upload selfie');
-        }
-        const kycResult = await brokerService.submitKyc(userId, idUpload.path, selfieUpload.path);
+      // KYC is optional, and each photo already uploaded in the background
+      // the moment it was picked (see uploadKycImage) — only the two
+      // storage paths need to exist now. A lone ID or lone selfie isn't
+      // meaningful for review, so it's treated the same as providing
+      // neither; an upload still in flight or failed at this point is also
+      // skipped rather than blocking signup on it.
+      if (kycIdPath && kycSelfiePath) {
+        const kycResult = await brokerService.submitKyc(userId, kycIdPath, kycSelfiePath);
         if (!kycResult.success) {
           throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
         }
@@ -370,23 +405,37 @@ export default function BrokerOnboarding() {
           </Text>
 
           <Text style={styles.fieldLabel}>Valid ID (Optional)</Text>
-          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
-            {kycIdUri ? (
-              <Image source={{ uri: kycIdUri }} style={styles.uploadPreview} />
-            ) : (
+          {kycIdUri ? (
+            <AttachmentPreview
+              uri={kycIdUri}
+              isImage
+              status={kycIdStatus ?? 'uploaded'}
+              onRemove={() => removeKycImage('id')}
+              onRetry={() => retryKycUpload('id')}
+              height={160}
+            />
+          ) : (
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
               <Text style={styles.uploadPrompt}>Tap to attach a photo of a government ID</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           {formErrors.kycId ? <Text style={styles.errorMessage}>{formErrors.kycId}</Text> : null}
 
           <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie (Optional)</Text>
-          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
-            {kycSelfieUri ? (
-              <Image source={{ uri: kycSelfieUri }} style={styles.uploadPreview} />
-            ) : (
+          {kycSelfieUri ? (
+            <AttachmentPreview
+              uri={kycSelfieUri}
+              isImage
+              status={kycSelfieStatus ?? 'uploaded'}
+              onRemove={() => removeKycImage('selfie')}
+              onRetry={() => retryKycUpload('selfie')}
+              height={160}
+            />
+          ) : (
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
               <Text style={styles.uploadPrompt}>Tap to take a selfie</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           {formErrors.kycSelfie ? <Text style={styles.errorMessage}>{formErrors.kycSelfie}</Text> : null}
 
           <View style={{ marginTop: 16 }}>
@@ -789,12 +838,16 @@ export default function BrokerOnboarding() {
             <Text style={styles.reviewSectionLabel}>Verification</Text>
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Valid ID</Text>
-              <Text style={styles.reviewValue}>{kycIdUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+              <Text style={styles.reviewValue}>
+                {kycIdPath ? '✓ Uploaded' : kycIdStatus === 'uploading' ? 'Uploading…' : 'Not uploaded'}
+              </Text>
             </View>
             <View style={styles.reviewDivider} />
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Selfie</Text>
-              <Text style={styles.reviewValue}>{kycSelfieUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+              <Text style={styles.reviewValue}>
+                {kycSelfiePath ? '✓ Uploaded' : kycSelfieStatus === 'uploading' ? 'Uploading…' : 'Not uploaded'}
+              </Text>
             </View>
           </Card>
 

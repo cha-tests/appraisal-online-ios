@@ -179,6 +179,16 @@ export function IconEyeOff(props: IconProps) {
   );
 }
 
+/** Remove/detach badge on an attached photo or file. */
+export function IconX(props: IconProps) {
+  const { size, color, strokeWidth } = defaults(props);
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 6l12 12M18 6 6 18" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 /** Edit-photo badge on an avatar. */
 export function IconPencil(props: IconProps) {
   const { size, color, strokeWidth } = defaults(props);

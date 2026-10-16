@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { IconChevronRight, IconPencil } from '../../components/ui/icons';
+import { IconChevronRight, IconPencil, IconX } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { authService } from '../../services/auth.service';
+import { chooseAttachmentSource, withRetry } from '../../utils/attachments';
 import { BrokerProfile } from '../../types';
 import { theme } from '../../theme';
 
@@ -85,18 +85,12 @@ export default function BrokerProfileSummary() {
   const pickProfilePhoto = async () => {
     if (!user?.id) return;
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Photo library access is needed to add a profile photo.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
-    if (result.canceled || !result.assets?.[0]) return;
+    const picked = await chooseAttachmentSource({ title: 'Profile Photo' });
+    if (!picked) return;
 
     try {
       setUploadingPhoto(true);
-      const uploaded = await brokerService.uploadProfilePhoto(user.id, result.assets[0].uri);
+      const uploaded = await withRetry(() => brokerService.uploadProfilePhoto(user.id, picked.uri));
       if (!uploaded.success || !uploaded.url) {
         Alert.alert('Error', uploaded.error || 'Failed to upload photo');
         return;
@@ -109,6 +103,23 @@ export default function BrokerProfileSummary() {
     } finally {
       setUploadingPhoto(false);
     }
+  };
+
+  const removeProfilePhoto = () => {
+    if (!user?.id) return;
+    Alert.alert('Remove Photo', 'Remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          const { profile: updated } = await brokerService.updateProfile(user.id, {
+            profile_photo_url: '',
+          });
+          if (updated) setProfile(updated);
+        },
+      },
+    ]);
   };
 
   const handleSignOut = () => {
@@ -183,6 +194,15 @@ export default function BrokerProfileSummary() {
               <IconPencil size={12} color={theme.color.onAccent} strokeWidth={2.5} />
             )}
           </TouchableOpacity>
+          {!!profile?.profile_photo_url && (
+            <TouchableOpacity
+              style={styles.avatarRemoveBadge}
+              onPress={removeProfilePhoto}
+              disabled={uploadingPhoto}
+            >
+              <IconX size={10} color={theme.color.onAccent} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.identityText}>
           <Text style={styles.identityName} numberOfLines={1}>
@@ -288,6 +308,19 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: theme.color.text,
+    borderWidth: 2,
+    borderColor: theme.color.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarRemoveBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: theme.color.danger,
     borderWidth: 2,
     borderColor: theme.color.bg,
     justifyContent: 'center',
