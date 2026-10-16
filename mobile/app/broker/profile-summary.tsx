@@ -6,6 +6,7 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { IconChevronRight, IconPencil } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
+import { authService } from '../../services/auth.service';
 import { BrokerProfile } from '../../types';
 import { theme } from '../../theme';
 
@@ -45,8 +46,10 @@ function StaticRow({ label, value }: { label: string; value: string }) {
 export default function BrokerProfileSummary() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const clearAuth = useAuthStore((state) => state.clear);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [profile, setProfile] = useState<BrokerProfile | null>(null);
   const [cityNames, setCityNames] = useState<string[]>([]);
 
@@ -105,6 +108,36 @@ export default function BrokerProfileSummary() {
     } finally {
       setUploadingPhoto(false);
     }
+  };
+
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel', onPress: () => {} },
+      {
+        text: 'Sign Out',
+        onPress: async () => {
+          try {
+            setSigningOut(true);
+            const result = await authService.signout();
+            if (!result.success) {
+              Alert.alert('Error', result.error?.message ?? 'Failed to sign out');
+              return;
+            }
+            // clear() rather than setUser(null) so the cached broker profile
+            // goes with it and cannot leak into the next session.
+            clearAuth();
+            // replace, not push: the signed-in screens must not stay on the
+            // history stack where Back could return to them after sign out.
+            router.replace('/auth/login');
+          } catch (err) {
+            console.error('Error signing out:', err);
+            Alert.alert('Error', 'Failed to sign out');
+          } finally {
+            setSigningOut(false);
+          }
+        },
+      },
+    ]);
   };
 
   const fullName = [user?.first_name, user?.last_name, user?.suffix]
@@ -198,6 +231,16 @@ export default function BrokerProfileSummary() {
           value={profile?.bio || 'Not set'}
           onPress={() => editField('bio')}
         />
+      </View>
+
+      <View style={styles.signOutSection}>
+        <TouchableOpacity onPress={handleSignOut} disabled={signingOut} style={styles.signOutButton}>
+          {signingOut ? (
+            <ActivityIndicator size="small" color={theme.color.danger} />
+          ) : (
+            <Text style={styles.signOutText}>Sign Out</Text>
+          )}
+        </TouchableOpacity>
       </View>
     </SafeAreaWrapper>
   );
@@ -297,5 +340,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: theme.color.text,
+  },
+  signOutSection: {
+    marginTop: 32,
+    marginBottom: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+  },
+  signOutButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.color.danger,
   },
 });
