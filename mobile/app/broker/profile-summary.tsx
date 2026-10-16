@@ -167,7 +167,6 @@ export default function BrokerProfileSummary() {
           value={fullName || 'Not set'}
           onPress={() => editField('full_name')}
         />
-        <StaticRow label="Email" value={user?.email || 'Not set'} />
         <ProfileRow
           label="Company Name"
           value={profile?.company_name || 'Not set'}
@@ -183,20 +182,21 @@ export default function BrokerProfileSummary() {
           value={profile?.phone || 'Not set'}
           onPress={() => editField('phone')}
         />
+        <StaticRow label="Email" value={user?.email || 'Not set'} />
         <ProfileRow
           label="Website"
           value={profile?.website || 'Not set'}
           onPress={() => editField('website')}
         />
         <ProfileRow
-          label="Bio"
-          value={profile?.bio || 'Not set'}
-          onPress={() => editField('bio')}
-        />
-        <ProfileRow
           label="Cities"
           value={cityNames.length ? cityNames.join(', ') : 'Not set'}
           onPress={() => router.push('/broker/edit-cities')}
+        />
+        <ProfileRow
+          label="Bio"
+          value={profile?.bio || 'Not set'}
+          onPress={() => editField('bio')}
         />
       </View>
     </SafeAreaWrapper>
