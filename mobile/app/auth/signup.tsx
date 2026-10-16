@@ -90,6 +90,8 @@ function GateScreen() {
         return;
       }
 
+      const payload = { property: currentProperty, details: currentPropertyDetails, valuation: pendingValuation };
+
       const result = await authService.signup(email, password, {
         first_name: '',
         last_name: '',
@@ -97,14 +99,38 @@ function GateScreen() {
         phone,
       });
 
-      if (!result.success || !result.user) {
-        setGateError(result.error?.message || 'Unable to create account');
-        return;
+      let signedInUser = result.user;
+      let needsEmailConfirmation = result.needsEmailConfirmation;
+
+      if (!result.success || !signedInUser) {
+        if (result.error?.code === 'user_already_exists' || result.error?.code === 'email_exists') {
+          // Signup only fails this way if the email was already occupied —
+          // most often by an earlier, never-confirmed attempt at this same
+          // form. Figure out which case this is before giving up.
+          const resolved = await authService.resolveAlreadyRegistered(email, password);
+          if (resolved.outcome === 'signed_in' && resolved.user) {
+            signedInUser = resolved.user;
+            needsEmailConfirmation = false;
+          } else if (resolved.outcome === 'unconfirmed') {
+            await stashPendingValuation(payload);
+            router.replace({
+              pathname: '/auth/verify-email',
+              params: { email, hasPendingValuation: '1' },
+            });
+            return;
+          } else {
+            setGateError(
+              "An account with this email already exists. Try logging in, or use Forgot Password if you don't remember your password."
+            );
+            return;
+          }
+        } else {
+          setGateError(result.error?.message || 'Unable to create account');
+          return;
+        }
       }
 
-      const payload = { property: currentProperty, details: currentPropertyDetails, valuation: pendingValuation };
-
-      if (result.needsEmailConfirmation) {
+      if (needsEmailConfirmation) {
         // No session yet — can't write properties/reports (NOT NULL
         // user_id). Stash to disk since Zustand state won't survive the
         // user leaving to check their inbox; auth/login.tsx finishes the
@@ -117,8 +143,8 @@ function GateScreen() {
         return;
       }
 
-      setUser(result.user);
-      const completion = await completePendingValuation(result.user.id, payload);
+      setUser(signedInUser!);
+      const completion = await completePendingValuation(signedInUser!.id, payload);
       if (!completion.success) {
         setGateError(completion.error);
         return;
@@ -360,21 +386,45 @@ export default function SignupScreen() {
         phone: userType === 'consumer' ? phone : undefined,
       });
 
-      if (result.success && result.user) {
-        if (result.needsEmailConfirmation) {
-          router.replace({ pathname: '/auth/verify-email', params: { email } });
+      let signedInUser = result.user;
+      let needsEmailConfirmation = result.needsEmailConfirmation;
+
+      if (!result.success || !signedInUser) {
+        if (result.error?.code === 'user_already_exists' || result.error?.code === 'email_exists') {
+          // Signup only fails this way if the email was already occupied —
+          // most often by an earlier, never-confirmed attempt at this same
+          // form. Figure out which case this is before giving up.
+          const resolved = await authService.resolveAlreadyRegistered(email, password);
+          if (resolved.outcome === 'signed_in' && resolved.user) {
+            signedInUser = resolved.user;
+            needsEmailConfirmation = false;
+          } else if (resolved.outcome === 'unconfirmed') {
+            router.replace({ pathname: '/auth/verify-email', params: { email } });
+            return;
+          } else {
+            Alert.alert(
+              'Account Already Exists',
+              "An account with this email already exists. Try logging in instead, or use Forgot Password if you don't remember your password."
+            );
+            return;
+          }
+        } else {
+          Alert.alert('Signup Failed', result.error?.message || 'Unable to create account');
           return;
         }
+      }
 
-        setUser(result.user);
-        // Route based on user type
-        if (userType === 'broker') {
-          router.replace('/broker/onboarding');
-        } else {
-          router.replace('/consumer/home');
-        }
+      if (needsEmailConfirmation) {
+        router.replace({ pathname: '/auth/verify-email', params: { email } });
+        return;
+      }
+
+      setUser(signedInUser!);
+      // Route based on user type
+      if (userType === 'broker') {
+        router.replace('/broker/onboarding');
       } else {
-        Alert.alert('Signup Failed', result.error?.message || 'Unable to create account');
+        router.replace('/consumer/home');
       }
     } catch (err) {
       console.error('Signup error:', err);

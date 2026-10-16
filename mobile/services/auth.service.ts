@@ -60,6 +60,33 @@ export const authService = {
     }
   },
 
+  // Resolves a signup() call that failed because the email is already
+  // registered. This happens whenever someone abandons signup after the
+  // first submit (closes the app, loses connection, never opens the
+  // verification email) — Supabase's auth.users row is created the moment
+  // signUp() is first called, before anything else about the account
+  // exists, so a retry with the same email comes back "already
+  // registered" even though the person never finished creating anything.
+  // Tries the password just entered to tell apart an abandoned unconfirmed
+  // signup (resume it) from a real existing account (surface a clear error
+  // instead of a dead end).
+  async resolveAlreadyRegistered(email: string, password: string) {
+    const signinResult = await this.signin(email, password);
+    if (signinResult.success) {
+      return { outcome: 'signed_in' as const, ...signinResult };
+    }
+
+    if (signinResult.error?.code === 'email_not_confirmed') {
+      // Same account, same password, just never verified — resend the
+      // confirmation link so they can pick up where they left off instead
+      // of being told the account they thought they never finished exists.
+      await this.resendConfirmationEmail(email);
+      return { outcome: 'unconfirmed' as const };
+    }
+
+    return { outcome: 'conflict' as const };
+  },
+
   // Sign in with email and password
   async signin(email: string, password: string) {
     try {
