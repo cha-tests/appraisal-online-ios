@@ -13,7 +13,7 @@
     "test": "npm run test --workspace=mobile",
     "seed:db": "bash scripts/seed-db.sh",
     "setup:env": "bash scripts/setup-env.sh",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package && cd mobile && patch-package"
   },
   "keywords": [
     "real-estate",
