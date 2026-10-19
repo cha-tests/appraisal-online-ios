@@ -45,7 +45,11 @@
           "merchantIdentifier": "merchant.com.appraisal.online",
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-router",
+      "expo-sharing",
+      "expo-splash-screen"
     ]
   }
 }
