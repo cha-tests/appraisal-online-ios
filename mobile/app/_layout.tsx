@@ -91,10 +91,6 @@ export default function RootLayout() {
     }
   }, [isReady, fontsLoaded]);
 
-  if (!isReady || !fontsLoaded) {
-    return null;
-  }
-
   if (!isSupabaseConfigured) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: theme.color.bg }}>
