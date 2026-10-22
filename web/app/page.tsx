@@ -6,6 +6,7 @@ import { useState } from 'react';
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userType, setUserType] = useState<'consumer' | 'broker' | null>(null);
+  const isDemoModeVisible = process.env.NODE_ENV !== 'production';
 
   if (!isAuthenticated) {
     return (
@@ -17,6 +18,11 @@ export default function Home() {
           <p className="text-center text-gray-600 mb-8">
             AI-powered property valuations and broker leads marketplace
           </p>
+
+          <div className="flex items-center justify-center gap-2 mb-6 text-sm text-green-700 font-medium">
+            <span>✓</span>
+            <span>Free AI home valuation for homeowners — no cost, no card required</span>
+          </div>
 
           <div className="space-y-4">
             <Link
@@ -33,21 +39,23 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-200">
-            <p className="text-sm font-semibold text-gray-900 mb-4">Demo Mode</p>
-            <button
-              onClick={() => setUserType('consumer')}
-              className="w-full bg-gray-100 text-gray-900 py-2 rounded-lg font-semibold hover:bg-gray-200 transition text-sm mb-2"
-            >
-              Browse as Homeowner
-            </button>
-            <button
-              onClick={() => setUserType('broker')}
-              className="w-full bg-gray-100 text-gray-900 py-2 rounded-lg font-semibold hover:bg-gray-200 transition text-sm"
-            >
-              Browse as Professional
-            </button>
-          </div>
+          {isDemoModeVisible && (
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <p className="text-sm font-semibold text-gray-900 mb-4">Demo Mode</p>
+              <button
+                onClick={() => setUserType('consumer')}
+                className="w-full bg-gray-100 text-gray-900 py-2 rounded-lg font-semibold hover:bg-gray-200 transition text-sm mb-2"
+              >
+                Browse as Homeowner
+              </button>
+              <button
+                onClick={() => setUserType('broker')}
+                className="w-full bg-gray-100 text-gray-900 py-2 rounded-lg font-semibold hover:bg-gray-200 transition text-sm"
+              >
+                Browse as Professional
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
