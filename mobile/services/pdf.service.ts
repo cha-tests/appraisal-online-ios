@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency, formatDistance, getMarketConfig, sqftToSqm } from '../config/marketConfig';
 import { CLIENT_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
+import { PDF_LOGO_BASE64_PNG } from '../assets/images/pdfLogoBase64';
 
 /**
  * PDF generation service. Renders the report entirely on-device (via
@@ -269,6 +270,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   @page { margin: 0; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 0; margin: 0; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
+  .logo { display: block; width: 36px; height: 36px; margin: 0 auto 8px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
   .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
   .disclaimer h2 { color: #92400E; font-size: 13px; margin: 0 0 8px; }
@@ -306,6 +308,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 </style>
 </head>
 <body>
+  <img class="logo" src="data:image/png;base64,${PDF_LOGO_BASE64_PNG}" />
   <h1>Property Valuation Report</h1>
   <div class="brand">Appraisal Online</div>
 

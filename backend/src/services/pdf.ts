@@ -25,6 +25,7 @@ if (!fs.existsSync(PDF_TEMP_DIR)) {
 // section headers/emphasis rely on size and color for hierarchy instead of
 // boldness.
 const FONT_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/fonts/NotoSans-Variable.ttf');
+const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/images/logo.png');
 
 export function registerFonts(doc: PDFKit.PDFDocument): void {
   doc.registerFont('NotoSans', FONT_PATH);
@@ -59,6 +60,14 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       doc.on('error', reject);
 
       // Header
+      // PDFKit's image `align` option only centers within a `fit`/`cover`
+      // box — passing a plain `width` (no fit box) silently ignores align
+      // and just left-aligns at the current cursor, which is what happened
+      // here before this was caught in a render test.
+      const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      doc.image(LOGO_PATH, { fit: [contentWidth, 36], align: 'center' });
+      doc.moveDown(0.3);
+
       doc.fontSize(24).font('NotoSans').text('Property Valuation Report', {
         align: 'center',
       });
