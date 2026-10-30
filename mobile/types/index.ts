@@ -136,6 +136,10 @@ export interface Report {
   // broker-optins.tsx) — how many professionals the consumer wants matched
   // to them.
   requested_broker_count?: number;
+  // Optional, self-reported signal for a specialized broker niche
+  // (foreclosure, financing, OFW/overseas owner) — see broker-optins.tsx
+  // and migration 031. Copied onto the resulting lead's lead_tags.
+  help_tags?: string[];
   status: 'generating' | 'generated' | 'error' | 'deleted';
   pdf_url?: string;
   created_at: string;
@@ -156,6 +160,9 @@ export interface Lead {
   property_address: string;
   property_value?: number;
   city_id?: string;
+  // Copied from reports.help_tags at lead creation (migration 031) — a
+  // visible signal for a specialized broker niche, not a routing input.
+  lead_tags?: string[];
   status: 'new' | 'contacted' | 'converted' | 'archived';
   created_at: string;
   updated_at: string;

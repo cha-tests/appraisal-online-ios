@@ -16,6 +16,7 @@ import { disclaimerService } from '../../services/disclaimer.service';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { CLIENT_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { chooseAttachmentSource, withRetry, PickedAttachment } from '../../utils/attachments';
+import { LEAD_TAG_OPTIONS } from '../../config/leadTags';
 import { theme } from '../../theme';
 
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
@@ -81,6 +82,16 @@ export default function BrokerOptins() {
   // spec — "don't require that yet... it's only for serious sellers").
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [intendsToSell, setIntendsToSell] = useState<boolean | null>(null);
+  // Lightweight lead-tagging (synthetic user report item #9) — purely a
+  // visible signal for the broker, not a routing input. Multi-select since
+  // a property can genuinely match more than one (e.g. facing foreclosure
+  // *and* managed remotely from overseas).
+  const [helpTags, setHelpTags] = useState<string[]>([]);
+  const toggleHelpTag = (value: string) => {
+    setHelpTags((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+  };
   const [titleFile, setTitleFile] = useState<{
     uri: string;
     mimeType: string;
@@ -239,7 +250,8 @@ export default function BrokerOptins() {
         optedIn ? isOwner ?? undefined : undefined,
         optedIn ? intendsToSell ?? undefined : undefined,
         titleUrl,
-        brokerCountToSave
+        brokerCountToSave,
+        optedIn ? helpTags : undefined
       );
 
       if (result.success) {
@@ -350,6 +362,29 @@ export default function BrokerOptins() {
           <View style={styles.qualifyRow}>
             <Text style={styles.qualifyLabel}>Are you selling this property?</Text>
             <YesNoRow value={intendsToSell} onChange={setIntendsToSell} />
+          </View>
+
+          <View style={styles.qualifyRow}>
+            <Text style={styles.qualifyLabel}>Does any of this apply to you? (Optional)</Text>
+            <View style={styles.helpTagsWrap}>
+              {LEAD_TAG_OPTIONS.map((option) => {
+                const active = helpTags.includes(option.value);
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.helpTagChip, active && styles.helpTagChipActive]}
+                    onPress={() => toggleHelpTag(option.value)}
+                  >
+                    <Text style={[styles.helpTagText, active && styles.helpTagTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helpTagsHelper}>
+              Helps us match you with a professional who has relevant experience.
+            </Text>
           </View>
 
           <Text style={styles.titleLabel}>Land Title (Optional)</Text>
@@ -585,6 +620,37 @@ const styles = StyleSheet.create({
   },
   yesNoTextActive: {
     color: theme.color.accent,
+  },
+  helpTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  helpTagChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.color.track,
+    backgroundColor: theme.color.surface,
+  },
+  helpTagChipActive: {
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
+  },
+  helpTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+  },
+  helpTagTextActive: {
+    color: theme.color.accent,
+  },
+  helpTagsHelper: {
+    fontSize: 12,
+    color: theme.color.textFaint,
+    marginTop: 8,
+    lineHeight: 16,
   },
   titleLabel: {
     fontSize: 15,

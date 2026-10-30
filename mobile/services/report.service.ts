@@ -447,7 +447,8 @@ export const reportService = {
     isOwner?: boolean,
     intendsToSell?: boolean,
     titleUrl?: string,
-    requestedBrokerCount?: number
+    requestedBrokerCount?: number,
+    helpTags?: string[]
   ) {
     try {
       const updates: Record<string, unknown> = {
@@ -457,6 +458,7 @@ export const reportService = {
       if (isOwner !== undefined) updates.is_owner = isOwner;
       if (intendsToSell !== undefined) updates.intends_to_sell = intendsToSell;
       if (requestedBrokerCount !== undefined) updates.requested_broker_count = requestedBrokerCount;
+      if (helpTags && helpTags.length > 0) updates.help_tags = helpTags;
       if (titleUrl) {
         updates.title_url = titleUrl;
         updates.title_submitted_at = new Date().toISOString();
@@ -526,6 +528,7 @@ export const reportService = {
           property_address: property.address,
           property_value: report.estimated_value,
           city_id: cityId,
+          lead_tags: report.help_tags || null,
         })
         .select()
         .single();

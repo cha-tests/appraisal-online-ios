@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
+import { leadTagBadgeLabel } from '../../config/leadTags';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { theme } from '../../theme';
 
@@ -197,6 +198,15 @@ export default function LeadDetail() {
         <Text style={styles.propertyMeta}>
           Estimated valuation based on comparable sales
         </Text>
+        {!!lead.lead_tags?.length && (
+          <View style={styles.nicheTagsRow}>
+            {lead.lead_tags.map((tag) => (
+              <View key={tag} style={styles.nicheTag}>
+                <Text style={styles.nicheTagText}>{leadTagBadgeLabel(tag)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
 
       {/* Consumer Information */}
@@ -425,6 +435,23 @@ const styles = StyleSheet.create({
   propertyMeta: {
     fontSize: 13,
     color: theme.color.textMuted,
+  },
+  nicheTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  nicheTag: {
+    backgroundColor: '#EDE9FE',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  nicheTagText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5B21B6',
   },
   sectionTitle: {
     fontSize: 18,

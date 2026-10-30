@@ -18,6 +18,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { supabase } from '../../services/supabase';
 import { Lead } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
+import { leadTagBadgeLabel } from '../../config/leadTags';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { theme } from '../../theme';
 
@@ -154,6 +155,15 @@ export default function LeadInbox() {
           ) : (
             <View style={styles.titleBadgeMuted}>
               <Text style={styles.titleBadgeMutedText}>No title yet</Text>
+            </View>
+          )}
+          {!!item.lead_tags?.length && (
+            <View style={styles.nicheTagsRow}>
+              {item.lead_tags.map((tag) => (
+                <View key={tag} style={styles.nicheTag}>
+                  <Text style={styles.nicheTagText}>{leadTagBadgeLabel(tag)}</Text>
+                </View>
+              ))}
             </View>
           )}
         </View>
@@ -365,6 +375,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: theme.color.textFaint,
+  },
+  nicheTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 6,
+  },
+  nicheTag: {
+    backgroundColor: '#EDE9FE',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  nicheTagText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5B21B6',
   },
   leadItemRight: {
     alignItems: 'flex-end',
