@@ -172,12 +172,10 @@ from the code:
   `route_all_orphaned_leads()` sweep (same routing logic, run across every
   orphaned lead and every active broker at once) is called once immediately
   in the migration to clear the existing backlog, and scheduled hourly via
-  `pg_cron` so a future stuck lead gets caught up on its own. If `pg_cron`
-  isn't enabled on the Supabase plan, the migration degrades gracefully (the
-  function and one-time backfill still apply; only the recurring part is
-  skipped, with a `NOTICE` giving the exact manual `cron.schedule(...)` call
-  to run once it's enabled) — check whether that manual step is still
-  pending before assuming leads keep routing automatically going forward.
+  `pg_cron` so a future stuck lead gets caught up on its own. Applied to the
+  real project and confirmed live: the one-time backfill routed 7 real stuck
+  leads, and `cron.job` shows `route-orphaned-leads-hourly` scheduled and
+  `active = true`. Nothing left open on this one.
 
 ## Companion documents and precedence
 
