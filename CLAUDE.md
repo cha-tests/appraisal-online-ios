@@ -159,27 +159,25 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Orphaned lead backlog has no automatic catch-up yet.** Root cause (fixed):
-  broker onboarding never persisted `broker_profiles.selected_cities` to the
-  database at all — every real broker signup left it as `{}`, so
-  `route_lead_to_brokers` (migration 008) never had anything real to match,
-  regardless of a lead's city. `onboarding.tsx`'s `handleSubmit` now actually
-  calls `brokerService.updateCities`, and migration 027's
+- **Orphaned lead backlog — resolved (migration 028).** Root cause (fixed
+  earlier): broker onboarding never persisted `broker_profiles.selected_cities`
+  to the database at all, so `route_lead_to_brokers` (migration 008) never had
+  anything real to match. `onboarding.tsx`'s `handleSubmit` now calls
+  `brokerService.updateCities`, and migration 027's
   `route_orphaned_leads_to_broker` retroactively routes any lead with zero
-  `lead_routings` rows to a broker the moment *that broker* saves a matching
-  city. What's still missing: this only fires on that one event — an
-  existing broker who already covers a city, or a lead stuck before this fix
-  shipped, is not caught up until someone (any broker) touches their city
-  list again. Two possible remaining pieces, not yet decided or built:
-  1. A one-time sweep across all brokers/leads to catch up the backlog that
-     already exists, runnable any time without new infrastructure.
-  2. A recurring scheduled job (e.g. Supabase `pg_cron`) so a stuck lead
-     gets caught up on its own, without depending on broker action — this
-     is new infrastructure for the project and may need enabling on the
-     Supabase plan.
-  Ask the user whether either has been done before assuming leads route
-  reliably in a build — if not, flag it rather than silently shipping with
-  the gap still open.
+  `lead_routings` rows the moment *that broker* saves a matching city — but
+  that only fired on that one event, leaving two gaps: a lead stuck before
+  027 shipped, and an existing broker who already covers a city but never
+  touches their city list again. Migration 028 closes both: a
+  `route_all_orphaned_leads()` sweep (same routing logic, run across every
+  orphaned lead and every active broker at once) is called once immediately
+  in the migration to clear the existing backlog, and scheduled hourly via
+  `pg_cron` so a future stuck lead gets caught up on its own. If `pg_cron`
+  isn't enabled on the Supabase plan, the migration degrades gracefully (the
+  function and one-time backfill still apply; only the recurring part is
+  skipped, with a `NOTICE` giving the exact manual `cron.schedule(...)` call
+  to run once it's enabled) — check whether that manual step is still
+  pending before assuming leads keep routing automatically going forward.
 
 ## Companion documents and precedence
 
