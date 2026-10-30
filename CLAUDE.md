@@ -101,6 +101,11 @@ from the code:
 - Send an empty weekly digest.
 - Offer legal advice or legal consultation. Brokers and consumers are
   responsible for their own legal compliance.
+- Add a reward/incentive for the broker referral program (migration 030,
+  `broker_profiles.referral_code`/`referred_by`) without an explicit request.
+  Confirmed decision: it stays attribution-only — there is no incentive for
+  referrals right now. Keep the existing referral data/schema; just don't
+  build a reward on top of it or fold it into unrelated work.
 
 ## Implementation notes (recent work, worth pinning down)
 
