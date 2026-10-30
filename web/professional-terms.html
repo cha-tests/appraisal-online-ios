@@ -40,6 +40,14 @@
             font-size: 20px;
             font-weight: 700;
             color: #2563eb;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo img {
+            width: 22px;
+            height: 22px;
         }
 
         .back-link {
@@ -233,7 +241,7 @@
 <body>
     <header>
         <nav>
-            <div class="logo">Appraisal Online</div>
+            <div class="logo"><img src="data:image/png;base64,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" alt="" />Appraisal Online</div>
             <a href="#" class="back-link" onclick="history.back(); return false;">← Back</a>
         </nav>
     </header>
