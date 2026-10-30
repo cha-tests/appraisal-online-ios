@@ -54,7 +54,7 @@ export default function Welcome() {
         </Text>
       </Text>
 
-      {/* Learn more — the only in-app entry point into these three marketing
+      {/* Learn more — the only in-app entry point into these four marketing
           screens; nothing else links to them. */}
       <View style={styles.learnMoreRow}>
         <Button
@@ -62,6 +62,13 @@ export default function Welcome() {
           variant="outline"
           size="small"
           onPress={() => router.push('/public/demo')}
+          style={styles.learnMoreButton}
+        />
+        <Button
+          title="Is my city covered?"
+          variant="outline"
+          size="small"
+          onPress={() => router.push('/public/coverage')}
           style={styles.learnMoreButton}
         />
         <Button

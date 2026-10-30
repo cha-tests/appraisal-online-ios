@@ -10,6 +10,7 @@ export default function PublicLayout() {
       }}
     >
       <Stack.Screen name="demo" />
+      <Stack.Screen name="coverage" />
       <Stack.Screen name="founders" />
       <Stack.Screen name="how-we-make-money" />
       <Stack.Screen name="how-it-works" />

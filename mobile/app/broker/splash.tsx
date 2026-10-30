@@ -96,6 +96,9 @@ export default function BrokerSplash() {
         <Text style={styles.footerNote}>
           Takes about 5 minutes • No commitment until payment
         </Text>
+        <Text style={styles.coverageLink} onPress={() => router.push('/public/coverage')}>
+          Not sure your city is covered? Check here
+        </Text>
         <Button
           title="Sign Out"
           variant="outline"
@@ -187,5 +190,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     color: theme.color.textFaint,
+  },
+  coverageLink: {
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.accent,
+    marginTop: 16,
+    textDecorationLine: 'underline',
   },
 });
