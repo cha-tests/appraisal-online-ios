@@ -60,6 +60,7 @@ export default function BrokerOnboarding() {
     license_number: '',
     phone: '',
     website: '',
+    referral_code: '',
     tier: 'Premium Annual' as BrokerTier,
     selectedCities: [] as string[],
     emailEnabled: true,
@@ -265,7 +266,8 @@ export default function BrokerOnboarding() {
           formData.phone,
           formData.website,
           formData.role,
-          formData.tier
+          formData.tier,
+          formData.referral_code
         );
         if (!created.success) {
           throw new Error(created.error?.message || 'Failed to create broker profile');
@@ -392,6 +394,14 @@ export default function BrokerOnboarding() {
             placeholder="https://yoursite.com"
             value={formData.website}
             onChangeText={(val) => setFormData((prev) => ({ ...prev, website: val }))}
+          />
+
+          <TextInput
+            label="Referral Code (Optional)"
+            placeholder="e.g., BRK-000123"
+            autoCapitalize="characters"
+            value={formData.referral_code}
+            onChangeText={(val) => setFormData((prev) => ({ ...prev, referral_code: val }))}
           />
         </View>
       )}
@@ -831,6 +841,11 @@ export default function BrokerOnboarding() {
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Website</Text>
               <Text style={styles.reviewValue}>{formData.website || 'Not provided'}</Text>
+            </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Referral Code</Text>
+              <Text style={styles.reviewValue}>{formData.referral_code || 'Not provided'}</Text>
             </View>
           </Card>
 

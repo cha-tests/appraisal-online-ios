@@ -10,9 +10,21 @@ export const brokerService = {
     phone?: string,
     website?: string,
     role: BrokerRole = 'broker',
-    tier: BrokerTier = 'Premium Annual'
+    tier: BrokerTier = 'Premium Annual',
+    referralCode?: string
   ) {
     try {
+      // An unrecognized or blank code just means no attribution — never
+      // blocks signup (see resolve_referral_code's own comment, migration
+      // 030). referred_by is only ever set once, here, at creation.
+      let referredBy: string | null = null;
+      if (referralCode?.trim()) {
+        const { data: resolvedId } = await supabase.rpc('resolve_referral_code', {
+          p_code: referralCode.trim(),
+        });
+        referredBy = resolvedId ?? null;
+      }
+
       const { data, error } = await supabase
         .from('broker_profiles')
         .insert({
@@ -27,6 +39,7 @@ export const brokerService = {
           email_enabled: true,
           push_enabled: true,
           sms_enabled: false,
+          referred_by: referredBy,
         })
         .select()
         .single();

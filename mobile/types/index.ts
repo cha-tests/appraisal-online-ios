@@ -59,6 +59,11 @@ export interface BrokerProfile {
   is_founding_member: boolean;
   founding_member_number?: number;
   founding_member_locked_price?: number;
+  // Auto-assigned at signup (migration 030) — this broker's own shareable
+  // code. referred_by is the referring broker's user_id, set once at
+  // signup if a valid code was entered; never changes afterward.
+  referral_code?: string;
+  referred_by?: string;
   created_at: string;
   updated_at: string;
 }

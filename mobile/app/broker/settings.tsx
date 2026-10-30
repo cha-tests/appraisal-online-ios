@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -149,6 +150,22 @@ export default function BrokerSettings() {
         style: 'destructive',
       },
     ]);
+  };
+
+  // RN's Share API has no native share sheet on web unless the browser
+  // itself supports navigator.share (most desktop browsers don't) —
+  // Share.share() rejects in that case rather than silently no-opping, so
+  // this needs a real fallback rather than letting it throw uncaught.
+  const handleShareReferralCode = async () => {
+    const code = profile?.referral_code;
+    if (!code) return;
+    try {
+      await Share.share({
+        message: `I've been using Appraisal Online to get property leads in my city. Use my referral code ${code} when you sign up as a broker or agent.`,
+      });
+    } catch (err) {
+      Alert.alert('Sharing not available', `Your code is ${code} — copy it from the box above instead.`);
+    }
   };
 
   if (loading) {
@@ -379,6 +396,30 @@ export default function BrokerSettings() {
         )}
       </Card>
 
+      {/* Refer a colleague — item #8 from the synthetic user report:
+          discovery on both sides of this marketplace was overwhelmingly
+          peer-to-peer, not paid marketing, so this just rides that channel
+          rather than trying to redirect it. No reward/incentive wired up
+          here — referred_by is attribution only (see migration 030). */}
+      {!!profile?.referral_code && (
+        <Card variant="default" style={{ marginBottom: 16 }}>
+          <Text style={styles.referralTitle}>Refer a Colleague</Text>
+          <Text style={styles.referralText}>
+            Know another broker or agent who'd want leads in their city? Share your code — they can
+            enter it when they sign up.
+          </Text>
+          <View style={styles.referralCodeRow}>
+            <Text style={styles.referralCode}>{profile.referral_code}</Text>
+          </View>
+          <Button
+            title="Share My Code"
+            variant="outline"
+            size="small"
+            onPress={handleShareReferralCode}
+          />
+        </Card>
+      )}
+
       {/* Upgrade path for a broker who signed up on the Free plan — reuses
           the same paywall/checkout screens as signup, just entered from
           here instead. */}
@@ -574,6 +615,31 @@ const styles = StyleSheet.create({
     color: theme.color.textMuted,
     lineHeight: 18,
     marginTop: 4,
+  },
+  referralTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.color.text,
+    marginBottom: 6,
+  },
+  referralText: {
+    fontSize: 14,
+    color: theme.color.textMuted,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  referralCodeRow: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  referralCode: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: theme.color.text,
   },
   upgradeCard: {
     marginBottom: 16,
