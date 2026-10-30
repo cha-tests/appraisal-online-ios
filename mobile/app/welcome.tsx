@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../components/layout/SafeAreaWrapper';
-import { AppMark } from '../components/ui/AppMark';
 import { Button } from '../components/ui/Button';
 import { setChosenRole } from '../utils/chosenRole';
 import { theme } from '../theme';
@@ -26,7 +25,11 @@ export default function Welcome() {
   return (
     <SafeAreaWrapper scrollable contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <AppMark size={44} />
+        <Image
+          source={require('../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Appraisal Online</Text>
         <Text style={styles.hero}>Know what your property is really worth</Text>
         <Text style={styles.subtitle}>
@@ -98,6 +101,10 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: theme.space['3xl'],
+  },
+  mark: {
+    width: 44,
+    height: 44,
   },
   title: {
     ...theme.type.subheading,

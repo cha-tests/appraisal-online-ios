@@ -1,9 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Animated, Pressable } from 'react-native';
+import { StyleSheet, Animated, Pressable, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../stores/auth.store';
 import { getChosenRole } from '../utils/chosenRole';
-import { AppMark } from '../components/ui/AppMark';
 import { theme } from '../theme';
 
 /**
@@ -87,7 +86,11 @@ export default function Launch() {
   return (
     <Pressable style={styles.container} onPress={handoff}>
       <Animated.View style={{ opacity }}>
-        <AppMark size={104} />
+        <Image
+          source={require('../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
       </Animated.View>
     </Pressable>
   );
@@ -99,5 +102,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.bg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  mark: {
+    width: 104,
+    height: 104,
   },
 });
