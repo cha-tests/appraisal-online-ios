@@ -13,6 +13,7 @@ import {
 } from '../../services/pendingValuationCompletion';
 import { useReportStore } from '../../stores/report.store';
 import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -80,9 +81,10 @@ export default function LoginScreen() {
 
         router.replace('/consumer/home');
       } else {
-        const errorMessage = typeof result.error === 'object' && result.error?.message
-          ? result.error.message
-          : result.error || 'Invalid email or password';
+        const errorMessage = friendlyAuthErrorMessage(
+          typeof result.error === 'object' ? result.error : undefined,
+          'Invalid email or password'
+        );
         Alert.alert('Login Failed', errorMessage);
       }
     } catch (err) {

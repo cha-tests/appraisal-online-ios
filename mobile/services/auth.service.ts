@@ -1,13 +1,12 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { User, AuthSession, AuthCredentials, BrokerProfile } from '../types';
+import { withNetworkRetry } from '../utils/retry';
 
-export const authService = {
-  // Sign up with email
-  async signup(
-    email: string,
-    password: string,
-    metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
-  ) {
+async function signupAttempt(
+  email: string,
+  password: string,
+  metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
+) {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -58,6 +57,84 @@ export const authService = {
         error: parseSupabaseError(error),
       };
     }
+}
+
+async function signinAttempt(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    if (!data.session) throw new Error('No session created');
+
+    // Fetch user record and broker profile if applicable
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userError) throw userError;
+
+    let brokerProfile: BrokerProfile | undefined;
+    if (userData.user_type === 'broker') {
+      const { data: brokerData } = await supabase
+        .from('broker_profiles')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .single();
+
+      brokerProfile = brokerData || undefined;
+    }
+
+    return {
+      success: true,
+      user: userData,
+      session: {
+        user: userData,
+        session_token: data.session.access_token,
+        expires_at: data.session.expires_at,
+        broker_profile: brokerProfile,
+      } as AuthSession,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: parseSupabaseError(error),
+    };
+  }
+}
+
+async function requestPasswordResetAttempt(email: string) {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'appraisalonline://auth/reset-password',
+    });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'Password reset email sent',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: parseSupabaseError(error),
+    };
+  }
+}
+
+export const authService = {
+  // Sign up with email
+  async signup(
+    email: string,
+    password: string,
+    metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
+  ) {
+    return withNetworkRetry(() => signupAttempt(email, password, metadata));
   },
 
   // Resolves a signup() call that failed because the email is already
@@ -89,51 +166,7 @@ export const authService = {
 
   // Sign in with email and password
   async signin(email: string, password: string) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      if (!data.session) throw new Error('No session created');
-
-      // Fetch user record and broker profile if applicable
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      if (userError) throw userError;
-
-      let brokerProfile: BrokerProfile | undefined;
-      if (userData.user_type === 'broker') {
-        const { data: brokerData } = await supabase
-          .from('broker_profiles')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .single();
-
-        brokerProfile = brokerData || undefined;
-      }
-
-      return {
-        success: true,
-        user: userData,
-        session: {
-          user: userData,
-          session_token: data.session.access_token,
-          expires_at: data.session.expires_at,
-          broker_profile: brokerProfile,
-        } as AuthSession,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: parseSupabaseError(error),
-      };
-    }
+    return withNetworkRetry(() => signinAttempt(email, password));
   },
 
   // Sign in with OAuth (Google)
@@ -204,23 +237,7 @@ export const authService = {
 
   // Request password reset
   async requestPasswordReset(email: string) {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'appraisalonline://auth/reset-password',
-      });
-
-      if (error) throw error;
-
-      return {
-        success: true,
-        message: 'Password reset email sent',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: parseSupabaseError(error),
-      };
-    }
+    return withNetworkRetry(() => requestPasswordResetAttempt(email));
   },
 
   // Update password

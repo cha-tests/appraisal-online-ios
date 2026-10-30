@@ -7,6 +7,7 @@ import { TextInput } from '../../components/ui/TextInput';
 import { Card } from '../../components/ui/Card';
 import { authService } from '../../services/auth.service';
 import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -63,7 +64,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('Success', `A verification code was sent to ${email}. Check your email.`);
         setStep('code');
       } else {
-        setError(result.error?.message || 'Failed to send reset code');
+        setError(friendlyAuthErrorMessage(result.error, 'Failed to send reset code'));
       }
     } catch (err) {
       setError('Failed to send reset code');

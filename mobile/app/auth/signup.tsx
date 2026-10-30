@@ -19,6 +19,7 @@ import {
   stashPendingValuation,
 } from '../../services/pendingValuationCompletion';
 import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
 
 /**
  * Sign-up gate — screen 3 of 3 of the valuation flow, reached from
@@ -125,7 +126,7 @@ function GateScreen() {
             return;
           }
         } else {
-          setGateError(result.error?.message || 'Unable to create account');
+          setGateError(friendlyAuthErrorMessage(result.error, 'Unable to create account'));
           return;
         }
       }
@@ -409,7 +410,7 @@ export default function SignupScreen() {
             return;
           }
         } else {
-          Alert.alert('Signup Failed', result.error?.message || 'Unable to create account');
+          Alert.alert('Signup Failed', friendlyAuthErrorMessage(result.error, 'Unable to create account'));
           return;
         }
       }

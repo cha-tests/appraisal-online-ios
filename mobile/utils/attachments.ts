@@ -9,6 +9,8 @@ import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 
+export { withRetry } from './retry';
+
 export interface PickedAttachment {
   uri: string;
   mimeType: string;
@@ -87,25 +89,4 @@ export function chooseAttachmentSource(opts: {
 
     Alert.alert(title, undefined, buttons);
   });
-}
-
-/**
- * Retries a flaky upload automatically — the realistic failure mode on a
- * mobile connection is transient (a dropped signal mid-request), not a bad
- * file, so a couple of retries with backoff resolves most of them without
- * the person having to notice or do anything. Still returns the final
- * failure if every attempt fails, so the caller can offer a manual retry.
- */
-export async function withRetry<T extends { success: boolean }>(
-  fn: () => Promise<T>,
-  maxRetries = 2,
-  baseDelayMs = 800
-): Promise<T> {
-  let result: T;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    result = await fn();
-    if (result.success || attempt === maxRetries) return result;
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * 2 ** attempt));
-  }
-  return result!;
 }
