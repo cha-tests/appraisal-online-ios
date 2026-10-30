@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -135,6 +135,11 @@ export default function ResetPasswordScreen() {
   return (
     <SafeAreaWrapper scrollable>
       <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Set New Password</Text>
         <Text style={styles.subtitle}>Create a new password for your account</Text>
       </View>
@@ -190,6 +195,11 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
+  },
+  mark: {
+    width: 40,
+    height: 40,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,

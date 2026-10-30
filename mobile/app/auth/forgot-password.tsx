@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
@@ -122,6 +122,11 @@ export default function ForgotPasswordScreen() {
     <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>
           {step === 'email' && 'Enter your email address'}
@@ -256,6 +261,11 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
+  },
+  mark: {
+    width: 40,
+    height: 40,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,

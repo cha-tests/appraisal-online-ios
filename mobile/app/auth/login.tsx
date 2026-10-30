@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
@@ -99,6 +99,11 @@ export default function LoginScreen() {
     <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Welcome Back</Text>
         <Text style={styles.subtitle}>Sign in to your account</Text>
       </View>
@@ -151,6 +156,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 32,
     alignItems: 'center',
+  },
+  mark: {
+    width: 44,
+    height: 44,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -439,6 +439,11 @@ export default function SignupScreen() {
     return (
       <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
         <View style={styles.header}>
+          <Image
+            source={require('../../assets/images/splash-icon.png')}
+            style={styles.mark}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Choose your account type</Text>
         </View>
@@ -488,6 +493,11 @@ export default function SignupScreen() {
     <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Create Your Account</Text>
         <Text style={styles.subtitle}>
           {userType === 'consumer' ? 'Homeowner' : 'Real Estate Professional'} Account
@@ -609,6 +619,11 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
+  },
+  mark: {
+    width: 40,
+    height: 40,
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
