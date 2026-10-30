@@ -178,6 +178,34 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
       </View>
 
+      {/* KYC status — surfaced here, not just buried in Settings, since
+          submitting verification and then hearing nothing is exactly the
+          turnaround-anxiety failure mode this is meant to resolve. Shown
+          only once something has actually been submitted (kyc_submitted_at)
+          and isn't already approved — KYC is optional, so a broker who
+          never submitted anything still sits at kyc_status 'pending' by DB
+          default and shouldn't see a misleading "under review" banner. */}
+      {brokerProfile?.kyc_status === 'rejected' && (
+        <Card variant="outlined" style={styles.kycAlertCard}>
+          <Text style={styles.kycAlertTitle}>⚠️ Verification needs another look</Text>
+          <Text style={styles.kycAlertText}>
+            {brokerProfile.kyc_rejection_reason || 'Your submitted documents could not be verified.'}
+          </Text>
+          <Text style={styles.kycAlertHelp}>
+            Contact support@appraisalonline.com to resubmit your documents.
+          </Text>
+        </Card>
+      )}
+      {brokerProfile?.kyc_status === 'pending' && brokerProfile?.kyc_submitted_at && (
+        <Card variant="outlined" style={styles.kycPendingCard}>
+          <Text style={styles.kycPendingTitle}>⏳ Verification under review</Text>
+          <Text style={styles.kycPendingText}>
+            Submitted {new Date(brokerProfile.kyc_submitted_at).toLocaleDateString()} — we'll notify
+            you once it's reviewed.
+          </Text>
+        </Card>
+      )}
+
       {/* Refund Window Alert (if applicable) — not shown for the Free plan
           ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
           has nothing to refund. */}
@@ -378,6 +406,43 @@ const styles = StyleSheet.create({
   },
   profileIcon: {
     fontSize: 24,
+  },
+  kycAlertCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    marginBottom: 20,
+  },
+  kycAlertTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 6,
+  },
+  kycAlertText: {
+    fontSize: 14,
+    color: '#7F1D1D',
+    lineHeight: 20,
+  },
+  kycAlertHelp: {
+    fontSize: 13,
+    color: '#991B1B',
+    marginTop: 8,
+  },
+  kycPendingCard: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    marginBottom: 20,
+  },
+  kycPendingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  kycPendingText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
   },
   refundAlertCard: {
     backgroundColor: theme.color.successWash,

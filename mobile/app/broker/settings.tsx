@@ -29,6 +29,18 @@ const KYC_STATUS_LABEL: Record<string, string> = {
   rejected: '⚠️ Needs another submission',
 };
 
+// kyc_status defaults to 'pending' in the DB even before a broker has ever
+// submitted anything (KYC is optional — see onboarding.tsx), so the raw
+// status alone can't tell "awaiting review" apart from "never submitted".
+// kyc_submitted_at is only ever set by submitKyc(), which is what actually
+// distinguishes the two.
+function kycStatusLabel(profile: BrokerProfile | null): string {
+  if (profile?.kyc_status === 'pending' && !profile?.kyc_submitted_at) {
+    return 'Not submitted';
+  }
+  return KYC_STATUS_LABEL[profile?.kyc_status || 'pending'];
+}
+
 const QUIET_HOURS_OPTIONS = [
   '6:00 PM - 8:00 AM',
   '7:00 PM - 9:00 AM',
@@ -351,10 +363,20 @@ export default function BrokerSettings() {
       <Card variant="default" style={{ marginBottom: 16 }}>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Verification Status</Text>
-          <Text style={styles.infoValue}>
-            {KYC_STATUS_LABEL[profile?.kyc_status || 'pending']}
-          </Text>
+          <Text style={styles.infoValue}>{kycStatusLabel(profile)}</Text>
         </View>
+        {profile?.kyc_status === 'pending' && profile?.kyc_submitted_at && (
+          <Text style={styles.kycDetail}>
+            Submitted {new Date(profile.kyc_submitted_at).toLocaleDateString()} — we'll notify you
+            once it's reviewed.
+          </Text>
+        )}
+        {profile?.kyc_status === 'rejected' && (
+          <Text style={styles.kycDetail}>
+            {profile.kyc_rejection_reason || 'Your submitted documents could not be verified.'}{' '}
+            Contact support@appraisalonline.com to resubmit.
+          </Text>
+        )}
       </Card>
 
       {/* Upgrade path for a broker who signed up on the Free plan — reuses
@@ -546,6 +568,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.color.text,
+  },
+  kycDetail: {
+    fontSize: 13,
+    color: theme.color.textMuted,
+    lineHeight: 18,
+    marginTop: 4,
   },
   upgradeCard: {
     marginBottom: 16,
