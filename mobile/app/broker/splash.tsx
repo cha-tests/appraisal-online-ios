@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
@@ -34,7 +34,11 @@ export default function BrokerSplash() {
     <SafeAreaWrapper scrollable>
       {/* Hero Section */}
       <View style={styles.hero}>
-        <Text style={styles.heroIcon}>🎯</Text>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.heroLogo}
+          resizeMode="contain"
+        />
         <Text style={styles.heroTitle}>Grow Your Real Estate Business</Text>
         <Text style={styles.heroSubtitle}>
           Get pre-qualified property leads from consumers actively seeking professional guidance
@@ -117,8 +121,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingVertical: 24,
   },
-  heroIcon: {
-    fontSize: 56,
+  heroLogo: {
+    width: 64,
+    height: 64,
     marginBottom: 16,
   },
   heroTitle: {
