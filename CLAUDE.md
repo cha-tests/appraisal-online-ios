@@ -34,6 +34,13 @@ the data model lives in the repo itself and should be read there.
 
 - **Free allowance:** 3 consumer reports per calendar month, resetting on the
   1st. The 4th shows a soft paywall pointing at a premium-tier waitlist.
+  Deliberate decision (synthetic user report item #7, confirmed with the
+  product owner): the cap stays as-is on purpose. Multi-property power users
+  (landlords, flippers, Airbnb investors) hit it hardest and are accepted as
+  an edge-case cost rather than addressed with a new paid consumer tier or a
+  higher cap — the free tier's job is trust-building for first-time
+  homeowners, not serving that segment. Don't re-raise this as an open
+  question without new input from the user.
 - **Refund gate:** the in-app refund flow must check tier *and* days since
   payment, and block out-of-window requests with a clear explanation. Track
   refund rate split by tier; alert on the founder dashboard if the rolling
