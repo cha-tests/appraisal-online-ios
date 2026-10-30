@@ -87,6 +87,10 @@ export interface Property {
   property_type?: string;
   condition?: string;
   recent_updates?: string[];
+  // Free-text flag for a situation the standard fields don't capture —
+  // agricultural/farmland, mixed-use, co-owned/inherited, disaster-damaged,
+  // pre-selling/not-yet-built, etc. Optional, independent of property_type.
+  special_situation?: string;
   created_at: string;
 }
 
@@ -262,6 +266,7 @@ export interface PropertyDetailsFormData {
   property_type: string;
   condition: string;
   recent_updates?: string[];
+  special_situation?: string;
 }
 
 export interface BrokerOnboardingFormData {

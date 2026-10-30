@@ -613,6 +613,18 @@ function buildValuationPrompt(
       ? `- Year Built: ${propertyDetails.year_built}\n`
       : '- Year Built: Not applicable / not provided (vacant land)\n';
 
+  // Free-text flag for a situation the structured fields don't capture —
+  // agricultural land, mixed-use, co-owned/inherited, disaster-damaged,
+  // pre-selling, etc. (see property-details.tsx). Optional, so only shown
+  // to the model when the consumer actually filled it in.
+  const specialSituationLine = propertyDetails.special_situation?.trim()
+    ? `- Additional Context From Owner: ${propertyDetails.special_situation.trim()}\n`
+    : '';
+
+  const specialSituationInstruction = propertyDetails.special_situation?.trim()
+    ? `\n\nADDITIONAL CONTEXT FROM OWNER: The owner flagged the following about this property, which the structured fields above don't capture: "${propertyDetails.special_situation.trim()}". Factor this into your reasoning and market trends sections where it would realistically affect value, marketability, or how a buyer would approach this property (e.g. agricultural/raw land, mixed commercial-residential use, shared/undivided ownership, storm or fire damage, or a pre-selling/not-yet-built unit each change the analysis in different ways) — do not just restate it without engaging with it.`
+    : '';
+
   return `You are a professional real estate analyst AI. Based on the following property details, produce (1) a structured valuation JSON block — including comparable sales you identify or plausibly estimate for this specific area, using your knowledge of the location — and (2) a full narrative valuation report.
 
 PROPERTY DETAILS:
@@ -622,8 +634,8 @@ PROPERTY DETAILS:
 - Square Feet: ${propertyDetails.square_feet}
 ${yearBuiltLine}- Property Type: ${propertyDetails.property_type}
 - Condition: ${propertyDetails.condition}${parkingLine}
-
-CONSISTENCY — READ THIS CAREFULLY: The PROPERTY DETAILS above are the actual, user-provided facts about this specific property. Every part of your response — the JSON block and every section of the narrative report, especially "Property Description" — MUST restate these exact same figures (bedrooms, bathrooms, square footage, year built, property type, condition, parking) with no substitutions, rounding, or invented alternatives. Do not describe a different, generic, or "typical" property for the area instead of the one actually described above — this is the single most common mistake to avoid. If the address itself is hard to place precisely (e.g. a Plus Code or an area with limited data), reason about the neighborhood/location using the address text, but the property's own physical facts always come from PROPERTY DETAILS above, never from assumptions about what's "typical" for that location.
+${specialSituationLine}
+CONSISTENCY — READ THIS CAREFULLY: The PROPERTY DETAILS above are the actual, user-provided facts about this specific property. Every part of your response — the JSON block and every section of the narrative report, especially "Property Description" — MUST restate these exact same figures (bedrooms, bathrooms, square footage, year built, property type, condition, parking) with no substitutions, rounding, or invented alternatives. Do not describe a different, generic, or "typical" property for the area instead of the one actually described above — this is the single most common mistake to avoid. If the address itself is hard to place precisely (e.g. a Plus Code or an area with limited data), reason about the neighborhood/location using the address text, but the property's own physical facts always come from PROPERTY DETAILS above, never from assumptions about what's "typical" for that location.${specialSituationInstruction}
 
 COMPARABLE SALES: You do not have live MLS/transaction data, so you cannot cite verified real sales. Instead, generate exactly 3 plausible comparable sales for streets or areas actually near this address — use real, specific local street/neighborhood names for this location rather than generic placeholders (e.g. real streets in the same subdivision, suburb, or district), with sale prices realistic for that specific area, not just the country as a whole. These represent your best local-market estimate, not verified transactions — do not claim or imply they are confirmed real sales.
 

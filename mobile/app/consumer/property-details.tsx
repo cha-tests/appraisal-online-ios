@@ -450,6 +450,20 @@ export default function PropertyDetails() {
         </View>
       )}
 
+      {/* Anything that doesn't fit the fields above — agricultural land,
+          mixed-use, co-owned/inherited, storm/fire damage, pre-selling —
+          optional and independent of Property Type, which only names what
+          the property IS, not a situation around it. */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Anything else we should know?</Text>
+        <TextInput
+          placeholder="e.g., agricultural land, mixed-use, co-owned/inherited, storm damage, pre-selling / not yet built"
+          value={formData.special_situation ?? ''}
+          onChangeText={(val) => updateFormData('special_situation', val || undefined)}
+          multiline
+        />
+      </View>
+
       {/* Navigation */}
       <View style={styles.footer}>
         <Button title="Continue" size="large" onPress={handleSubmit} />

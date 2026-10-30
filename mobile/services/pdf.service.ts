@@ -279,6 +279,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   h3.section { font-size: 15px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-top: 24px; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 12px; margin-top: 8px; }
   .facts span b { color: #1F2937; }
+  .special-situation { font-size: 11px; color: #4B5563; margin-top: 8px; line-height: 1.5; }
   .valuation { text-align: center; background: #F0F9FF; border-radius: 10px; padding: 20px; margin-top: 16px; }
   .valuation .amount { font-size: 28px; font-weight: 700; color: #2563EB; }
   .valuation .range { font-size: 12px; color: #6B7280; margin-top: 6px; }
@@ -337,6 +338,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
     <span><b>Condition:</b> ${escapeHtml(property?.condition || 'N/A')}</span>
     <span><b>Year Built:</b> ${property?.year_built ? property.year_built : 'N/A'}</span>
   </div>
+  ${property?.special_situation ? `<p class="special-situation"><b>Note from owner:</b> ${escapeHtml(property.special_situation)}</p>` : ''}
 
   <div class="valuation">
     <div class="amount">${escapeHtml(valueFormatted)}</div>

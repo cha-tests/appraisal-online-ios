@@ -146,6 +146,17 @@ export default function ReportView() {
           <Text style={styles.summaryLabel}>Condition</Text>
           <Text style={styles.summaryValue}>{currentProperty?.condition || '—'}</Text>
         </View>
+        {!!currentProperty?.special_situation && (
+          <>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Note</Text>
+              <Text style={[styles.summaryValue, styles.summaryValueWrap]}>
+                {currentProperty.special_situation}
+              </Text>
+            </View>
+          </>
+        )}
       </Card>
 
       {/* Comparables Section */}
@@ -276,6 +287,11 @@ const styles = StyleSheet.create({
     ...theme.type.bodySm,
     fontFamily: theme.font.bodySemibold,
     color: theme.color.text,
+  },
+  summaryValueWrap: {
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: theme.space.lg,
   },
   sectionTitle: {
     ...theme.type.subheading,

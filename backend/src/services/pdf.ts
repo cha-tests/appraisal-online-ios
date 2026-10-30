@@ -160,6 +160,12 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       doc.text(`Year Built: ${property.year_built ?? 'N/A'}`);
       doc.text(`Property Type: ${property.property_type || 'N/A'}`);
       doc.text(`Condition: ${property.condition || 'N/A'}`);
+      if (property.special_situation) {
+        doc.fontSize(9).fillColor('#4B5563').text(`Note from owner: ${property.special_situation}`, {
+          lineGap: 2,
+        });
+        doc.fillColor('#000000').fontSize(10);
+      }
 
       doc.moveDown();
 
