@@ -6,14 +6,14 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { theme } from '../../theme';
 
-export default function DemoContent() {
+export default function SampleReportScreen() {
   const router = useRouter();
 
   return (
     <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>See How It Works</Text>
+        <Text style={styles.title}>See a Sample Report</Text>
         <Text style={styles.subtitle}>
           Explore sample reports, alerts, and broker profiles
         </Text>

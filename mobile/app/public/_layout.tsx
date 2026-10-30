@@ -9,7 +9,7 @@ export default function PublicLayout() {
         animationEnabled: true,
       }}
     >
-      <Stack.Screen name="demo" />
+      <Stack.Screen name="sample-report" />
       <Stack.Screen name="coverage" />
       <Stack.Screen name="founders" />
       <Stack.Screen name="how-we-make-money" />

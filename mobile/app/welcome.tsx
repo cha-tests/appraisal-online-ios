@@ -58,10 +58,10 @@ export default function Welcome() {
           screens; nothing else links to them. */}
       <View style={styles.learnMoreRow}>
         <Button
-          title="Demo"
+          title="Sample Report"
           variant="outline"
           size="small"
-          onPress={() => router.push('/public/demo')}
+          onPress={() => router.push('/public/sample-report')}
           style={styles.learnMoreButton}
         />
         <Button
