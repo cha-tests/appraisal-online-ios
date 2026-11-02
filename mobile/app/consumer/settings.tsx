@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { useAuthStore } from '../../stores/auth.store';
+import { useReportStore } from '../../stores/report.store';
 import { supabase, signOut } from '../../services/supabase';
 import { reportService } from '../../services/report.service';
 import { Report } from '../../types';
@@ -94,6 +95,15 @@ export default function ConsumerSettings() {
               const result = await reportService.updateBrokerOptIn(report.id, false);
               if (result.success) {
                 setConnectedReports((prev) => prev.filter((r) => r.id !== report.id));
+                // report-view.tsx (and anywhere else reading currentReport)
+                // reads this same shared store rather than re-fetching, so
+                // without this it kept showing "You're Connected!" for a
+                // report just revoked here, until the app was fully
+                // restarted and the store reset — same class of staleness
+                // broker-optins.tsx's opt-in path already guards against.
+                if (useReportStore.getState().currentReport?.id === report.id && result.report) {
+                  useReportStore.getState().setCurrentReport(result.report);
+                }
               } else {
                 Alert.alert('Error', result.error?.message || 'Failed to revoke broker contact');
               }
