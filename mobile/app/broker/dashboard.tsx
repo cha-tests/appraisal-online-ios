@@ -120,9 +120,14 @@ export default function BrokerDashboard() {
 
     loadDashboardData();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates. The channel name carries a random
+    // suffix so a fast remount (React Strict Mode's double-invoke in web
+    // dev, or quick back/forward navigation) never reuses the same channel
+    // name before the previous one's async removeChannel() finishes — reusing
+    // it hands back an already-subscribed channel, and calling .on() on that
+    // throws "cannot add postgres_changes callbacks ... after subscribe()".
     const leadsSubscription = supabase
-      .channel(`broker_leads_${user?.id}`)
+      .channel(`broker_leads_${user?.id}_${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {

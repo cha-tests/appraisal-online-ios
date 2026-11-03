@@ -81,9 +81,12 @@ export default function LeadInbox() {
 
     loadLeads();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates. Random suffix — see dashboard.tsx's
+    // identical subscription for why a fixed channel name can throw
+    // "cannot add postgres_changes callbacks ... after subscribe()" on a
+    // fast remount.
     const leadsSubscription = supabase
-      .channel(`broker_inbox_${user?.id}`)
+      .channel(`broker_inbox_${user?.id}_${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {

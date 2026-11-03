@@ -76,8 +76,11 @@ export function subscribeToTable<T>(
   callback: (payload: any) => void,
   filter?: string
 ) {
+  // Random suffix — see dashboard.tsx's realtime subscription for why a
+  // fixed channel name can throw "cannot add postgres_changes callbacks
+  // ... after subscribe()" on a fast remount.
   return supabase
-    .channel(`${table}_changes`)
+    .channel(`${table}_changes_${Math.random().toString(36).slice(2)}`)
     .on(
       'postgres_changes',
       {
