@@ -124,6 +124,21 @@ from the code:
   claim/response state on `lead_routings` that doesn't exist today. Don't
   build Option B without an explicit request, and don't treat Option A as
   the final word on this if that decision comes back the other way.
+  **Consent/masking requirement if Option B is ever built:** today, the
+  moment a broker is routed a lead they see full contact info immediately
+  (consumer email/phone, exact address — see `lead-inbox.tsx`/
+  `lead-detail.tsx`) because Option A only ever routes to the brokers
+  chosen to receive it. Option B cannot reuse that same immediate reveal —
+  showing every eligible broker full contact details up front would let
+  any of them contact the homeowner directly without ever claiming
+  anything, defeating the first-come model and going beyond what the
+  homeowner actually consented to (being contacted by a professional
+  through the platform, not broadcast to every broker covering their
+  city). Option B must show eligible brokers a masked preview only
+  (property type, general area, price range — no name/phone/email/exact
+  address) until a broker claims the lead, at which point full details
+  unlock for that broker only and the lead drops out of/shows as claimed
+  for everyone else's inbox.
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a
