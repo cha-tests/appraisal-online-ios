@@ -549,7 +549,7 @@ export const brokerService = {
    * hands a paying customer's data to a broker — an unpaid or lapsed broker
    * must not receive it. That gating lives in the SQL function, not here.
    */
-  async routeLeadToBrokers(leadId: string, cityId: string | null) {
+  async routeLeadToBrokers(leadId: string, cityId: string | null, brokerCount?: number | null) {
     if (!cityId) {
       return { success: true, routedCount: 0 };
     }
@@ -558,6 +558,7 @@ export const brokerService = {
       const { data, error } = await supabase.rpc('route_lead_to_brokers', {
         p_lead_id: leadId,
         p_city_id: cityId,
+        p_broker_count: brokerCount ?? null,
       });
 
       if (error) throw error;

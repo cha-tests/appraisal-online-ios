@@ -538,7 +538,11 @@ export const reportService = {
       // Previously nothing ever inserted into lead_routings, so a lead existed
       // in the database but no broker's inbox ever showed it, regardless of
       // whether their selected_cities matched.
-      const routeResult = await brokerService.routeLeadToBrokers(lead.id, cityId);
+      const routeResult = await brokerService.routeLeadToBrokers(
+        lead.id,
+        cityId,
+        report.requested_broker_count
+      );
       if (!routeResult.success) {
         console.error('Lead created but routing failed:', routeResult.error);
       }
