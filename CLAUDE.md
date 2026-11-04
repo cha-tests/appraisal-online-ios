@@ -109,6 +109,21 @@ from the code:
 
 ## Implementation notes (recent work, worth pinning down)
 
+- **A consumer's requested broker count is now enforced at routing
+  (migration 032).** `reports.requested_broker_count` (migration 026) used
+  to be collected on opt-in and never read — every active, subscribed
+  broker in the lead's city got routed the lead regardless of what the
+  consumer asked for. `route_lead_to_brokers` now caps routing to that
+  count, ranked Founder Lifetime > Premium Annual > Basic Annual, then by
+  earliest active subscription within a tier (same priority order as the
+  published marketing-weighting formula). This is "Option A" of two ways
+  to enforce the cap — the platform decides up front who gets the lead.
+  **Option B — notify every eligible broker and let the first N to
+  respond actually connect — was deliberately not built** and is left as
+  an open decision for the product owner; it would need a new
+  claim/response state on `lead_routings` that doesn't exist today. Don't
+  build Option B without an explicit request, and don't treat Option A as
+  the final word on this if that decision comes back the other way.
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a
