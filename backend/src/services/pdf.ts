@@ -95,13 +95,32 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
         doc.moveDown();
       }
 
-      // Client disclaimer — exact wording agreed at the Sep 1, 2026 sync-up
-      // (see mobile/config/disclaimers.ts, CLIENT_DISCLAIMER_TEXT, which
-      // this must be kept in sync with). Plain "!" rather than the ⚠️
-      // emoji — PDFKit's default Helvetica font only supports the WinAnsi
-      // character set, so the emoji renders as garbled mojibake ("& þ")
-      // instead of a warning sign.
+      // Mandated AI-accuracy disclaimer (exact wording, see CLAUDE.md's
+      // "Critical business rules" — required in the in-app view, email
+      // body, and PDF). This was accidentally dropped from this generator
+      // when it was rewritten to use the newer broker-verification notice
+      // below instead of alongside it; restored here as its own block.
+      // Plain "!" rather than the ⚠️ emoji — PDFKit's default Helvetica
+      // font only supports the WinAnsi character set, so the emoji renders
+      // as garbled mojibake ("& þ") instead of a warning sign.
       doc.fontSize(10).fillColor('#DC2626').text('! IMPORTANT NOTICE', {
+        align: 'left',
+        underline: true,
+      });
+
+      doc.fontSize(9).fillColor('#000000').text(
+        'This is a computer estimate. It is not a licensed appraisal. Banks, courts, and government agencies ' +
+        'do not accept this as a formal valuation.',
+        { align: 'left', lineGap: 4 }
+      );
+
+      doc.moveDown();
+
+      // Broker-verification disclaimer — exact wording agreed at the Sep 1,
+      // 2026 sync-up (see mobile/config/disclaimers.ts, CLIENT_DISCLAIMER_TEXT,
+      // which this must be kept in sync with). A separate concern from the
+      // AI-accuracy notice above; neither replaces the other.
+      doc.fontSize(10).fillColor('#DC2626').text('! WORKING WITH A PROFESSIONAL', {
         align: 'left',
         underline: true,
       });

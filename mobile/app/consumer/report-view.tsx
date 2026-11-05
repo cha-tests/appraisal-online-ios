@@ -9,7 +9,7 @@ import { useReportStore } from '../../stores/report.store';
 import { pdfService } from '../../services/pdf.service';
 import { formatDistance, formatCurrency } from '../../config/marketConfig';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
-import { CLIENT_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { CLIENT_DISCLAIMER_TEXT, AI_ESTIMATE_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { theme } from '../../theme';
 
@@ -126,7 +126,12 @@ export default function ReportView() {
         </View>
       </View>
 
-      <DisclaimerNotice title="⚠️ Important Notice" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
+      {/* Mandated AI-accuracy disclaimer (CLAUDE.md), restored here — see
+          config/disclaimers.ts's AI_ESTIMATE_DISCLAIMER_TEXT comment for
+          why this needs to coexist with, not be replaced by, the
+          broker-verification notice below. */}
+      <DisclaimerNotice title="⚠️ Important Notice" text={AI_ESTIMATE_DISCLAIMER_TEXT} />
+      <DisclaimerNotice title="⚠️ Working With a Professional" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
 
       {/* Property summary */}
       <Card variant="default" style={styles.summaryCard}>

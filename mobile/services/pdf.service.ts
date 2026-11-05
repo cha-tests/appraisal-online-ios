@@ -3,7 +3,7 @@ import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency, formatDistance, getMarketConfig, sqftToSqm } from '../config/marketConfig';
-import { CLIENT_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
+import { CLIENT_DISCLAIMER_TEXT, AI_ESTIMATE_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
 import { PDF_LOGO_BASE64_PNG } from '../assets/images/pdfLogoBase64';
 
 /**
@@ -320,6 +320,11 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 
   <div class="disclaimer">
     <h2>&#9888; Important Notice</h2>
+    <p>${escapeHtml(AI_ESTIMATE_DISCLAIMER_TEXT)}</p>
+  </div>
+
+  <div class="disclaimer">
+    <h2>&#9888; Working With a Professional</h2>
     <p>${escapeHtml(CLIENT_DISCLAIMER_TEXT).replace(
       'www.prc.gov.ph',
       `<a href="${PRC_VERIFICATION_URL}">www.prc.gov.ph</a>`
