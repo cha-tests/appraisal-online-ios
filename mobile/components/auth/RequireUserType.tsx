@@ -1,7 +1,18 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useAuthStore } from '../../stores/auth.store';
+
+// A signed-out visitor who lands directly on one of these (a bookmarked
+// link, a shared URL, back-navigation) almost certainly doesn't have an
+// account yet — the normal path to them is already signed in (post-signup).
+// Bouncing them to a bare login form is a dead end with no visible way
+// back to signup (login.tsx has no "Don't have an account?" link), so
+// these two specifically go to signup instead. Every other broker screen
+// (dashboard, settings, ...) keeps the login redirect, since a returning
+// broker whose session lapsed there is far more likely to need to log back
+// in than to create a new account.
+const GUEST_REDIRECT_TO_SIGNUP = new Set(['/broker/splash', '/broker/welcome']);
 
 type UserType = 'consumer' | 'broker';
 
@@ -38,6 +49,7 @@ const homeFor = (userType: UserType) =>
  */
 export function RequireUserType({ type, children, allowGuest = false }: RequireUserTypeProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
 
   const allowed = user ? user.user_type === type : allowGuest;
@@ -46,14 +58,18 @@ export function RequireUserType({ type, children, allowGuest = false }: RequireU
     // Redirect from an effect rather than during render — navigating mid-render
     // throws in expo-router.
     if (!user) {
-      if (!allowGuest) router.replace('/auth/login');
+      if (!allowGuest) {
+        router.replace(
+          GUEST_REDIRECT_TO_SIGNUP.has(pathname) ? `/auth/signup?userType=${type}` : '/auth/login'
+        );
+      }
       return;
     }
 
     if (!allowed) {
       router.replace(homeFor(user.user_type as UserType));
     }
-  }, [user, allowed, allowGuest, router]);
+  }, [user, allowed, allowGuest, router, pathname, type]);
 
   if (!allowed) {
     // Render a placeholder, never `children`, so the guarded screens do not

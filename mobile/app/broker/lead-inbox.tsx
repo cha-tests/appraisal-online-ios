@@ -206,9 +206,14 @@ export default function LeadInbox() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Your Leads</Text>
-        <Text style={styles.headerSubtitle}>
-          {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
-        </Text>
+        {/* Hidden while loading — showing "0 leads" alongside the "Loading
+            leads..." spinner below read as a contradictory final answer
+            before the real count ever arrived. */}
+        {!loading && (
+          <Text style={styles.headerSubtitle}>
+            {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
+          </Text>
+        )}
       </View>
 
       {/* Search & Filter */}

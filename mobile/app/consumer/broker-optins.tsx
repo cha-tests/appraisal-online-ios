@@ -291,12 +291,20 @@ export default function BrokerOptins() {
 
       {/* Opt-in Card */}
       <Card variant="elevated" style={styles.optInCard}>
-        <View style={styles.checkboxRow}>
+        {/* The whole row toggles, not just the switch itself — this is the
+            single most important consent control in the consumer flow, so
+            it gets the larger, full-row tap target standard mobile UIs use
+            for a primary toggle. */}
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          activeOpacity={0.7}
+          onPress={() => setOptedIn(!optedIn)}
+        >
           <Text style={styles.checkboxLabel}>
             I'd like local professionals to contact me
           </Text>
           <Toggle value={optedIn} onToggle={setOptedIn} />
-        </View>
+        </TouchableOpacity>
       </Card>
 
       {/* Required whenever optedIn — see handleContinue's validation. Left
@@ -333,12 +341,16 @@ export default function BrokerOptins() {
             error={error && error.includes('mobile number') ? error : undefined}
           />
 
-          <View style={styles.sharePhoneRow}>
+          <TouchableOpacity
+            style={styles.sharePhoneRow}
+            activeOpacity={0.7}
+            onPress={() => setSharePhone(!sharePhone)}
+          >
             <Text style={styles.sharePhoneLabel}>
               Let a professional call or text me at this number
             </Text>
             <Toggle value={sharePhone} onToggle={setSharePhone} />
-          </View>
+          </TouchableOpacity>
 
           <Text style={styles.phoneHelper}>
             {sharePhone
