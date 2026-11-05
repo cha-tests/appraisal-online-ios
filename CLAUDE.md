@@ -201,6 +201,26 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
+- **Free-tier monthly cap silently stopped enforcing after a user's first
+  month — resolved (migration 033).** `report_allowance` had a bare
+  `UNIQUE` constraint on `user_id` alone (001_initial_schema.sql) instead
+  of `UNIQUE(user_id, month)`, so a user could only ever have ONE row in
+  that table, ever. `increment_report_usage`'s `ON CONFLICT (user_id)`
+  matched that same wrong constraint: every report after a user's first
+  calendar month of use kept incrementing that one frozen row without
+  ever updating its `month` column, so `checkReportAllowance`'s
+  month-filtered query could never find it again — the UI showed "0 used
+  / 3 remaining" and the app granted unlimited free reports to every
+  returning user past their first month. Confirmed live via a real user's
+  Account screen (2 reports already generated that month, allowance still
+  showing full). Migration 033 fixes the constraint and the function to
+  key on `(user_id, month)`, and rebuilds `report_allowance` from the
+  `reports` table (the source of truth, never affected by this bug) since
+  every existing row was corrupted and unrecoverable as-is. Verified
+  against a local Postgres replay of all 33 migrations with a realistic
+  multi-month report history before shipping. **Apply this migration to
+  production as a priority** — it's the only thing actually enforcing the
+  3-report cap CLAUDE.md commits to.
 - **Orphaned lead backlog — resolved (migration 028).** Root cause (fixed
   earlier): broker onboarding never persisted `broker_profiles.selected_cities`
   to the database at all, so `route_lead_to_brokers` (migration 008) never had
