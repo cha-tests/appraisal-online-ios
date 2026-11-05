@@ -152,7 +152,16 @@ export default function LeadInbox() {
           <Text style={styles.leadItemAddress}>{item.property_address}</Text>
           <Text style={styles.leadItemEmail}>{item.consumer_email}</Text>
           {item.report?.title_url ? (
-            <TouchableOpacity style={styles.titleBadge} onPress={showTitleBadgeInfo}>
+            // A real tap target, not just the tiny visual chip — this is
+            // nested inside the much larger tappable lead card (which
+            // navigates to lead-detail), so a too-small hit area made it a
+            // coin flip whether a tap near the badge opened the info popup
+            // or navigated away instead.
+            <TouchableOpacity
+              style={styles.titleBadge}
+              onPress={showTitleBadgeInfo}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={styles.titleBadgeText}>✓ Title on file</Text>
             </TouchableOpacity>
           ) : (
@@ -360,8 +369,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: '#DCFCE7',
     borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     marginTop: 6,
   },
   titleBadgeText: {
@@ -375,8 +384,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: theme.color.border,
     borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     marginTop: 6,
   },
   titleBadgeMutedText: {
