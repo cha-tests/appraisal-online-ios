@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
@@ -211,25 +211,6 @@ export default function BrokerDashboard() {
         </Card>
       )}
 
-      {/* Refund Window Alert (if applicable) — not shown for the Free plan
-          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
-          has nothing to refund. */}
-      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
-        <Card variant="outlined" style={styles.refundAlertCard}>
-          <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
-          <Text style={styles.refundAlertText}>
-            You have {refundInfo.daysRemaining} {refundInfo.daysRemaining === 1 ? 'day' : 'days'} left to request a refund if you're not satisfied.
-          </Text>
-          <Button
-            title="Request Refund"
-            variant="outline"
-            size="small"
-            onPress={() => router.push('/broker/refund-request')}
-            style={{ marginTop: 12 }}
-          />
-        </Card>
-      )}
-
       {/* Key Metrics */}
       {metrics && (
         <View style={styles.metricsGrid}>
@@ -246,6 +227,28 @@ export default function BrokerDashboard() {
             <Text style={styles.metricLabel}>Avg Lead Value</Text>
           </Card>
         </View>
+      )}
+
+      {/* Refund Window Alert (if applicable) — not shown for the Free plan
+          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
+          has nothing to refund. Placed below the core metrics rather than
+          above them — a broker opens this screen to check leads/metrics,
+          not for a promotional-style banner, so it shouldn't outrank that
+          data even though it's an important, time-sensitive notice. */}
+      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
+        <Card variant="outlined" style={styles.refundAlertCard}>
+          <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
+          <Text style={styles.refundAlertText}>
+            You have {refundInfo.daysRemaining} {refundInfo.daysRemaining === 1 ? 'day' : 'days'} left to request a refund if you're not satisfied.
+          </Text>
+          <Button
+            title="Request Refund"
+            variant="outline"
+            size="small"
+            onPress={() => router.push('/broker/refund-request')}
+            style={{ marginTop: 12 }}
+          />
+        </Card>
       )}
 
       {/* Quick Actions */}
@@ -277,10 +280,16 @@ export default function BrokerDashboard() {
       <Text style={styles.sectionTitle}>Recent Leads</Text>
 
       {recentLeads.length > 0 ? (
-        <FlatList
-          data={recentLeads}
-          renderItem={({ item }) => (
+        // A plain View/.map() here, not FlatList — this list never scrolls
+        // on its own (it's a short preview inside the page's own
+        // SafeAreaWrapper ScrollView), and nesting a VirtualizedList inside
+        // a ScrollView of the same orientation is a React Native anti-
+        // pattern that breaks windowing: on web it left a large block of
+        // extra blank space below the list instead of sizing to content.
+        <View>
+          {recentLeads.map((item) => (
             <TouchableOpacity
+              key={item.id}
               style={styles.leadCard}
               onPress={() => router.push(`/broker/lead-detail?id=${item.lead_id}`)}
               activeOpacity={0.7}
@@ -299,10 +308,8 @@ export default function BrokerDashboard() {
                 <Text style={styles.leadTitleBadge}>✓ Title on file</Text>
               )}
             </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-        />
+          ))}
+        </View>
       ) : (
         <Card variant="default" style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>📭</Text>
