@@ -42,17 +42,19 @@ interface AccountSpec {
   firstName: string;
   lastName: string;
   companyName: string;
-  tier: 'Founder Lifetime' | 'Premium Annual' | 'Basic Annual';
   paid: boolean;
 }
 
+// Single tier now (migration 034) — what still varies here is whether
+// checkout was ever completed (a broker_profiles row with no matching
+// subscriptions row is a real, reachable state: signup/onboarding
+// finished, payment never did).
 const ACCOUNTS: AccountSpec[] = [
   {
     email: 'testbroker.free@appraisalonline.ai',
     firstName: 'Test',
-    lastName: 'Broker (Free)',
-    companyName: 'Free Tier Realty',
-    tier: 'Basic Annual',
+    lastName: 'Broker (Unpaid)',
+    companyName: 'Unpaid Test Realty',
     paid: false,
   },
   {
@@ -60,7 +62,6 @@ const ACCOUNTS: AccountSpec[] = [
     firstName: 'Test',
     lastName: 'Broker (Paid)',
     companyName: 'Paid Tier Realty',
-    tier: 'Premium Annual',
     paid: true,
   },
 ];
@@ -132,11 +133,11 @@ async function upsertBrokerProfile(userId: string, spec: AccountSpec, cityId: st
     license_number: 'TEST-000000',
     bio: `Test broker account (${spec.paid ? 'paid' : 'free'}) for app testing.`,
     phone: '512-555-0100',
-    tier: spec.tier,
+    tier: 'Premium Annual',
     selected_cities: [cityId],
     email_enabled: true,
     push_enabled: true,
-    sms_enabled: spec.tier === 'Founder Lifetime',
+    sms_enabled: false,
   });
 
   if (error) throw new Error(`Failed to create broker_profiles row: ${error.message}`);
@@ -166,22 +167,16 @@ async function upsertSubscription(userId: string, spec: AccountSpec) {
   const renewalAt = new Date(startedAt);
   renewalAt.setFullYear(renewalAt.getFullYear() + 1);
 
-  const TIER_PRICE_CENTS: Record<AccountSpec['tier'], number> = {
-    'Founder Lifetime': 49900,
-    'Premium Annual': 19900,
-    'Basic Annual': 4900,
-  };
-
   const { error } = await supabase.from('subscriptions').insert({
     broker_id: userId,
     stripe_customer_id: `test_cus_${userId.slice(0, 8)}`,
     stripe_subscription_id: `test_sub_${userId.slice(0, 8)}`,
-    tier: spec.tier,
-    price: TIER_PRICE_CENTS[spec.tier],
+    tier: 'Premium Annual',
+    price: 995,
     currency: 'USD',
-    billing_cycle: spec.tier === 'Founder Lifetime' ? 'lifetime' : 'annual',
+    billing_cycle: 'annual',
     started_at: startedAt.toISOString(),
-    renewal_at: spec.tier === 'Founder Lifetime' ? null : renewalAt.toISOString(),
+    renewal_at: renewalAt.toISOString(),
     refund_eligible_until: refundEligibleUntil.toISOString(),
     status: 'active',
   });

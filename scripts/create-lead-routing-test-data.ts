@@ -6,8 +6,9 @@
  *     real app makes.
  *   - 6 broker accounts with deliberately mixed city selections (solo-city,
  *     partial overlap, full overlap, and a zero-overlap negative control),
- *     across all three tiers, so the digest-vs-real-time and per-tier
- *     routing logic is all exercised.
+ *     with staggered subscription start times, so the city-match and
+ *     earliest-subscription-priority routing logic is exercised (single
+ *     tier since migration 034 — no more digest-vs-real-time split).
  *
  * "BCG" in the request is read as BGC (Bonifacio Global City) — that's a
  * district of Taguig, not its own seeded row in `cities`, so BGC-area
@@ -208,50 +209,42 @@ async function createHomeowner(city: string, index: number) {
 interface BrokerSpec {
   email: string;
   label: string;
-  tier: 'Basic Annual' | 'Premium Annual' | 'Founder Lifetime';
   cities: string[]; // city names; resolved to ids below
   coverageNote: string;
 }
 
+// Single tier now (migration 034) — these no longer exercise tier-based
+// routing differences (there's only one tier), just city-match coverage.
+// started_at is staggered by array order below so this still exercises the
+// one remaining priority signal route_lead_to_brokers has: earliest active
+// subscription wins when a lead's requested_broker_count caps who gets it.
 const BROKER_SPECS: BrokerSpec[] = [
-  { email: 'broker-pasig-only@aol.ai', label: 'Pasig Only Realty', tier: 'Basic Annual', cities: ['Pasig'], coverageNote: 'Pasig only' },
-  { email: 'broker-makati-only@aol.ai', label: 'Makati Only Realty', tier: 'Basic Annual', cities: ['Makati'], coverageNote: 'Makati only' },
-  { email: 'broker-bgc-only@aol.ai', label: 'BGC Only Realty', tier: 'Basic Annual', cities: ['Taguig'], coverageNote: 'Taguig/BGC only' },
+  { email: 'broker-pasig-only@aol.ai', label: 'Pasig Only Realty', cities: ['Pasig'], coverageNote: 'Pasig only' },
+  { email: 'broker-makati-only@aol.ai', label: 'Makati Only Realty', cities: ['Makati'], coverageNote: 'Makati only' },
+  { email: 'broker-bgc-only@aol.ai', label: 'BGC Only Realty', cities: ['Taguig'], coverageNote: 'Taguig/BGC only' },
   {
     email: 'broker-mixed-2of3@aol.ai',
     label: 'Partial Coverage Realty',
-    tier: 'Premium Annual',
     cities: ['Makati', 'Taguig', 'Quezon City'],
     coverageNote: 'Makati + Taguig/BGC (Pasig excluded)',
   },
   {
     email: 'broker-all3@aol.ai',
     label: 'Full Coverage Realty',
-    tier: 'Founder Lifetime',
     cities: ['Pasig', 'Makati', 'Taguig', 'Manila', 'Mandaluyong'],
     coverageNote: 'Pasig + Makati + Taguig/BGC (all three)',
   },
   {
     email: 'broker-none@aol.ai',
     label: 'Elsewhere Realty',
-    tier: 'Premium Annual',
     cities: ['Cebu City', 'Davao City', 'Baguio'],
     coverageNote: 'none of the three — negative control',
   },
 ];
 
-const TIER_PRICE_CENTS: Record<BrokerSpec['tier'], number> = {
-  'Founder Lifetime': 49900,
-  'Premium Annual': 19900,
-  'Basic Annual': 4900,
-};
-const TIER_REFUND_DAYS: Record<BrokerSpec['tier'], number> = {
-  'Founder Lifetime': 14,
-  'Premium Annual': 30,
-  'Basic Annual': 30,
-};
+const BROKER_REFUND_WINDOW_DAYS = 30;
 
-async function createBroker(spec: BrokerSpec) {
+async function createBroker(spec: BrokerSpec, index: number) {
   console.log(`\n${spec.email} (${spec.coverageNote}):`);
   const userId = await ensureUser(spec.email, 'broker', 'Test', spec.label, '09171234567');
 
@@ -269,22 +262,22 @@ async function createBroker(spec: BrokerSpec) {
     license_number: 'TEST-000000',
     bio: `Test broker — ${spec.coverageNote}.`,
     phone: '09171234567',
-    tier: spec.tier,
+    tier: 'Premium Annual',
     selected_cities: cityIds,
     email_enabled: true,
-    // Basic Annual is email-only, weekly digest; Premium/Founder get
-    // real-time push too; Founder adds SMS — matches CLAUDE.md's tiers table.
-    push_enabled: spec.tier !== 'Basic Annual',
-    sms_enabled: spec.tier === 'Founder Lifetime',
+    push_enabled: true,
+    sms_enabled: false,
     kyc_status: 'approved',
     kyc_reviewed_at: new Date().toISOString(),
   });
   if (profErr) throw new Error(`broker_profiles ${spec.email}: ${profErr.message}`);
-  console.log(`  profile: ${spec.tier}, cities = ${spec.cities.join(', ')}`);
+  console.log(`  profile: Premium Annual, cities = ${spec.cities.join(', ')}`);
 
-  const now = new Date();
+  // Staggered by index so earlier entries in BROKER_SPECS subscribed
+  // "earlier" — the only priority signal route_lead_to_brokers has left.
+  const now = new Date(Date.now() - index * 60_000);
   const refund = new Date(now);
-  refund.setDate(refund.getDate() + TIER_REFUND_DAYS[spec.tier]);
+  refund.setDate(refund.getDate() + BROKER_REFUND_WINDOW_DAYS);
   const renewal = new Date(now);
   renewal.setFullYear(renewal.getFullYear() + 1);
 
@@ -292,12 +285,12 @@ async function createBroker(spec: BrokerSpec) {
     broker_id: userId,
     stripe_customer_id: `test_cus_${userId.slice(0, 8)}`,
     stripe_subscription_id: `test_sub_${userId.slice(0, 8)}`,
-    tier: spec.tier,
-    price: TIER_PRICE_CENTS[spec.tier],
+    tier: 'Premium Annual',
+    price: 995,
     currency: 'USD',
-    billing_cycle: spec.tier === 'Founder Lifetime' ? 'lifetime' : 'annual',
+    billing_cycle: 'annual',
     started_at: now.toISOString(),
-    renewal_at: spec.tier === 'Founder Lifetime' ? null : renewal.toISOString(),
+    renewal_at: renewal.toISOString(),
     refund_eligible_until: refund.toISOString(),
     status: 'active',
   });
@@ -307,7 +300,7 @@ async function createBroker(spec: BrokerSpec) {
 
 async function main() {
   console.log('===== Brokers (create first, so leads below have someone to route to) =====');
-  for (const spec of BROKER_SPECS) await createBroker(spec);
+  for (let i = 0; i < BROKER_SPECS.length; i++) await createBroker(BROKER_SPECS[i], i);
 
   console.log('\n===== Homeowners =====');
   for (const city of TARGET_CITIES) {
