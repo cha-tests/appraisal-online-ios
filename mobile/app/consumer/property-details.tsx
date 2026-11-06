@@ -235,10 +235,12 @@ export default function PropertyDetails() {
             : `Please enter ${Math.round(sqftToSqm(100))}-${Math.round(sqftToSqm(5000000)).toLocaleString()} sq m`;
       }
     }
-    // Optional for vacant land — see isLand above — so a blank year_built
-    // (still 0, its unfilled placeholder value) doesn't block submission.
+    // Optional everywhere — a blank year_built (still 0, its unfilled
+    // placeholder value, see yearText above) doesn't block submission; only
+    // an actually-entered value gets range-checked.
     if (
       !isLand &&
+      formData.year_built !== 0 &&
       (formData.year_built < 1800 || formData.year_built > new Date().getFullYear())
     ) {
       newErrors.year_built = `Please enter year between 1800 and ${new Date().getFullYear()}`;
