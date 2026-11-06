@@ -1,5 +1,6 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { BrokerProfile, City, BrokerTier, BrokerRole } from '../types';
+import { BROKER_TIER_CITY_LIMIT, getBrokerAnnualPrice } from '../config/brokerTiers';
 
 export const brokerService = {
   // Create broker profile
@@ -151,27 +152,27 @@ export const brokerService = {
     }
   },
 
-  /**
-   * Claims a founding-member slot (₱5,000/year locked for life) for the
-   * calling broker, if any of the first 1,000 remain — see migration 015.
-   * Idempotent: safe to call more than once for the same broker. Returns
-   * `founding_member_number: null` (not an error) once slots run out —
-   * the broker still signs up, just without the lock.
-   */
-  async claimFoundingMemberSlot(
+  // Claims a broker's permanent place in the global signup order (migration
+  // 034), which fixes their intro price tier. Idempotent — safe to call
+  // more than once for the same broker. Returns the display price too
+  // (computed locally from the rank, same formula as get_broker_annual_price)
+  // purely so the caller can show it immediately without a second round
+  // trip; the actual charge is always computed server-side at payment time.
+  async claimBrokerSignupRank(
     userId: string
-  ): Promise<{ success: boolean; founding_member_number?: number | null; error?: string }> {
+  ): Promise<{ success: boolean; signupRank?: number; priceCents?: number; error?: string }> {
     try {
-      const { data, error } = await supabase.rpc('claim_founding_member_slot', {
+      const { data, error } = await supabase.rpc('claim_broker_signup_rank', {
         p_user_id: userId,
       });
 
       if (error) throw error;
-      return { success: true, founding_member_number: data as number | null };
+      const signupRank = data as number;
+      return { success: true, signupRank, priceCents: getBrokerAnnualPrice(signupRank) };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to claim founding member slot',
+        error: error instanceof Error ? error.message : 'Failed to claim signup rank',
       };
     }
   },
@@ -305,64 +306,13 @@ export const brokerService = {
   },
 
   // Check if a city has reached founder cap (30 per city max)
-  async checkFounderCapacity(cityId: string): Promise<{ available: boolean; count: number }> {
-    try {
-      const { data, error } = await supabase
-        .from('cities')
-        .select('founder_count_lifetime')
-        .eq('id', cityId)
-        .single();
-
-      if (error) throw error;
-
-      const count = data.founder_count_lifetime || 0;
-      const available = count < 30;
-
-      return { available, count };
-    } catch (error) {
-      console.error('Error checking founder capacity:', error);
-      return { available: false, count: 0 };
-    }
-  },
-
-  // Validate city selection based on tier
-  async validateCitySelection(
-    tier: BrokerTier,
-    cityIds: string[]
-  ): Promise<{
-    valid: boolean;
-    errors: string[];
-  }> {
-    const tierCities: Record<BrokerTier, number> = {
-      'Founder Lifetime': 25,
-      'Premium Annual': 10,
-      'Basic Annual': 1,
-    };
-
+  // Validate city selection — every broker is capped at the same limit now
+  // (migration 034), so this is just a count check.
+  validateCitySelection(cityIds: string[]): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // Check city count limit
-    if (cityIds.length > tierCities[tier]) {
-      errors.push(`${tier} tier allows up to ${tierCities[tier]} cities. You selected ${cityIds.length}.`);
-    }
-
-    // Check founder cap for each city (only for Lifetime)
-    if (tier === 'Founder Lifetime') {
-      for (const cityId of cityIds) {
-        const { available, count } = await this.checkFounderCapacity(cityId);
-        if (!available) {
-          // Get city name for error message
-          const { data: city } = await supabase
-            .from('cities')
-            .select('name')
-            .eq('id', cityId)
-            .single();
-
-          errors.push(
-            `${city?.name || 'City'} has reached the maximum of 30 Founder members (current: ${count}). Choose another city.`
-          );
-        }
-      }
+    if (cityIds.length > BROKER_TIER_CITY_LIMIT) {
+      errors.push(`You can cover up to ${BROKER_TIER_CITY_LIMIT} cities. You selected ${cityIds.length}.`);
     }
 
     return {
@@ -375,7 +325,7 @@ export const brokerService = {
   async updateCities(userId: string, tier: BrokerTier, cityIds: string[]) {
     try {
       // Validate selection
-      const validation = await this.validateCitySelection(tier, cityIds);
+      const validation = this.validateCitySelection(cityIds);
 
       if (!validation.valid) {
         return {

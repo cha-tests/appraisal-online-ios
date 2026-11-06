@@ -11,7 +11,6 @@ export default function PublicLayout() {
     >
       <Stack.Screen name="sample-report" />
       <Stack.Screen name="coverage" />
-      <Stack.Screen name="founders" />
       <Stack.Screen name="how-we-make-money" />
       <Stack.Screen name="how-it-works" />
       <Stack.Screen name="privacy-policy" />

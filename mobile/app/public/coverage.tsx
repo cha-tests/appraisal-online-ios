@@ -134,10 +134,10 @@ export default function CoveragePage() {
           style={{ marginBottom: 12 }}
         />
         <Button
-          title="Become a Founding Professional"
+          title="Sign Up as a Broker or Agent"
           variant="outline"
           size="large"
-          onPress={() => router.push('/public/founders')}
+          onPress={() => router.push('/auth/signup?userType=broker')}
         />
       </View>
     </SafeAreaWrapper>

@@ -1,43 +1,28 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { Subscription, RefundLogEntry, BrokerTier } from '../types';
-import { BROKER_TIER_PRICING, BROKER_TIER_FEATURES } from '../config/brokerTiers';
-
-const TIER_PRICING = BROKER_TIER_PRICING;
+import { BROKER_REFUND_WINDOW_DAYS } from '../config/brokerTiers';
 
 export const subscriptionService = {
-  // Get tier pricing and details
-  getTierInfo(tier: BrokerTier) {
-    return {
-      ...TIER_PRICING[tier],
-      cities: BROKER_TIER_FEATURES[tier].cities,
-    };
-  },
-
-  // Create a subscription after successful payment
+  // Create a subscription after successful payment. priceCents is the
+  // amount actually charged — the caller (checkout.tsx) gets this back
+  // from the backend's payment confirmation, which computed it server-side
+  // from the broker's real signup_rank (migration 034), never from a
+  // locally-held value.
   async createSubscription(
     brokerId: string,
     stripeCustomerId: string,
     stripeSubscriptionId: string,
     tier: BrokerTier,
-    billingCycle: 'lifetime' | 'annual'
+    priceCents: number
   ) {
     try {
-      const tierInfo = TIER_PRICING[tier];
       const startedAt = new Date().toISOString();
+      const refundEligibleUntil = new Date(
+        new Date().getTime() + BROKER_REFUND_WINDOW_DAYS * 24 * 60 * 60 * 1000
+      ).toISOString();
+      const renewalAt = new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Calculate refund_eligible_until based on tier
-      const refundWindow = tierInfo.refundWindow;
-      const refundEligibleUntil = new Date(new Date().getTime() + refundWindow * 24 * 60 * 60 * 1000).toISOString();
-
-      let renewalAt = null;
-      if (billingCycle === 'annual') {
-        renewalAt = new Date(new Date().getTime() + 365 * 24 * 60 * 60 * 1000).toISOString();
-      }
-
-      // upsert, not insert: broker_id is unique, and a broker upgrading from
-      // Free already has a row here (created at free signup — see
-      // createFreeSubscription) that this needs to replace rather than
-      // collide with.
+      // upsert, not insert: broker_id is unique.
       const { data, error } = await supabase
         .from('subscriptions')
         .upsert(
@@ -46,9 +31,9 @@ export const subscriptionService = {
             stripe_customer_id: stripeCustomerId,
             stripe_subscription_id: stripeSubscriptionId,
             tier,
-            price: tierInfo.price,
-            currency: tierInfo.currency,
-            billing_cycle: billingCycle,
+            price: priceCents,
+            currency: 'USD',
+            billing_cycle: 'annual',
             started_at: startedAt,
             renewal_at: renewalAt,
             refund_eligible_until: refundEligibleUntil,
@@ -79,13 +64,6 @@ export const subscriptionService = {
         error: parseSupabaseError(error),
       };
     }
-  },
-
-  // Activate the Free tier — no Stripe involved, so this never goes through
-  // checkout.tsx. stripe_customer_id is NOT NULL in the schema even though
-  // there's no real Stripe customer here, hence the sentinel value.
-  async createFreeSubscription(brokerId: string) {
-    return this.createSubscription(brokerId, 'free_tier', null as unknown as string, 'Basic Annual', 'annual');
   },
 
   // Get subscription for a broker
@@ -137,7 +115,7 @@ export const subscriptionService = {
       const startedAt = new Date(data.started_at);
       const refundEligibleUntil = new Date(data.refund_eligible_until);
       const daysSincePurchase = Math.floor((now.getTime() - startedAt.getTime()) / (1000 * 60 * 60 * 24));
-      const refundWindow = TIER_PRICING[data.tier as BrokerTier].refundWindow;
+      const refundWindow = BROKER_REFUND_WINDOW_DAYS;
 
       return {
         eligible: now < refundEligibleUntil,

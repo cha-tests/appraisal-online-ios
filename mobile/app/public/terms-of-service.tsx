@@ -98,10 +98,7 @@ export default function TermsOfService() {
       <Card variant="outlined" style={styles.section}>
         <Text style={styles.sectionTitle}>9. Refund Policy</Text>
         <Text style={styles.sectionText}>
-          Refunds are available within the tier-specific window:
-          {'\n'}• Founder Lifetime: 14 days from purchase
-          {'\n'}• Premium Annual: 30 days from purchase
-          {'\n'}• Basic Annual: 30 days from purchase
+          Refunds are available within 30 days of purchase, no questions asked.
           {'\n'}
           {'\n'}Refunds are processed within 5-10 business days.
         </Text>

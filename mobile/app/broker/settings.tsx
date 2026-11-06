@@ -16,12 +16,12 @@ import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
-import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { signOut } from '../../services/supabase';
 import { BrokerProfile } from '../../types';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { formatPriceCents, getBrokerAnnualPrice } from '../../config/brokerTiers';
 import { theme } from '../../theme';
 
 const KYC_STATUS_LABEL: Record<string, string> = {
@@ -42,26 +42,10 @@ function kycStatusLabel(profile: BrokerProfile | null): string {
   return KYC_STATUS_LABEL[profile?.kyc_status || 'pending'];
 }
 
-const QUIET_HOURS_OPTIONS = [
-  '6:00 PM - 8:00 AM',
-  '7:00 PM - 9:00 AM',
-  '8:00 PM - 10:00 AM',
-  '9:00 PM - 11:00 AM',
-  'Disable Quiet Hours',
-];
-
-const DIGEST_TIMES = [
-  { label: '9:00 AM', value: '09:00' },
-  { label: '12:00 PM', value: '12:00' },
-  { label: '3:00 PM', value: '15:00' },
-  { label: '6:00 PM', value: '18:00' },
-];
-
 export default function BrokerSettings() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const brokerProfile = useAuthStore((state) => state.brokerProfile);
-  const selectedTier = useSubscriptionStore((state) => state.selectedTier);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,7 +54,7 @@ export default function BrokerSettings() {
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
     pushNotifications: true,
-    smsNotifications: selectedTier === 'Founder Lifetime',
+    smsNotifications: false, // SMS isn't offered on any tier any more (migration 034)
     quietHoursEnabled: false,
     quietHours: '6:00 PM - 8:00 AM',
     digestTime: '09:00',
@@ -220,113 +204,6 @@ export default function BrokerSettings() {
         </View>
       </Card>
 
-      {selectedTier === 'Founder Lifetime' && (
-        <Card variant="default" style={styles.preferenceCard}>
-          <View style={styles.preferenceRow}>
-            <View style={styles.preferenceContent}>
-              <Text style={styles.preferenceLabel}>SMS Text Messages</Text>
-              <Text style={styles.preferenceHelper}>Get instant notifications by text</Text>
-            </View>
-            <Toggle
-              value={preferences.smsNotifications}
-              onToggle={(val) =>
-                setPreferences((prev) => ({ ...prev, smsNotifications: val }))
-              }
-            />
-          </View>
-        </Card>
-      )}
-
-      {/* Quiet Hours (Founder only) */}
-      {selectedTier === 'Founder Lifetime' && (
-        <>
-          <Text style={styles.sectionTitle}>🤫 Quiet Hours</Text>
-          <Text style={styles.sectionHelper}>
-            Disable notifications during these hours
-          </Text>
-
-          <Card variant="default" style={styles.preferenceCard}>
-            <View style={styles.preferenceRow}>
-              <View style={styles.preferenceContent}>
-                <Text style={styles.preferenceLabel}>Enable Quiet Hours</Text>
-                <Text style={styles.preferenceHelper}>
-                  No notifications outside your preference
-                </Text>
-              </View>
-              <Toggle
-                value={preferences.quietHoursEnabled}
-                onToggle={(val) =>
-                  setPreferences((prev) => ({ ...prev, quietHoursEnabled: val }))
-                }
-              />
-            </View>
-          </Card>
-
-          {preferences.quietHoursEnabled && (
-            <Card variant="outlined" style={styles.timeSelectCard}>
-              <Text style={styles.quietHourLabel}>Select Quiet Hours Range:</Text>
-              {QUIET_HOURS_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.timeOption,
-                    preferences.quietHours === option && styles.timeOptionSelected,
-                  ]}
-                  onPress={() =>
-                    setPreferences((prev) => ({ ...prev, quietHours: option }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.timeOptionText,
-                      preferences.quietHours === option && styles.timeOptionTextSelected,
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </Card>
-          )}
-        </>
-      )}
-
-      {/* Weekly Digest Time (Basic tier only) */}
-      {selectedTier === 'Basic Annual' && (
-        <>
-          <Text style={styles.sectionTitle}>📅 Weekly Digest</Text>
-          <Text style={styles.sectionHelper}>
-            Select the time to receive your weekly digest (Mondays)
-          </Text>
-
-          <Card variant="outlined" style={styles.timeSelectCard}>
-            <Text style={styles.quietHourLabel}>Select Digest Time:</Text>
-            {DIGEST_TIMES.map((time) => (
-              <TouchableOpacity
-                key={time.value}
-                style={[
-                  styles.timeOption,
-                  preferences.digestTime === time.value && styles.timeOptionSelected,
-                ]}
-                onPress={() =>
-                  setPreferences((prev) => ({ ...prev, digestTime: time.value }))
-                }
-              >
-                <Text
-                  style={[
-                    styles.timeOptionText,
-                    preferences.digestTime === time.value &&
-                      styles.timeOptionTextSelected,
-                  ]}
-                >
-                  {time.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </Card>
-        </>
-      )}
-
       {/* Privacy & Data */}
       <Text style={styles.sectionTitle}>🔐 Privacy & Data</Text>
 
@@ -420,39 +297,19 @@ export default function BrokerSettings() {
         </Card>
       )}
 
-      {/* Upgrade path for a broker who signed up on the Free plan — reuses
-          the same paywall/checkout screens as signup, just entered from
-          here instead. */}
-      {profile?.tier === 'Basic Annual' && (
-        <Card variant="outlined" style={styles.upgradeCard}>
-          <Text style={styles.upgradeTitle}>You're on the Free plan</Text>
-          <Text style={styles.upgradeText}>
-            Upgrade to Premium for real-time lead notifications, an enhanced profile, and
-            quarterly market reports.
-          </Text>
-          <Button
-            title="Upgrade to Premium"
-            size="medium"
-            onPress={() => {
-              useSubscriptionStore.getState().setSelectedTier('Premium Annual');
-              router.push('/broker/paywall');
-            }}
-            style={{ marginTop: 12 }}
-          />
-        </Card>
-      )}
-
-      {/* Standing proof of the founding-member rate lock — the onboarding
-          Alert is a one-time "congratulations" moment; this is the lasting
-          record so it's never just forgotten. Only ever shown when the
-          claim actually succeeded (see migration 015 / claimFoundingMemberSlot). */}
-      {profile?.is_founding_member && (
+      {/* Standing proof of this broker's intro-rate signup, same spirit as
+          the old founding-member card — the onboarding Alert is a one-time
+          "congratulations" moment; this is the lasting record. Honest about
+          it not being locked for life, unlike the old ₱5,000 system this
+          replaced (migration 034): the rate is intro pricing through
+          Dec 31, 2026, not a permanent lock. */}
+      {profile?.signup_rank && (
         <Card variant="outlined" style={styles.founderCard}>
           <View style={styles.infoRow}>
-            <Text style={styles.founderLabel}>
-              🎉 Founding Member #{profile.founding_member_number}
+            <Text style={styles.founderLabel}>🎉 Signup #{profile.signup_rank}</Text>
+            <Text style={styles.founderValue}>
+              {formatPriceCents(getBrokerAnnualPrice(profile.signup_rank))}/yr intro rate
             </Text>
-            <Text style={styles.founderValue}>₱5,000/yr — locked in</Text>
           </View>
         </Card>
       )}

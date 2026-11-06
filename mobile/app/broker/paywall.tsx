@@ -6,22 +6,22 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
-import { subscriptionService } from '../../services/subscription.service';
-import { BROKER_TIER_PRICING, BROKER_TIER_FEATURES, formatTierPrice } from '../../config/brokerTiers';
+import {
+  BROKER_TIER_FEATURES,
+  BROKER_REFUND_WINDOW_DAYS,
+  formatPriceCents,
+  getBrokerAnnualPrice,
+} from '../../config/brokerTiers';
 import { theme } from '../../theme';
-
-const TIER_PRICING = BROKER_TIER_PRICING;
-const TIER_FEATURES = BROKER_TIER_FEATURES;
 
 export default function Paywall() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
+  const signupRank = useSubscriptionStore((state) => state.signupRank);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [activating, setActivating] = useState(false);
   const [error, setError] = useState('');
 
-  if (!selectedTier) {
+  if (!selectedTier || !signupRank) {
     return (
       <SafeAreaWrapper>
         <View style={styles.container}>
@@ -32,36 +32,18 @@ export default function Paywall() {
     );
   }
 
-  const pricing = TIER_PRICING[selectedTier];
-  const features = TIER_FEATURES[selectedTier];
-  const isFree = pricing.price === 0;
+  // Display-only estimate, computed from this broker's own signup rank —
+  // the actual charge is always computed server-side at checkout time (see
+  // checkout.tsx), so this can only ever be a preview of what to expect.
+  const priceCents = getBrokerAnnualPrice(signupRank);
+  const features = BROKER_TIER_FEATURES[selectedTier];
 
-  const handleProceedToCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (!agreedToTerms) {
       alert('Please agree to the terms to continue');
       return;
     }
-
-    // The Free tier has nothing to charge — sending it through checkout.tsx
-    // (which unconditionally sets up a Stripe payment) is exactly what was
-    // asking a Free-plan broker for payment. Activate directly instead.
-    if (isFree) {
-      if (!user?.id) {
-        setError('User not authenticated');
-        return;
-      }
-      setError('');
-      setActivating(true);
-      const result = await subscriptionService.createFreeSubscription(user.id);
-      setActivating(false);
-      if (result.success) {
-        router.push('/broker/welcome');
-      } else {
-        setError(result.error?.message || 'Failed to activate your plan');
-      }
-      return;
-    }
-
+    setError('');
     router.push('/broker/checkout');
   };
 
@@ -80,8 +62,8 @@ export default function Paywall() {
         <View style={styles.tierCardHeader}>
           <Text style={styles.tierName}>{selectedTier}</Text>
           <View style={styles.priceContainer}>
-            <Text style={styles.price}>{formatTierPrice(selectedTier)}</Text>
-            {!isFree && <Text style={styles.billingCycle}>{pricing.billingCycle}</Text>}
+            <Text style={styles.price}>{formatPriceCents(priceCents)}</Text>
+            <Text style={styles.billingCycle}>per year</Text>
           </View>
         </View>
 
@@ -115,7 +97,7 @@ export default function Paywall() {
       <Card variant="outlined" style={styles.protectionCard}>
         <Text style={styles.protectionTitle}>🛡️ Protected by Money-Back Guarantee</Text>
         <Text style={styles.protectionText}>
-          Not satisfied? Get a full refund within {pricing.refundWindow} days of your purchase. No questions asked.
+          Not satisfied? Get a full refund within {BROKER_REFUND_WINDOW_DAYS} days of your purchase. No questions asked.
         </Text>
       </Card>
 
@@ -126,11 +108,7 @@ export default function Paywall() {
         <Text style={styles.benefitNumber}>1</Text>
         <View style={styles.benefitContent}>
           <Text style={styles.benefitTitle}>Leads Delivered</Text>
-          <Text style={styles.benefitDescription}>
-            {selectedTier.includes('Founder') || selectedTier.includes('Premium')
-              ? 'Get instant notifications when consumers opt in'
-              : 'Receive leads every Monday morning'}
-          </Text>
+          <Text style={styles.benefitDescription}>Get instant notifications when consumers opt in</Text>
         </View>
       </Card>
 
@@ -172,7 +150,7 @@ export default function Paywall() {
             <Text style={styles.termsLabel}>
               I agree to the{' '}
               <Text style={styles.termsLink}>Terms of Service</Text> and understand the
-              {' '}<Text style={styles.termsLink}>{pricing.refundWindow} days refund policy</Text>
+              {' '}<Text style={styles.termsLink}>{BROKER_REFUND_WINDOW_DAYS} days refund policy</Text>
             </Text>
           </View>
         </TouchableOpacity>
@@ -184,7 +162,7 @@ export default function Paywall() {
         <Card variant="default" style={styles.faqItem}>
           <Text style={styles.faqQ}>How do I cancel?</Text>
           <Text style={styles.faqA}>
-            Contact us anytime. {selectedTier.includes('Founder') ? 'Founder members can request refunds within 14 days.' : 'Annual members can request refunds within 30 days or cancel before next renewal.'}
+            Contact us anytime. You can request a refund within {BROKER_REFUND_WINDOW_DAYS} days or cancel before your next renewal.
           </Text>
         </Card>
       </View>
@@ -194,11 +172,10 @@ export default function Paywall() {
       {/* CTA Buttons */}
       <View style={styles.footer}>
         <Button
-          title={isFree ? 'Activate Free Plan' : 'Proceed to Payment'}
+          title="Proceed to Payment"
           size="large"
           onPress={handleProceedToCheckout}
           disabled={!agreedToTerms}
-          loading={activating}
           style={{ marginBottom: 12 }}
         />
         <Button
@@ -206,7 +183,6 @@ export default function Paywall() {
           variant="outline"
           size="large"
           onPress={() => router.back()}
-          disabled={activating}
         />
       </View>
     </SafeAreaWrapper>

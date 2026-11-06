@@ -8,14 +8,12 @@ import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { paymentService } from '../../services/payment.service';
-import { BROKER_TIER_PRICING, formatTierPrice } from '../../config/brokerTiers';
+import { formatPriceCents, BROKER_REFUND_WINDOW_DAYS } from '../../config/brokerTiers';
 
 // lib/stripe is platform-split: the real SDK on native, inert stubs on web.
 // Importing through it keeps the native-only module out of the web bundle.
 import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
 import { theme } from '../../theme';
-
-const TIER_PRICING = BROKER_TIER_PRICING;
 
 export default function Checkout() {
   const router = useRouter();
@@ -26,6 +24,10 @@ export default function Checkout() {
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  // The amount actually charged, confirmed by the backend's payment intent
+  // response — this is the only amount ever displayed or recorded, never a
+  // locally-computed guess (see payment.service.ts's createPaymentIntent).
+  const [chargedAmountCents, setChargedAmountCents] = useState<number | null>(null);
   // Resolved at bundle time by the platform-split lib/stripe module.
   const stripeAvailable = isStripeAvailable;
 
@@ -58,8 +60,6 @@ export default function Checkout() {
     );
   }
 
-  const pricing = TIER_PRICING[selectedTier];
-
   const createPaymentIntent = useCallback(async () => {
     try {
       setError('');
@@ -70,11 +70,9 @@ export default function Checkout() {
         return;
       }
 
-      // Step 1: Create payment intent on the backend
-      const intentResponse = await paymentService.createPaymentIntent(
-        pricing.price,
-        selectedTier
-      );
+      // The backend computes the amount server-side from this broker's real
+      // signup_rank — this response is the actual, authoritative price.
+      const intentResponse = await paymentService.createPaymentIntent();
 
       if (!intentResponse.clientSecret) {
         setError('Failed to create payment intent');
@@ -83,13 +81,14 @@ export default function Checkout() {
 
       setClientSecret(intentResponse.clientSecret);
       setPaymentIntentId(intentResponse.paymentIntentId);
+      setChargedAmountCents(intentResponse.amount);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create payment');
       console.error('Payment intent error:', err);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, pricing.price, selectedTier]);
+  }, [user?.id]);
 
   // Called unconditionally: the web shim provides a hook-shaped no-op, so this
   // obeys the rules of hooks on every platform. The previous conditional call
@@ -139,13 +138,14 @@ export default function Checkout() {
         return;
       }
 
-      // Step 3: Create subscription in the database
+      // Step 3: Create subscription in the database, recording the amount
+      // the backend actually charged (never a locally-held guess).
       const subscriptionResult = await subscriptionService.createSubscription(
         user.id,
         paymentIntentId,
         paymentIntentId,
         selectedTier,
-        selectedTier.includes('Lifetime') ? 'lifetime' : 'annual'
+        chargedAmountCents ?? 0
       );
 
       if (subscriptionResult.success) {
@@ -160,7 +160,7 @@ export default function Checkout() {
     } finally {
       setProcessingPayment(false);
     }
-  }, [paymentIntentId, clientSecret, user?.id, stripeConfirmPayment]);
+  }, [paymentIntentId, clientSecret, user?.id, stripeConfirmPayment, chargedAmountCents]);
 
   // Step 1: Create intent when component mounts
   useEffect(() => {
@@ -179,12 +179,16 @@ export default function Checkout() {
       <Card variant="default" style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{selectedTier}</Text>
-          <Text style={styles.summaryPrice}>{formatTierPrice(selectedTier)}</Text>
+          <Text style={styles.summaryPrice}>
+            {chargedAmountCents != null ? formatPriceCents(chargedAmountCents) : '—'}
+          </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { fontWeight: '700' }]}>Total</Text>
-          <Text style={styles.summaryTotal}>{formatTierPrice(selectedTier)}</Text>
+          <Text style={styles.summaryTotal}>
+            {chargedAmountCents != null ? formatPriceCents(chargedAmountCents) : '—'}
+          </Text>
         </View>
       </Card>
 
@@ -242,10 +246,7 @@ export default function Checkout() {
           <Card variant="default" style={styles.termsCard}>
             <Text style={styles.termsText}>
               By clicking "Complete Purchase," you agree to our Terms of Service and authorize the
-              charge to your card. Refunds are available within {selectedTier === 'Founder Lifetime'
-                ? '14'
-                : '30'}{' '}
-              days.
+              charge to your card. Refunds are available within {BROKER_REFUND_WINDOW_DAYS} days.
             </Text>
           </Card>
         </>

@@ -17,8 +17,8 @@ import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
-import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
-import { City } from '../../types';
+import { BROKER_TIER_CITY_LIMIT } from '../../config/brokerTiers';
+import { BrokerTier, City } from '../../types';
 import { theme } from '../../theme';
 
 const COUNTRY_LIST = orderedCountryList();
@@ -28,16 +28,16 @@ const COUNTRY_LABELS: Record<string, string> = Object.fromEntries(
 
 /** Lets a broker change which cities they cover after onboarding — the
  * onboarding wizard (step 4) only ever wrote this once, with no way back
- * in. Reuses the same picker UI and the same updateCities() call (tier
- * limit + founder-cap validation, and the orphaned-lead catch-up in
- * updateCities itself) rather than re-deriving either. */
+ * in. Reuses the same picker UI and the same updateCities() call (the
+ * orphaned-lead catch-up in updateCities itself) rather than re-deriving
+ * it. */
 export default function EditCities() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [tier, setTier] = useState<'Founder Lifetime' | 'Premium Annual' | 'Basic Annual'>('Premium Annual');
+  const [tier, setTier] = useState<BrokerTier>('Premium Annual');
   const [cities, setCities] = useState<City[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -76,27 +76,15 @@ export default function EditCities() {
     load();
   }, [user?.id]);
 
-  const cityLimit = BROKER_TIER_CITY_LIMITS[tier];
-
-  const handleCityToggle = async (cityId: string) => {
+  const handleCityToggle = (cityId: string) => {
     if (selectedCities.includes(cityId)) {
       setSelectedCities((prev) => prev.filter((c) => c !== cityId));
       return;
     }
 
-    if (selectedCities.length >= cityLimit) {
-      setError(
-        `${tier} is limited to ${cityLimit} ${cityLimit === 1 ? 'city' : 'cities'}. Remove one to add another.`
-      );
+    if (selectedCities.length >= BROKER_TIER_CITY_LIMIT) {
+      setError(`You can cover up to ${BROKER_TIER_CITY_LIMIT} cities. Remove one to add another.`);
       return;
-    }
-
-    if (tier === 'Founder Lifetime') {
-      const { available } = await brokerService.checkFounderCapacity(cityId);
-      if (!available) {
-        setError('This city has reached the maximum Founder members. Choose another.');
-        return;
-      }
     }
 
     setError('');
@@ -266,34 +254,25 @@ export default function EditCities() {
                     style={[styles.countryList, styles.cityPickerList]}
                     renderItem={({ item }) => {
                       const isSelected = selectedCities.includes(item.id);
-                      const isFull = item.founder_count_lifetime >= 30 && tier === 'Founder Lifetime';
 
                       return (
                         <TouchableOpacity
                           style={[
                             styles.cityItem,
                             isSelected && styles.cityItemSelected,
-                            isFull && !isSelected && styles.cityItemDisabled,
                           ]}
                           onPress={() => handleCityToggle(item.id)}
-                          disabled={isFull && !isSelected}
                         >
                           <View style={styles.cityItemContent}>
                             <Text style={[styles.cityItemName, isSelected && styles.cityItemNameSelected]}>
                               {item.name}
                               {item.state ? `, ${item.state}` : ''}
                             </Text>
-                            {tier === 'Founder Lifetime' && (
-                              <Text style={styles.cityItemCapacity}>
-                                {item.founder_count_lifetime}/30 founders
-                              </Text>
-                            )}
                           </View>
                           <View
                             style={[
                               styles.cityCheckbox,
                               isSelected && styles.cityCheckboxActive,
-                              isFull && !isSelected && styles.cityCheckboxDisabled,
                             ]}
                           >
                             {isSelected && <Text style={styles.checkmark}>✓</Text>}
@@ -323,7 +302,7 @@ export default function EditCities() {
       </Modal>
 
       <Text style={styles.cityCount}>
-        Selected: {selectedCities.length} of {cityLimit} {cityLimit === 1 ? 'city' : 'cities'}
+        Selected: {selectedCities.length} of {BROKER_TIER_CITY_LIMIT} cities
       </Text>
 
       {!!error && <Text style={styles.errorMessage}>{error}</Text>}

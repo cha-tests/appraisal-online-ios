@@ -29,20 +29,19 @@ interface PaymentResult {
  */
 export const paymentService = {
   /**
-   * Create a payment intent on the backend
+   * Create a payment intent on the backend.
    *
-   * The backend derives the amount from the tier (so the client cannot
-   * request a $1 charge for a $499 product).
+   * The backend derives the amount server-side from the broker's own
+   * signup_rank (migration 034's intro-pricing ladder) — never from
+   * anything this client sends, so a modified client can't request a
+   * lower price than its actual rank qualifies for.
    */
-  async createPaymentIntent(
-    amount: number,
-    tier: 'Founder Lifetime' | 'Premium Annual' | 'Basic Annual'
-  ): Promise<CreatePaymentIntentResponse> {
+  async createPaymentIntent(): Promise<CreatePaymentIntentResponse> {
     try {
       const response = await axios.post(
         `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/intent`,
         {
-          tier,
+          tier: 'Premium Annual',
         }
       );
 

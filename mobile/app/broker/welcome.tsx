@@ -9,19 +9,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { brokerService } from '../../services/broker.service';
 import { formatDate } from '../../config/marketConfig';
-import { BrokerTier } from '../../types';
 import { theme } from '../../theme';
-
-// 'Basic Annual' is repurposed as the Free plan (see broker/onboarding.tsx's
-// TIER_DETAILS) — a $0 plan has nothing to refund, so the guarantee card
-// doesn't apply to it.
-const FREE_TIER: BrokerTier = 'Basic Annual';
-
-const TIER_INFO = {
-  'Founder Lifetime': { refundWindow: '14 days', billingCycle: 'One-time payment' },
-  'Premium Annual': { refundWindow: '30 days', billingCycle: 'Annual renewal' },
-  'Basic Annual': { refundWindow: '30 days', billingCycle: 'Annual renewal' },
-};
 
 export default function Welcome() {
   const router = useRouter();
@@ -63,8 +51,6 @@ export default function Welcome() {
   }, [user?.id]);
 
   const tier = selectedTier || 'Premium Annual';
-  const tierInfo = TIER_INFO[tier as keyof typeof TIER_INFO];
-  const isFreeTier = tier === FREE_TIER;
 
   return (
     <SafeAreaWrapper scrollable>
@@ -80,7 +66,7 @@ export default function Welcome() {
       {/* Membership Confirmation */}
       <Card variant="elevated" style={styles.membershipCard}>
         <Text style={styles.membershipTier}>{tier}</Text>
-        <Text style={styles.membershipBilling}>{tierInfo.billingCycle}</Text>
+        <Text style={styles.membershipBilling}>Annual renewal</Text>
         <View style={styles.membershipDivider} />
         <View style={styles.membershipDate}>
           <Text style={styles.membershipDateLabel}>Activated</Text>
@@ -90,9 +76,8 @@ export default function Welcome() {
         </View>
       </Card>
 
-      {/* Refund Guarantee — not shown for the Free plan, which has nothing
-          to refund. */}
-      {!isFreeTier && refundInfo && (
+      {/* Refund Guarantee */}
+      {refundInfo && (
         <Card variant="outlined" style={styles.refundCard}>
           <Text style={styles.refundTitle}>💰 Money-Back Guarantee</Text>
           <Text style={styles.refundText}>
@@ -124,9 +109,7 @@ export default function Welcome() {
           <Text style={styles.stepIcon}>📍</Text>
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Start Receiving Leads</Text>
-            <Text style={styles.stepDescription}>
-              {tier.includes('Basic') ? 'First weekly digest on Monday' : 'Real-time notifications as they come in'}
-            </Text>
+            <Text style={styles.stepDescription}>Real-time notifications as they come in</Text>
           </View>
         </View>
 
@@ -159,7 +142,7 @@ export default function Welcome() {
           <Text style={styles.stepIcon}>⚡</Text>
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Set Notification Preferences</Text>
-            <Text style={styles.stepDescription}>Choose how and when you receive leads (email, push, SMS if applicable)</Text>
+            <Text style={styles.stepDescription}>Choose how and when you receive leads (email, push)</Text>
           </View>
         </View>
 

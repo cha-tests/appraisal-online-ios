@@ -67,39 +67,25 @@ export default function HowWeMakeMoney() {
       </View>
 
       {/* Broker Pricing */}
-      <Text style={styles.sectionTitle}>Broker Subscription Tiers</Text>
-
-      <Card variant="default" style={styles.tierCard}>
-        <Text style={styles.tierBadge}>Founder Lifetime</Text>
-        <Text style={styles.tierPrice}>$499</Text>
-        <Text style={styles.tierPeriod}>One-time investment</Text>
-        <Text style={styles.tierFeature}>📌 25 cities of coverage</Text>
-        <Text style={styles.tierFeature}>⚡ Real-time lead notifications</Text>
-        <Text style={styles.tierFeature}>💰 Unlimited leads</Text>
-        <Text style={styles.tierFeature}>📲 Text + email + push</Text>
-        <Text style={styles.tierFeature}>✅ 14-day money back guarantee</Text>
-      </Card>
+      <Text style={styles.sectionTitle}>Broker Membership</Text>
 
       <Card variant="default" style={styles.tierCard}>
         <Text style={styles.tierBadge}>Premium Annual</Text>
-        <Text style={styles.tierPrice}>$199</Text>
+        <Text style={styles.tierPrice}>$9.95 – $24.95</Text>
         <Text style={styles.tierPeriod}>Billed yearly</Text>
-        <Text style={styles.tierFeature}>📌 10 cities of coverage</Text>
-        <Text style={styles.tierFeature}>📧 Weekly digest emails</Text>
+        <Text style={styles.tierFeature}>📌 5 cities of coverage</Text>
+        <Text style={styles.tierFeature}>⚡ Real-time lead notifications</Text>
         <Text style={styles.tierFeature}>💰 Unlimited leads</Text>
-        <Text style={styles.tierFeature}>📬 Email only</Text>
+        <Text style={styles.tierFeature}>📬 Email + push</Text>
         <Text style={styles.tierFeature}>✅ 30-day money back guarantee</Text>
       </Card>
 
-      <Card variant="default" style={styles.tierCard}>
-        <Text style={styles.tierBadge}>Basic Annual</Text>
-        <Text style={styles.tierPrice}>$49</Text>
-        <Text style={styles.tierPeriod}>Billed yearly</Text>
-        <Text style={styles.tierFeature}>📌 1 city of coverage</Text>
-        <Text style={styles.tierFeature}>📧 Weekly digest emails</Text>
-        <Text style={styles.tierFeature}>💰 Unlimited leads</Text>
-        <Text style={styles.tierFeature}>📬 Email only</Text>
-        <Text style={styles.tierFeature}>✅ 30-day money back guarantee</Text>
+      <Card variant="outlined" style={styles.missionCard}>
+        <Text style={styles.missionText}>
+          Intro pricing through December 31, 2026: $9.95/year for the first 1,000 brokers to join, $14.95/year for
+          the next 1,000, and $19.95/year after that. Starting January 1, 2027, the price is $24.95/year for every
+          broker, new or renewing.
+        </Text>
       </Card>
 
       {/* Refund Guarantee */}
@@ -107,7 +93,7 @@ export default function HowWeMakeMoney() {
         <Text style={styles.refundIcon}>💚</Text>
         <Text style={styles.refundTitle}>Money-Back Guarantee</Text>
         <Text style={styles.refundText}>
-          All broker memberships include a money-back guarantee. Founder members get 14 days. Premium and Basic tiers get 30 days. If you're not satisfied with your leads, request a refund. We'll refund the full amount.
+          Every broker membership includes a 30-day money-back guarantee. If you're not satisfied with your leads, request a refund. We'll refund the full amount.
         </Text>
       </Card>
 

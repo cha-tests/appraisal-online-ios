@@ -17,12 +17,11 @@ import { checkPhotoQuality } from '../../services/photoQuality.service';
 import { chooseAttachmentSource, withRetry } from '../../utils/attachments';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
-import { BROKER_TIER_CITY_LIMITS } from '../../config/brokerTiers';
+import { BROKER_TIER_CITY_LIMIT, BROKER_REFUND_WINDOW_DAYS, formatPriceCents } from '../../config/brokerTiers';
 import { BrokerTier, BrokerRole, City } from '../../types';
 import { theme } from '../../theme';
 
 const TOTAL_STEPS = 6;
-const TIERS: BrokerTier[] = ['Founder Lifetime', 'Premium Annual', 'Basic Annual'];
 // Every country is selectable here, not just markets with cities already
 // seeded (see countries.ts) — PH/AU/US pinned to the top since they're the
 // primary launch market plus the two with the most current test activity.
@@ -32,17 +31,13 @@ const COUNTRY_LIST = orderedCountryList();
 const COUNTRY_LABELS: Record<string, string> = Object.fromEntries(
   COUNTRY_LIST.map((c) => [c.code, `${countryFlagEmoji(c.code)} ${c.name}`])
 );
-const TIER_DETAILS = {
-  'Founder Lifetime': { label: 'Founder Lifetime', price: '$499 one-time', refund: '14 days' },
-  'Premium Annual': { label: 'Premium Annual', price: '$199/year', refund: '30 days' },
-  'Basic Annual': { label: 'Basic Annual', price: '$49/year', refund: '30 days' },
-};
 
 export default function BrokerOnboarding() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const setSelectedTier = useSubscriptionStore((state) => state.setSelectedTier);
   const setSelectedCities = useSubscriptionStore((state) => state.setSelectedCities);
+  const setSignupRank = useSubscriptionStore((state) => state.setSignupRank);
 
   const [step, setStep] = useState(1);
   const [cities, setCities] = useState<City[]>([]);
@@ -208,9 +203,8 @@ export default function BrokerOnboarding() {
     setStep(step - 1);
   };
 
-  const handleCityToggle = async (cityId: string) => {
+  const handleCityToggle = (cityId: string) => {
     const currentCities = formData.selectedCities;
-    const cityLimit = BROKER_TIER_CITY_LIMITS[formData.tier];
 
     if (currentCities.includes(cityId)) {
       setFormData((prev) => ({
@@ -218,22 +212,9 @@ export default function BrokerOnboarding() {
         selectedCities: prev.selectedCities.filter((c) => c !== cityId),
       }));
     } else {
-      if (currentCities.length >= cityLimit) {
-        setError(
-          `${TIER_DETAILS[formData.tier].label} is limited to ${cityLimit} ${cityLimit === 1 ? 'city' : 'cities'}. Remove one to add another, or upgrade your tier.`
-        );
+      if (currentCities.length >= BROKER_TIER_CITY_LIMIT) {
+        setError(`You can cover up to ${BROKER_TIER_CITY_LIMIT} cities. Remove one to add another.`);
         return;
-      }
-
-      // Founder Lifetime is capped at 30 founders per city (CLAUDE.md: "Never
-      // sell Lifetime into a city at its 30-founder cap") — the other tiers
-      // have no such per-city member cap.
-      if (formData.tier === 'Founder Lifetime') {
-        const { available } = await brokerService.checkFounderCapacity(cityId);
-        if (!available) {
-          setError('This city has reached the maximum Founder members. Choose another.');
-          return;
-        }
       }
 
       setError('');
@@ -300,15 +281,20 @@ export default function BrokerOnboarding() {
 
       await disclaimerService.acceptDisclaimer(userId, 'broker', BROKER_DISCLAIMER_VERSION);
 
-      // Founding-member rate lock only applies to the paid (₱5,000/year)
-      // plan — the Free plan has nothing to lock. See migration 015.
-      if (formData.tier === 'Premium Annual') {
-        const founding = await brokerService.claimFoundingMemberSlot(userId);
-        if (founding.success && founding.founding_member_number) {
+      // Claims this broker's permanent place in the signup order, which
+      // fixes their intro price (migration 034). Stored in the subscription
+      // store so paywall.tsx/checkout.tsx can show/charge the right amount
+      // without re-deriving it.
+      const signup = await brokerService.claimBrokerSignupRank(userId);
+      if (signup.success && signup.signupRank) {
+        setSelectedTier('Premium Annual');
+        setSignupRank(signup.signupRank);
+        const priceCents = signup.priceCents;
+        if (priceCents) {
           await new Promise<void>((resolve) => {
             Alert.alert(
-              '🎉 You’re a Founding Member!',
-              `You're founding member #${founding.founding_member_number} of 1,000 — your ₱5,000/year rate is locked in for life, even if pricing goes up later.`,
+              '🎉 Your rate is locked in!',
+              `You're signup #${signup.signupRank} — your intro rate is ${formatPriceCents(priceCents)}/year.`,
               [{ text: 'Continue', onPress: () => resolve() }]
             );
           });
@@ -469,59 +455,37 @@ export default function BrokerOnboarding() {
         </View>
       )}
 
-      {/* Step 3: Tier Selection */}
+      {/* Step 3: Plan info — one plan, no choice to make. Price depends on
+          signup order and is only known once claimed at submit time (see
+          handleSubmit's claimBrokerSignupRank call), so this step shows
+          what's included rather than a fixed number. */}
       {step === 3 && (
         <View>
-          <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+          <Text style={styles.sectionTitle}>Your Plan</Text>
           <Text style={styles.stepDescription}>
-            Select the membership tier that fits your business needs
+            Every broker gets the same membership — here's what's included
           </Text>
 
-          {TIERS.map((tier) => (
-            <TouchableOpacity
-              key={tier}
-              style={[styles.tierCard, formData.tier === tier && styles.tierCardActive]}
-              onPress={() => {
-                const newLimit = BROKER_TIER_CITY_LIMITS[tier];
-                setFormData((prev) => ({
-                  ...prev,
-                  tier,
-                  // Switching to a lower city cap (e.g. Premium -> Basic)
-                  // must not leave more cities selected than the new tier
-                  // allows — trim to the first N already-chosen cities
-                  // rather than silently submitting an over-the-limit list.
-                  selectedCities: prev.selectedCities.slice(0, newLimit),
-                }));
-                setFormErrors({});
-              }}
-            >
-              <View style={styles.tierHeader}>
-                <Text style={styles.tierName}>{TIER_DETAILS[tier].label}</Text>
-                <Text style={styles.tierPrice}>{TIER_DETAILS[tier].price}</Text>
-              </View>
+          <View style={[styles.tierCard, styles.tierCardActive]}>
+            <View style={styles.tierHeader}>
+              <Text style={styles.tierName}>Premium Annual</Text>
+              <Text style={styles.tierPrice}>Intro pricing</Text>
+            </View>
 
-              <View style={styles.tierFeatures}>
-                <Text style={styles.tierFeature}>
-                  📍 {BROKER_TIER_CITY_LIMITS[tier]} {BROKER_TIER_CITY_LIMITS[tier] === 1 ? 'city' : 'cities'}
-                </Text>
-                <Text style={styles.tierFeature}>
-                  💬 {tier === 'Premium Annual' ? 'Real-time' : 'Weekly'} leads
-                </Text>
-                {tier === 'Premium Annual' && (
-                  <Text style={styles.tierFeature}>
-                    💰 {TIER_DETAILS[tier].refund} money-back guarantee
-                  </Text>
-                )}
-              </View>
+            <View style={styles.tierFeatures}>
+              <Text style={styles.tierFeature}>
+                📍 {BROKER_TIER_CITY_LIMIT} cities
+              </Text>
+              <Text style={styles.tierFeature}>💬 Real-time leads</Text>
+              <Text style={styles.tierFeature}>
+                💰 {BROKER_REFUND_WINDOW_DAYS}-day money-back guarantee
+              </Text>
+            </View>
+          </View>
 
-              <View
-                style={[
-                  styles.tierRadio,
-                  formData.tier === tier && styles.tierRadioActive,
-                ]}
-              />
-            </TouchableOpacity>
-          ))}
+          <Text style={styles.stepDescription}>
+            Your exact rate is locked in based on when you sign up — you'll see it before you pay.
+          </Text>
         </View>
       )}
 
@@ -695,18 +659,14 @@ export default function BrokerOnboarding() {
                           style={[styles.countryList, styles.cityPickerList]}
                           renderItem={({ item }) => {
                             const isSelected = formData.selectedCities.includes(item.id);
-                            const isFull =
-                              item.founder_count_lifetime >= 30 && formData.tier === 'Founder Lifetime';
 
                             return (
                               <TouchableOpacity
                                 style={[
                                   styles.cityItem,
                                   isSelected && styles.cityItemSelected,
-                                  isFull && !isSelected && styles.cityItemDisabled,
                                 ]}
                                 onPress={() => handleCityToggle(item.id)}
-                                disabled={isFull && !isSelected}
                               >
                                 <View style={styles.cityItemContent}>
                                   <Text
@@ -715,17 +675,11 @@ export default function BrokerOnboarding() {
                                     {item.name}
                                     {item.state ? `, ${item.state}` : ''}
                                   </Text>
-                                  {formData.tier === 'Founder Lifetime' && (
-                                    <Text style={styles.cityItemCapacity}>
-                                      {item.founder_count_lifetime}/30 founders
-                                    </Text>
-                                  )}
                                 </View>
                                 <View
                                   style={[
                                     styles.cityCheckbox,
                                     isSelected && styles.cityCheckboxActive,
-                                    isFull && !isSelected && styles.cityCheckboxDisabled,
                                   ]}
                                 >
                                   {isSelected && <Text style={styles.checkmark}>✓</Text>}
@@ -759,8 +713,7 @@ export default function BrokerOnboarding() {
           )}
 
           <Text style={styles.cityCount}>
-            Selected: {formData.selectedCities.length} of {BROKER_TIER_CITY_LIMITS[formData.tier]}{' '}
-            {BROKER_TIER_CITY_LIMITS[formData.tier] === 1 ? 'city' : 'cities'}
+            Selected: {formData.selectedCities.length} of {BROKER_TIER_CITY_LIMIT} cities
           </Text>
         </View>
       )}
@@ -870,7 +823,7 @@ export default function BrokerOnboarding() {
             <Text style={styles.reviewSectionLabel}>Plan</Text>
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Selected Plan</Text>
-              <Text style={styles.reviewValue}>{TIER_DETAILS[formData.tier].label}</Text>
+              <Text style={styles.reviewValue}>{formData.tier}</Text>
             </View>
           </Card>
 

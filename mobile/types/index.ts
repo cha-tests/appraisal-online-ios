@@ -1,6 +1,10 @@
 // User types
 export type UserType = 'consumer' | 'broker';
-export type BrokerTier = 'Founder Lifetime' | 'Premium Annual' | 'Basic Annual';
+// Single-tier model (migration 034) — 'Premium Annual' is the only tier.
+// Kept as a type (not a plain string literal everywhere) so every existing
+// call site that assigned 'Basic Annual'/'Founder Lifetime' surfaces as a
+// compile error, rather than silently keeping a retired tier name alive.
+export type BrokerTier = 'Premium Annual';
 
 export interface User {
   id: string;
@@ -37,7 +41,6 @@ export interface BrokerProfile {
   website?: string;
   tier: BrokerTier;
   selected_cities: string[];
-  founder_number?: number;
   email_enabled: boolean;
   push_enabled: boolean;
   sms_enabled: boolean;
@@ -52,13 +55,10 @@ export interface BrokerProfile {
   kyc_submitted_at?: string;
   kyc_reviewed_at?: string;
   kyc_rejection_reason?: string;
-  // Locks in the ₱5,000/year rate for life for the first 1,000 paid
-  // ('Premium Annual') signups — see migration 015 and the Sep 1 spec's
-  // founding-member pricing decision. founding_member_locked_price is in
-  // minor units (centavos), matching subscriptions.price.
-  is_founding_member: boolean;
-  founding_member_number?: number;
-  founding_member_locked_price?: number;
+  // A broker's permanent place in the global signup order (migration 034),
+  // which fixes their intro price tier — see config/brokerTiers.ts's
+  // getBrokerAnnualPrice. Null until claimed (see claimBrokerSignupRank).
+  signup_rank?: number;
   // Auto-assigned at signup (migration 030) — this broker's own shareable
   // code. referred_by is the referring broker's user_id, set once at
   // signup if a valid code was entered; never changes afterward.
@@ -223,9 +223,6 @@ export interface City {
   state?: string;
   country: string;
   population?: number;
-  founder_count_lifetime: number;
-  founder_count_premium: number;
-  founder_count_basic: number;
   marketing_budget_share: number;
   created_at: string;
   updated_at: string;

@@ -192,9 +192,7 @@ export default function ValueReveal() {
           <View style={styles.howItWorksContent}>
             <Text style={styles.howItWorksTitle}>You Get The Lead</Text>
             <Text style={styles.howItWorksText}>
-              {selectedTier === 'Basic Annual'
-                ? 'Leads delivered weekly via digest'
-                : 'You receive real-time notification with full details'}
+              You receive real-time notification with full details
             </Text>
           </View>
         </View>

@@ -1,46 +1,65 @@
 import { BrokerTier } from '../types';
 
 /**
- * Single source of truth for broker plan pricing and features, matching
- * CLAUDE.md's locked membership tiers table: Founder Lifetime $499 one-time
- * (25 cities), Premium Annual $199/year (10 cities), Basic Annual $49/year
- * (1 city). All three are offered at signup; none are free.
+ * Single source of truth for the broker plan (migration 034 — a single
+ * tier replaced the old Founder Lifetime / Premium Annual / Basic Annual
+ * three-tier model). Every broker covers 5 cities, gets real-time email +
+ * push notifications (no SMS, no weekly digest — those existed only to
+ * differentiate the retired tiers), and has a 30-day refund window.
  *
- * Previously this pricing lived duplicated (and drifted out of sync)
- * across paywall.tsx, checkout.tsx, and subscription.service.ts — this file
- * replaces all three copies.
+ * Price is NOT a static lookup any more — it depends on a broker's place
+ * in the global signup order (their `signup_rank`, claimed once via
+ * `claim_broker_signup_rank` — see broker.service.ts) and today's date:
+ *
+ *   Through Dec 31, 2026 (intro pricing, by signup order):
+ *     rank 1-1,000      -> $9.95/year
+ *     rank 1,001-2,000  -> $14.95/year
+ *     rank 2,001+       -> $19.95/year
+ *   From Jan 1, 2027 onward:
+ *     everyone, any rank, new signup or renewal -> $24.95/year flat
+ *
+ * getBrokerAnnualPrice mirrors the Postgres function `get_broker_annual_price`
+ * exactly (migration 034) — kept in sync by hand, same convention already
+ * used for other client/server-duplicated pricing logic in this codebase.
+ * Prefer calling the RPC directly where a broker's real signup_rank is
+ * already being fetched from the database, so there is only ever one
+ * source of truth live at a time; this copy exists for screens that need
+ * to show a price before/without a round trip (e.g. marketing copy).
  */
-export const BROKER_TIER_CITY_LIMITS: Record<BrokerTier, number> = {
-  'Founder Lifetime': 25,
-  'Premium Annual': 10,
-  'Basic Annual': 1,
-};
-export const BROKER_TIER_PRICING: Record<
-  BrokerTier,
-  { price: number; currency: string; refundWindow: number; billingCycle: 'lifetime' | 'annual' }
-> = {
-  'Founder Lifetime': { price: 49900, currency: 'USD', refundWindow: 14, billingCycle: 'lifetime' },
-  'Premium Annual': { price: 19900, currency: 'USD', refundWindow: 30, billingCycle: 'annual' },
-  'Basic Annual': { price: 4900, currency: 'USD', refundWindow: 30, billingCycle: 'annual' },
-};
+export const BROKER_TIER_CITY_LIMIT = 5;
+
+export const BROKER_REFUND_WINDOW_DAYS = 30;
+
+export const INTRO_PRICING_CUTOFF = new Date('2027-01-01T00:00:00Z');
+
+export const BROKER_ANNUAL_PRICE_CENTS = {
+  introTier1: 995, // $9.95 — first 1,000 signups
+  introTier2: 1495, // $14.95 — next 1,000 signups
+  introTier3: 1995, // $19.95 — every signup after that, through 2026
+  standard: 2495, // $24.95 — everyone, from Jan 1, 2027 onward
+} as const;
+
+/** Cents. Mirrors the SQL function get_broker_annual_price(rank, as_of). */
+export function getBrokerAnnualPrice(signupRank: number, asOf: Date = new Date()): number {
+  if (asOf >= INTRO_PRICING_CUTOFF) return BROKER_ANNUAL_PRICE_CENTS.standard;
+  if (signupRank <= 1000) return BROKER_ANNUAL_PRICE_CENTS.introTier1;
+  if (signupRank <= 2000) return BROKER_ANNUAL_PRICE_CENTS.introTier2;
+  return BROKER_ANNUAL_PRICE_CENTS.introTier3;
+}
+
+export function formatPriceCents(cents: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(cents / 100);
+}
 
 export const BROKER_TIER_FEATURES: Record<
   BrokerTier,
   { cities: string; leads: string; channels: string; includes: string[] }
 > = {
-  'Founder Lifetime': {
-    cities: '25 cities',
-    leads: 'Real-time',
-    channels: 'Email, Push, SMS',
-    includes: [
-      'Verified Founder badge',
-      'Top placement on Find a Pro page',
-      'Monthly market intelligence',
-      'Lifetime access',
-    ],
-  },
   'Premium Annual': {
-    cities: '10 cities',
+    cities: `${BROKER_TIER_CITY_LIMIT} cities`,
     leads: 'Real-time',
     channels: 'Email, Push',
     includes: [
@@ -50,21 +69,4 @@ export const BROKER_TIER_FEATURES: Record<
       'Annual renewal',
     ],
   },
-  'Basic Annual': {
-    cities: '1 city',
-    leads: 'Weekly digest',
-    channels: 'Email',
-    includes: ['Standard profile', 'Weekly Monday digest'],
-  },
 };
-
-/** "Free" for a zero-cost tier, otherwise a formatted currency amount. */
-export function formatTierPrice(tier: BrokerTier): string {
-  const { price, currency } = BROKER_TIER_PRICING[tier];
-  if (price === 0) return 'Free';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price / 100);
-}

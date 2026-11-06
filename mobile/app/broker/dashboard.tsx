@@ -229,13 +229,12 @@ export default function BrokerDashboard() {
         </View>
       )}
 
-      {/* Refund Window Alert (if applicable) — not shown for the Free plan
-          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
-          has nothing to refund. Placed below the core metrics rather than
-          above them — a broker opens this screen to check leads/metrics,
-          not for a promotional-style banner, so it shouldn't outrank that
-          data even though it's an important, time-sensitive notice. */}
-      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
+      {/* Refund Window Alert (if applicable). Placed below the core metrics
+          rather than above them — a broker opens this screen to check
+          leads/metrics, not for a promotional-style banner, so it
+          shouldn't outrank that data even though it's an important,
+          time-sensitive notice. */}
+      {refundInfo && refundInfo.canRefund && (
         <Card variant="outlined" style={styles.refundAlertCard}>
           <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
           <Text style={styles.refundAlertText}>
