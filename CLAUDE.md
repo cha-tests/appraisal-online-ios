@@ -151,6 +151,18 @@ from the code:
   address) until a broker claims the lead, at which point full details
   unlock for that broker only and the lead drops out of/shows as claimed
   for everyone else's inbox.
+- **Requested broker count is capped at 5 (migration 035).** Until this,
+  `reports.requested_broker_count` (migration 026) had no upper bound at
+  all — the broker-contact opt-in screen (`broker-optins.tsx`) only
+  rejected zero/blank, so a homeowner could type any number and
+  `route_lead_to_brokers` would route the lead to that many brokers. Capped
+  client-side (`MAX_REQUESTED_BROKERS` in `broker-optins.tsx`, with a
+  "Choose up to 5" helper line) and at the database level (a CHECK
+  constraint, since nothing else writes this column). 5 was picked as
+  enough for a homeowner to compare real offers without being swarmed by
+  calls/texts from a crowd of brokers, in line with what comparable
+  real-estate lead platforms (Zillow Premier Agent, realtor.com) cap
+  concurrent professional contacts at.
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a

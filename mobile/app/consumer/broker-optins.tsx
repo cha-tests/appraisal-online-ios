@@ -19,6 +19,14 @@ import { chooseAttachmentSource, withRetry, PickedAttachment } from '../../utils
 import { LEAD_TAG_OPTIONS } from '../../config/leadTags';
 import { theme } from '../../theme';
 
+// No limit was enforced before this — a homeowner could type any number and
+// route_lead_to_brokers (migration 034) would route to that many. Capped at
+// 5: enough for the homeowner to compare real offers, far short of being
+// swarmed with calls/texts from a crowd of brokers. Comparable real-estate
+// lead platforms (Zillow Premier Agent, realtor.com) cap concurrent
+// professional contacts in the same 3-5 range.
+const MAX_REQUESTED_BROKERS = 5;
+
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
 function YesNoRow({
   value,
@@ -213,6 +221,10 @@ export default function BrokerOptins() {
           setError('Please enter how many professionals you want to connect with.');
           return;
         }
+        if (parsedCount > MAX_REQUESTED_BROKERS) {
+          setError(`You can connect with up to ${MAX_REQUESTED_BROKERS} professionals at a time.`);
+          return;
+        }
         brokerCountToSave = parsedCount;
       }
 
@@ -323,8 +335,13 @@ export default function BrokerOptins() {
               if (error) setError('');
             }}
             keyboardType="number-pad"
-            error={error && error.includes('professionals you want') ? error : undefined}
+            error={
+              error && (error.includes('professionals you want') || error.includes('up to'))
+                ? error
+                : undefined
+            }
           />
+          <Text style={styles.brokerCountHelper}>Choose up to {MAX_REQUESTED_BROKERS}.</Text>
         </View>
       )}
 
@@ -567,6 +584,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.text,
     marginBottom: 12,
+  },
+  brokerCountHelper: {
+    fontSize: 13,
+    color: theme.color.textMuted,
+    marginTop: 8,
+    lineHeight: 18,
   },
   phoneSection: {
     marginBottom: 24,
