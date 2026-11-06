@@ -350,7 +350,16 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
     <div class="range">Estimated Range: ${escapeHtml(lowFormatted)} &ndash; ${escapeHtml(highFormatted)}</div>
   </div>
 
-  ${fullReportMarkdown ? `<div class="narrative">${renderNarrativeHtml(fullReportMarkdown)}</div>` : ''}
+  ${
+    fullReportMarkdown
+      ? `<div class="narrative">${renderNarrativeHtml(fullReportMarkdown)}</div>`
+      : !isMock
+      ? `<div class="disclaimer">
+    <h2>&#9888; Detailed Analysis Unavailable</h2>
+    <p>We generated the valuation and estimated range above, but couldn't produce the full written analysis for this report. The property information and comparable sales below are still accurate — try generating this report again for the complete write-up.</p>
+  </div>`
+      : ''
+  }
 
   <h3 class="section">Comparable Sales</h3>
   ${comparablesHtml || '<p>No comparable sales data available</p>'}

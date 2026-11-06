@@ -219,6 +219,24 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       if (fullReportMarkdown) {
         renderNarrativeReport(doc, fullReportMarkdown);
         doc.moveDown();
+      } else if (!report.gemini_response?.is_mock) {
+        // The JSON half of the Gemini response (value, comparables) parsed
+        // fine, but the narrative half after the ===FULL_REPORT=== marker
+        // came back empty — distinct from the is_mock case above, where the
+        // whole response is a known offline placeholder. Without this, a
+        // report missing 9 of its 10 sections rendered with no indication
+        // anything was wrong.
+        doc.fontSize(10).fillColor('#DC2626').text('! DETAILED ANALYSIS UNAVAILABLE', {
+          align: 'left',
+          underline: true,
+        });
+        doc.fontSize(9).fillColor('#000000').text(
+          "We generated the valuation and estimated range above, but couldn't produce the full written " +
+          'analysis for this report. The property information and comparable sales below are still accurate ' +
+          '— try generating this report again for the complete write-up.',
+          { align: 'left', lineGap: 4 }
+        );
+        doc.moveDown();
       }
 
       // Comparable Sales
