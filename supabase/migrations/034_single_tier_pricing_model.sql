@@ -173,7 +173,20 @@ ALTER TABLE broker_profiles ALTER COLUMN sms_enabled SET DEFAULT FALSE;
 -- 5. Single tier: tighten the CHECK constraints so the retired tier names
 --    can no longer be written, and fix refund-window calc's now-dead
 --    branches (left harmless, but simplified for clarity).
+--
+--    This migration was first written on the assumption that no
+--    broker_profiles/subscriptions rows existed under any tier yet — wrong:
+--    test accounts created under the old three-tier model are already live
+--    (e.g. scripts/create-broker-test-accounts.ts's 'Basic Annual' free
+--    account), and the CHECK below rejected them outright the first time
+--    this ran. Per the "no real brokers, test accounts only, replace it
+--    entirely" decision this migration already implements, backfill every
+--    existing row to the one surviving tier before tightening the
+--    constraint, rather than leaving the retired tier names in place.
 -- ============================================================================
+
+UPDATE broker_profiles SET tier = 'Premium Annual' WHERE tier IS DISTINCT FROM 'Premium Annual';
+UPDATE subscriptions SET tier = 'Premium Annual' WHERE tier IS DISTINCT FROM 'Premium Annual';
 
 ALTER TABLE broker_profiles DROP CONSTRAINT IF EXISTS broker_profiles_tier_check;
 ALTER TABLE broker_profiles ADD CONSTRAINT broker_profiles_tier_check CHECK (tier = 'Premium Annual');
@@ -213,6 +226,24 @@ ALTER TABLE broker_profiles ADD COLUMN IF NOT EXISTS signup_rank INTEGER;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_broker_profiles_signup_rank
   ON broker_profiles(signup_rank)
   WHERE signup_rank IS NOT NULL;
+
+-- Backfill existing (pre-migration) broker_profiles rows, ordered by
+-- created_at — onboarding only calls claim_broker_signup_rank for a NEW
+-- signup, so without this every test account created before today would
+-- have signup_rank permanently NULL and trip getBrokerSignupPrice's "must
+-- complete onboarding" guard the next time one of them goes through
+-- checkout. Advances the sequence past whatever was just assigned so the
+-- next real new signup doesn't collide with a backfilled rank.
+WITH ranked AS (
+  SELECT user_id, ROW_NUMBER() OVER (ORDER BY created_at) AS rn
+  FROM broker_profiles
+  WHERE signup_rank IS NULL
+)
+UPDATE broker_profiles SET signup_rank = ranked.rn
+FROM ranked
+WHERE broker_profiles.user_id = ranked.user_id;
+
+SELECT setval('broker_signup_seq', GREATEST((SELECT COALESCE(MAX(signup_rank), 0) FROM broker_profiles), 1), true);
 
 -- Claims this broker's permanent place in the signup order. Idempotent —
 -- calling it again for a broker who already has a rank just returns that
