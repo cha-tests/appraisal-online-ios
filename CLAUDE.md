@@ -8,7 +8,7 @@ professionals. Launch markets: US and the Philippines.
   consumer is asked one question: would they like a local property
   professional to contact them.
 - **Broker side (paid):** brokers, lenders and agents buy an annual membership
-  or a one-time lifetime pass to receive leads in their cities.
+  to receive leads in their cities.
 
 The full original brief (`Master Prompt for Claude Code` v02, 2026-05-15) is
 preserved at `PROJECT_BRIEF.docx`. This file carries only the parts that can't
@@ -17,18 +17,37 @@ the data model lives in the repo itself and should be read there.
 
 ## Membership tiers — exact figures, do not round or "simplify"
 
-| Tier | Price | Cities | Delivery | Refund window |
-|---|---|---|---|---|
-| Founder Lifetime | $499 one-time | 25 | email + push + SMS, real-time | **14 days, then never** |
-| Premium Annual | $199/year | 10 | email + push, real-time | 30 days, then not until next renewal |
-| Basic Annual | $49/year | 1 | email only, weekly digest | 30 days, then not until next renewal |
+**Single tier (migration 034, replacing the old Founder Lifetime / Premium
+Annual / Basic Annual three-tier model — there is no more "Basic" or
+"Lifetime").** DB/code value is still `'Premium Annual'` (kept for schema
+continuity, not a meaningful tier name anymore). Every broker gets the same
+product: **5 cities, email + push delivered in real time, no SMS, no weekly
+digest, 30-day refund window.**
 
-- Lifetime is capped at the first **1,000 brokers globally**, with a per-city
-  sub-cap of **30 lifetime founders**, enforced from day one.
-- Lifetime has **no sunset clause and no pro-rata refund** — that was removed
-  in Monetization Model v05. The 14-day guarantee is its only protection.
-- Lifetime is positioned as a "founder pass to Premium", never as equivalent
-  to Premium Annual.
+Price is set by **global signup order** (`broker_profiles.signup_rank`,
+assigned once at onboarding via `claim_broker_signup_rank`), not by anything
+the broker picks, and is computed fresh server-side at every charge
+(`get_broker_annual_price(signup_rank, as_of)`) — never trusted from the
+client:
+
+| Signup rank | Price through 31 Dec 2026 | Price from 1 Jan 2027 |
+|---|---|---|
+| 1–1,000 | $9.95/year | $24.95/year |
+| 1,001–2,000 | $14.95/year | $24.95/year |
+| 2,001+ | $19.95/year | $24.95/year |
+
+- This is **intro pricing, not a lifetime-locked rate**: from Jan 1, 2027
+  onward every charge — a brand-new signup or an existing broker's renewal,
+  regardless of original rank — is a flat **$24.95/year**. Disclose this at
+  signup (e.g. "intro pricing, subject to change") rather than implying the
+  signup-day rate is locked in forever.
+- **No signup caps of any kind** — open signup, no global broker cap, no
+  per-city cap. The old 1,000-broker/30-per-city Founder Lifetime cap system
+  and the public `/founders` page that displayed it are both removed.
+- There is no separate "founding member" program anymore either — an older,
+  already-live ₱5,000/year-locked-for-life system (migration 015) was fully
+  retired by migration 034. No real brokers had ever claimed it (test
+  accounts only), so it was replaced outright with no grandfathering.
 
 ## Critical business rules
 
@@ -41,20 +60,13 @@ the data model lives in the repo itself and should be read there.
   higher cap — the free tier's job is trust-building for first-time
   homeowners, not serving that segment. Don't re-raise this as an open
   question without new input from the user.
-- **Refund gate:** the in-app refund flow must check tier *and* days since
-  payment, and block out-of-window requests with a clear explanation. Track
-  refund rate split by tier; alert on the founder dashboard if the rolling
-  30-day rate exceeds 10% for any tier.
-- **Per-city founder cap:** when a broker selects Lifetime, reject any city
-  already at 30 founders. The counter is visible during signup and on a
-  public `/founders` page that updates in real time.
-- **Lead speed gate:** on consumer opt-in, immediately notify all Lifetime and
-  Premium brokers in that city via their chosen channels, and queue the lead
-  for that city's basic weekly digest. The digest fires **Mondays at 9 AM
-  local time**, covering the previous Monday–Sunday.
-- **Empty-digest safeguard:** if a city had fewer than 3 reports that week,
-  supplement with curated regional market intelligence. Basic members must
-  never receive an empty digest.
+- **Refund gate:** the in-app refund flow must check days since payment and
+  block out-of-window (30-day) requests with a clear explanation. Track the
+  refund rate; alert on the founder dashboard if the rolling 30-day rate
+  exceeds 10%.
+- **Lead speed gate:** on consumer opt-in, immediately notify every active
+  broker in that city via email + push, in real time. There is no weekly
+  digest tier anymore, so no digest queue or empty-digest handling applies.
 - **AI disclaimer, all three places** (in-app view, email body, PDF): "This is
   a computer estimate. It is not a licensed appraisal. Banks, courts, and
   government agencies do not accept this as a formal valuation."
@@ -63,13 +75,14 @@ the data model lives in the repo itself and should be read there.
   collected as a required field at account signup itself (used for the
   account, not broker contact), not deferred until after the broker-contact
   opt-in. Email preferences are granular and revocable.
-- **Marketing allocation:** monthly per-city budget weighting is
-  Lifetime × 3 + Premium × 2 + Basic × 1, published on the internal founder
-  dashboard. Lifetime and Premium signup screens carry the commitment: "We
-  direct our marketing budget to your cities for the life of your membership."
-- **Compliance:** terms must state the tier-specific refund policy and that
-  there are no refunds after each window. Privacy policy must satisfy CCPA,
-  GDPR and the Philippine NPC.
+- **Marketing allocation:** monthly per-city budget weighting is proportional
+  to active broker count per city (no more per-tier weighting now that
+  there's only one tier), published on the internal founder dashboard. The
+  signup screen carries the commitment: "We direct our marketing budget to
+  your cities for the life of your membership."
+- **Compliance:** terms must state the 30-day refund policy and that there
+  are no refunds after that window. Privacy policy must satisfy CCPA, GDPR
+  and the Philippine NPC.
 
 ## Locked choices — do not substitute
 
@@ -85,9 +98,10 @@ from the code:
   for consumer purchases.
 - **Comparables:** US — RealtyMole (primary), ATTOM Data (secondary).
   Philippines — Lamudi public-listings parser + zip-code baselines.
-- Other fixed picks: Postmark (transactional email), SendGrid (weekly digest),
-  APNs via Expo (push), Twilio (SMS, Lifetime only), PostHog (analytics),
-  Google Places (address autocomplete).
+- Other fixed picks: Postmark (transactional email), APNs via Expo (push),
+  PostHog (analytics), Google Places (address autocomplete). SendGrid (weekly
+  digest) and Twilio (SMS) are no longer used — the single broker tier
+  (migration 034) dropped both the digest tier and SMS delivery entirely.
 
 ## Never
 
@@ -97,8 +111,6 @@ from the code:
 - Market lead *volume* or guarantee a number of leads. The platform guarantees
   timing of access and city coverage, nothing about quantity.
 - Skip the AI disclaimer in any of its three placements.
-- Sell Lifetime into a city at its 30-founder cap.
-- Send an empty weekly digest.
 - Offer legal advice or legal consultation. Brokers and consumers are
   responsible for their own legal compliance.
 - Add a reward/incentive for the broker referral program (migration 030,
@@ -114,9 +126,9 @@ from the code:
   to be collected on opt-in and never read — every active, subscribed
   broker in the lead's city got routed the lead regardless of what the
   consumer asked for. `route_lead_to_brokers` now caps routing to that
-  count, ranked Founder Lifetime > Premium Annual > Basic Annual, then by
-  earliest active subscription within a tier (same priority order as the
-  published marketing-weighting formula). This is "Option A" of two ways
+  count, ranked by earliest active subscription (there's only one tier as of
+  migration 034, so the old tier-first ranking no longer applies — see
+  "Membership tiers" above). This is "Option A" of two ways
   to enforce the cap — the platform decides up front who gets the lead.
   **Option B — notify every eligible broker and let the first N to
   respond actually connect — was deliberately not built** and is left as
@@ -201,6 +213,21 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
+- **Single-tier pricing model (migration 034) is written and locally
+  verified but not yet applied to production.** Replaces the three-tier
+  Founder Lifetime / Premium Annual / Basic Annual model with the single
+  tier described under "Membership tiers" above: drops the global
+  1,000-broker/30-per-city founder cap system and the public `/founders`
+  page, drops the old ₱5,000/year-locked-for-life founding-member system
+  (migration 015, no real brokers had ever claimed it), simplifies
+  `route_lead_to_brokers`/`route_all_orphaned_leads` to no longer rank by
+  tier, tightens the `tier` CHECK constraints to `'Premium Annual'` only,
+  and adds `broker_signup_seq` / `broker_profiles.signup_rank` /
+  `claim_broker_signup_rank(p_user_id)` / `get_broker_annual_price
+  (p_signup_rank, p_as_of)`. All mobile/backend/web/scripts code in this
+  repo already assumes migration 034 is live — **apply it to production
+  before the next broker-facing release**, alongside migration 033 below
+  (also still pending).
 - **Free-tier monthly cap silently stopped enforcing after a user's first
   month — resolved (migration 033).** `report_allowance` had a bare
   `UNIQUE` constraint on `user_id` alone (001_initial_schema.sql) instead
