@@ -5,61 +5,36 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 // Stripe constructor auto-selects a compatible API version
 
 /**
- * Tier pricing in minor units (cents/centavos). This is the single source
- * of truth for what a tier costs — the amount is never accepted from the
- * client, or a caller could ask for a $1 intent against the real price and
- * get a paid subscription for it.
- *
- * Mirrors mobile/config/brokerTiers.ts's BROKER_TIER_PRICING (a separate
- * package with no shared module, so kept in sync by hand — same convention
- * already used for currency/distance formatting elsewhere in this backend).
- * Per the Sep 1 pricing decision, only 'Basic Annual' (free — never reaches
- * Stripe at all, see routes/payments.ts) and 'Premium Annual' (₱5,000/year)
- * are actually offered at signup; 'Founder Lifetime' remains a valid Tier
- * value for type compatibility but isn't reachable from onboarding.
+ * Single broker tier (migration 034) — 'Premium Annual' is the only value.
+ * Price is NOT a static lookup any more: it depends on a broker's place in
+ * the global signup order and today's date (see supabase.ts's
+ * getBrokerSignupPrice, which reads it straight from the database's
+ * get_broker_annual_price, the single source of truth — mirrored in
+ * mobile/config/brokerTiers.ts's getBrokerAnnualPrice for client-side
+ * display only).
  */
-export const TIER_PRICING: Record<string, number> = {
-  'Founder Lifetime': 49900,
-  'Premium Annual': 500000,
-  'Basic Annual': 0,
-};
+export type Tier = 'Premium Annual';
 
-/** ISO currency code per tier — Premium Annual is PHP-priced, not USD. */
-export const TIER_CURRENCY: Record<string, string> = {
-  'Founder Lifetime': 'usd',
-  'Premium Annual': 'php',
-  'Basic Annual': 'php',
-};
+/** 30-day refund window for every broker, no tier variation any more. */
+export const REFUND_WINDOW_DAYS = 30;
 
-export type Tier = keyof typeof TIER_PRICING;
-
-/** Refund window in days, by tier. Mirrors the published terms. */
-export const TIER_REFUND_DAYS: Record<Tier, number> = {
-  'Founder Lifetime': 14,
-  'Premium Annual': 30,
-  'Basic Annual': 30,
-};
-
-export const isTier = (value: unknown): value is Tier =>
-  typeof value === 'string' && value in TIER_PRICING;
+export const isTier = (value: unknown): value is Tier => value === 'Premium Annual';
 
 /**
- * Create a payment intent for a tier.
+ * Create a payment intent.
  *
- * The amount is derived from the tier server-side, and the tier is recorded in
- * the intent's metadata so that confirmation can read back which tier was
- * actually paid for without trusting the client.
+ * amount is computed by the caller from the broker's real signup_rank (see
+ * routes/payments.ts), server-side and never from anything the client
+ * sends, so a modified client can't request a lower price than its actual
+ * rank qualifies for.
  */
-export async function createPaymentIntent(tier: Tier, metadata: any = {}) {
+export async function createPaymentIntent(amount: number, metadata: any = {}) {
   try {
-    const amount = TIER_PRICING[tier];
-    const currency = TIER_CURRENCY[tier];
-
     const intent = await stripe.paymentIntents.create({
       amount,
-      currency,
+      currency: 'usd',
       payment_method_types: ['card'],
-      metadata: { ...metadata, tier },
+      metadata: { ...metadata, tier: 'Premium Annual' },
     });
 
     return {

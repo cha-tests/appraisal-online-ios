@@ -10,10 +10,10 @@ import { logger } from '../utils/logger.js';
 const router = Router();
 
 // Schema validation.
-// Note there is no `amount` here: the price is looked up from the tier
-// server-side, so a client cannot choose what it pays.
+// Note there is no `amount` here: the price is computed server-side from
+// the broker's own signup_rank, so a client cannot choose what it pays.
 const CreateIntentSchema = z.object({
-  tier: z.enum(['Founder Lifetime', 'Premium Annual', 'Basic Annual']),
+  tier: z.literal('Premium Annual'),
 });
 
 const ConfirmPaymentSchema = z.object({
@@ -26,9 +26,10 @@ const ConfirmPaymentSchema = z.object({
  */
 router.post('/intent', authMiddleware, brokerOnly, async (req: Request, res: Response) => {
   try {
-    const validated = CreateIntentSchema.parse(req.body);
+    CreateIntentSchema.parse(req.body);
 
-    const intent = await stripeService.createPaymentIntent(validated.tier, {
+    const amount = await supabaseService.getBrokerSignupPrice(req.user?.id || '');
+    const intent = await stripeService.createPaymentIntent(amount, {
       brokerId: req.user?.id,
     });
 
@@ -143,7 +144,7 @@ router.post('/confirm', authMiddleware, brokerOnly, async (req: Request, res: Re
           user.email,
           user.company_name || 'Broker',
           tier,
-          stripeService.TIER_REFUND_DAYS[tier]
+          stripeService.REFUND_WINDOW_DAYS
         );
       } catch (emailError) {
         logger.error('Failed to send welcome email:', emailError);

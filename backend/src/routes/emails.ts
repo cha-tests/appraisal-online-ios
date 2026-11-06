@@ -18,7 +18,7 @@ const SendEmailSchema = z.object({
 const SendWelcomeSchema = z.object({
   brokerEmail: z.string().email(),
   brokerName: z.string(),
-  tier: z.enum(['Founder Lifetime', 'Premium Annual', 'Basic Annual']),
+  tier: z.literal('Premium Annual'),
   refundDays: z.number().int().min(14).max(30),
 });
 

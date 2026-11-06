@@ -14,6 +14,40 @@ if (!supabaseUrl || !supabaseServiceKey) {
 export const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 /**
+ * Computes what a broker should be charged right now, using the database's
+ * own get_broker_annual_price (migration 034) as the single source of
+ * truth — never a value sent by the client.
+ *
+ * Reads the broker's signup_rank directly (a plain SELECT, service role
+ * bypasses RLS) rather than calling claim_broker_signup_rank — that RPC's
+ * self-only check compares p_user_id against auth.uid(), which is only
+ * meaningful for a request carrying the broker's own session JWT (how
+ * mobile's brokerService.claimBrokerSignupRank calls it, during
+ * onboarding, before a broker ever reaches checkout); this server runs on
+ * the service-role key, which has no such session and would always fail
+ * that check. By the time a broker reaches checkout, onboarding has
+ * already claimed their rank, so this only ever reads it.
+ */
+export async function getBrokerSignupPrice(userId: string): Promise<number> {
+  const { data: profile, error: profileError } = await supabase
+    .from('broker_profiles')
+    .select('signup_rank')
+    .eq('user_id', userId)
+    .single();
+  if (profileError) throw profileError;
+  if (!profile?.signup_rank) {
+    throw new Error(`Broker ${userId} has no signup_rank — onboarding must complete before checkout`);
+  }
+
+  const { data: priceCents, error: priceError } = await supabase.rpc('get_broker_annual_price', {
+    p_signup_rank: profile.signup_rank,
+  });
+  if (priceError) throw priceError;
+
+  return priceCents as number;
+}
+
+/**
  * Get a user by ID
  */
 export async function getUser(userId: string) {
