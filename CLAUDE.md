@@ -225,25 +225,33 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Single-tier pricing model (migration 034) is written and locally
-  verified but not yet applied to production.** Replaces the three-tier
-  Founder Lifetime / Premium Annual / Basic Annual model with the single
-  tier described under "Membership tiers" above: drops the global
-  1,000-broker/30-per-city founder cap system and the public `/founders`
-  page, drops the old ₱5,000/year-locked-for-life founding-member system
-  (migration 015, no real brokers had ever claimed it), simplifies
+- **Single-tier pricing model — resolved (migration 034), applied and
+  confirmed live in production.** Replaced the three-tier Founder Lifetime
+  / Premium Annual / Basic Annual model with the single tier described
+  under "Membership tiers" above: dropped the global 1,000-broker/30-
+  per-city founder cap system and the public `/founders` page, dropped the
+  old ₱5,000/year-locked-for-life founding-member system (migration 015,
+  no real brokers had ever claimed it), simplified
   `route_lead_to_brokers`/`route_all_orphaned_leads` to no longer rank by
-  tier, tightens the `tier` CHECK constraints to `'Premium Annual'` only,
-  and adds `broker_signup_seq` / `broker_profiles.signup_rank` /
+  tier, tightened the `tier` CHECK constraints to `'Premium Annual'` only,
+  and added `broker_signup_seq` / `broker_profiles.signup_rank` /
   `claim_broker_signup_rank(p_user_id)` / `get_broker_annual_price
-  (p_signup_rank, p_as_of)`. All mobile/backend/web/scripts code in this
-  repo already assumes migration 034 is live — **apply it to production
-  before the next broker-facing release**, alongside migration 033 below
-  (also still pending).
+  (p_signup_rank, p_as_of)`. The first production run hit a bug the
+  migration didn't account for — real test-account rows already existed
+  under the retired tier names, which the tightened CHECK rejected
+  outright — fixed by backfilling every existing row to `'Premium Annual'`
+  (and backfilling `signup_rank` for those same pre-existing brokers,
+  ordered by `created_at`, since onboarding only claims a rank for a
+  brand-new signup) before adding the constraint. Re-ran clean afterward;
+  confirmed live via `pg_constraint`.
+- **Requested broker count cap — resolved (migration 035), applied and
+  confirmed live in production.** See the cap itself under "Implementation
+  notes" above.
 - **Free-tier monthly cap silently stopped enforcing after a user's first
-  month — resolved (migration 033).** `report_allowance` had a bare
-  `UNIQUE` constraint on `user_id` alone (001_initial_schema.sql) instead
-  of `UNIQUE(user_id, month)`, so a user could only ever have ONE row in
+  month — resolved (migration 033), applied and confirmed live in
+  production.** `report_allowance` had a bare `UNIQUE` constraint on
+  `user_id` alone (001_initial_schema.sql) instead of
+  `UNIQUE(user_id, month)`, so a user could only ever have ONE row in
   that table, ever. `increment_report_usage`'s `ON CONFLICT (user_id)`
   matched that same wrong constraint: every report after a user's first
   calendar month of use kept incrementing that one frozen row without
@@ -252,14 +260,13 @@ from the code:
   / 3 remaining" and the app granted unlimited free reports to every
   returning user past their first month. Confirmed live via a real user's
   Account screen (2 reports already generated that month, allowance still
-  showing full). Migration 033 fixes the constraint and the function to
-  key on `(user_id, month)`, and rebuilds `report_allowance` from the
+  showing full). Migration 033 fixed the constraint and the function to
+  key on `(user_id, month)`, and rebuilt `report_allowance` from the
   `reports` table (the source of truth, never affected by this bug) since
   every existing row was corrupted and unrecoverable as-is. Verified
   against a local Postgres replay of all 33 migrations with a realistic
-  multi-month report history before shipping. **Apply this migration to
-  production as a priority** — it's the only thing actually enforcing the
-  3-report cap CLAUDE.md commits to.
+  multi-month report history before shipping, and confirmed live via
+  `pg_constraint` after applying.
 - **Orphaned lead backlog — resolved (migration 028).** Root cause (fixed
   earlier): broker onboarding never persisted `broker_profiles.selected_cities`
   to the database at all, so `route_lead_to_brokers` (migration 008) never had
