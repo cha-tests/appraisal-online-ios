@@ -109,6 +109,7 @@ export async function sendConsumerConfirmationEmail(
     await client.sendEmail({
       From: process.env.POSTMARK_FROM_EMAIL || 'noreply@appraisalonline.com',
       To: consumerEmail,
+      Bcc: 'support@appraisalonline.ai',
       Subject: subject,
       HtmlBody: htmlBody,
       TextBody: `Your property valuation: ${valueFormatted}`,
