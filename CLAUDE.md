@@ -151,18 +151,16 @@ from the code:
   address) until a broker claims the lead, at which point full details
   unlock for that broker only and the lead drops out of/shows as claimed
   for everyone else's inbox.
-- **Requested broker count is capped at 5 (migration 035).** Until this,
-  `reports.requested_broker_count` (migration 026) had no upper bound at
-  all — the broker-contact opt-in screen (`broker-optins.tsx`) only
-  rejected zero/blank, so a homeowner could type any number and
-  `route_lead_to_brokers` would route the lead to that many brokers. Capped
-  client-side (`MAX_REQUESTED_BROKERS` in `broker-optins.tsx`, with a
-  "Choose up to 5" helper line) and at the database level (a CHECK
-  constraint, since nothing else writes this column). 5 was picked as
-  enough for a homeowner to compare real offers without being swarmed by
-  calls/texts from a crowd of brokers, in line with what comparable
-  real-estate lead platforms (Zillow Premier Agent, realtor.com) cap
-  concurrent professional contacts at.
+- **Requested broker count has no hard cap (migration 036 reversed
+  migration 035's 5-max).** MVP decision: trust the homeowner rather than
+  block them. `broker-optins.tsx` still rejects zero/blank (a real choice
+  is required), and above `LARGE_REQUEST_CONFIRM_THRESHOLD` (10) shows a
+  confirm dialog ("most homeowners choose far fewer — continue with N?")
+  rather than refusing the number outright — catches a likely typo without
+  imposing a business ceiling. The database constraint was loosened to
+  match: just `>= 1` (migration 036), no upper bound. `route_lead_to_brokers`
+  itself has no cap of its own either way — it just `LIMIT`s to whatever
+  `requested_broker_count` says.
 - **Broker signup's country picker is now open to every country** (see
   `mobile/config/countries.ts`'s full ISO list), not gated to PH/US — PH,
   AU and US are pinned to the top, the rest listed alphabetically with a
@@ -244,9 +242,12 @@ from the code:
   ordered by `created_at`, since onboarding only claims a rank for a
   brand-new signup) before adding the constraint. Re-ran clean afterward;
   confirmed live via `pg_constraint`.
-- **Requested broker count cap — resolved (migration 035), applied and
-  confirmed live in production.** See the cap itself under "Implementation
-  notes" above.
+- **Requested broker count's hard cap (migration 035) was reversed
+  (migration 036) — migration 036 is written and locally verified but not
+  yet applied to production.** See "Implementation notes" above for the
+  current behavior (no hard max, confirm dialog above 10). Migration 035
+  itself is still correctly applied/live — 036 only loosens the constraint
+  it added, doesn't undo the column or the rest of it.
 - **Free-tier monthly cap silently stopped enforcing after a user's first
   month — resolved (migration 033), applied and confirmed live in
   production.** `report_allowance` had a bare `UNIQUE` constraint on

@@ -19,13 +19,26 @@ import { chooseAttachmentSource, withRetry, PickedAttachment } from '../../utils
 import { LEAD_TAG_OPTIONS } from '../../config/leadTags';
 import { theme } from '../../theme';
 
-// No limit was enforced before this — a homeowner could type any number and
-// route_lead_to_brokers (migration 034) would route to that many. Capped at
-// 5: enough for the homeowner to compare real offers, far short of being
-// swarmed with calls/texts from a crowd of brokers. Comparable real-estate
-// lead platforms (Zillow Premier Agent, realtor.com) cap concurrent
-// professional contacts in the same 3-5 range.
-const MAX_REQUESTED_BROKERS = 5;
+// No hard cap (migration 036 removed the one migration 035 added — MVP
+// decision: trust the homeowner rather than block them). Above this many,
+// a confirm dialog double-checks the number before submitting rather than
+// silently routing to a crowd of brokers off of a likely typo — doesn't
+// block anything, just makes sure a big number was intentional.
+const LARGE_REQUEST_CONFIRM_THRESHOLD = 10;
+
+/** Resolves true if the homeowner confirms a request this large, false if they want to change it. */
+function confirmLargeBrokerRequest(count: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Connect with that many?',
+      `You're asking to connect with ${count} professionals — most homeowners choose far fewer. Continue with ${count}?`,
+      [
+        { text: 'Let me change it', style: 'cancel', onPress: () => resolve(false) },
+        { text: `Yes, connect with ${count}`, onPress: () => resolve(true) },
+      ]
+    );
+  });
+}
 
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
 function YesNoRow({
@@ -221,9 +234,9 @@ export default function BrokerOptins() {
           setError('Please enter how many professionals you want to connect with.');
           return;
         }
-        if (parsedCount > MAX_REQUESTED_BROKERS) {
-          setError(`You can connect with up to ${MAX_REQUESTED_BROKERS} professionals at a time.`);
-          return;
+        if (parsedCount > LARGE_REQUEST_CONFIRM_THRESHOLD) {
+          const confirmed = await confirmLargeBrokerRequest(parsedCount);
+          if (!confirmed) return;
         }
         brokerCountToSave = parsedCount;
       }
@@ -335,13 +348,9 @@ export default function BrokerOptins() {
               if (error) setError('');
             }}
             keyboardType="number-pad"
-            error={
-              error && (error.includes('professionals you want') || error.includes('up to'))
-                ? error
-                : undefined
-            }
+            error={error && error.includes('professionals you want') ? error : undefined}
           />
-          <Text style={styles.brokerCountHelper}>Choose up to {MAX_REQUESTED_BROKERS}.</Text>
+          <Text style={styles.brokerCountHelper}>Most homeowners choose 1-3.</Text>
         </View>
       )}
 
