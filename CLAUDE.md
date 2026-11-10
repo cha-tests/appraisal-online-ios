@@ -188,6 +188,19 @@ from the code:
   real layout bug this way (the horizontal filter-pill row was stretching
   to fill the screen's height because the ScrollView itself had no
   `flexGrow: 0`).
+  **Dashboard's "Lead Pipeline" widget** (`broker/dashboard.tsx`) shows a
+  real per-status count across the broker's full `get_my_lead_routings()`
+  result — not just the 5-item Recent Leads preview below it — as six
+  tappable chips (New/Contacted/In Talks/Converted/Lost/Revoked), each
+  deep-linking into `lead-inbox.tsx` pre-filtered to that status via a
+  `?status=` query param `lead-inbox.tsx` now reads on mount. This is
+  real data, unlike the three KPI cards above it (Leads This Month,
+  Conversion Rate, Avg Lead Value), which are still `metrics` placeholder
+  values (`// Calculate metrics (mock data for now)`) — untouched here,
+  out of scope for this change. Verified via a mocked-RPC web export
+  screenshot (9 routings across all 6 statuses rendering the right
+  counts) and a second screenshot confirming the `?status=in_talks` deep
+  link actually pre-selects that filter pill on load.
   **Phase 3 (consumer-side UI) is done** —
   `consumer/settings.tsx`'s "Broker Contact" section now reads through
   `get_my_connected_brokers()` (migration 039 — mirrors

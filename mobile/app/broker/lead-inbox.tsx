@@ -9,7 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
@@ -45,12 +45,18 @@ function isAlreadyFull(item: LeadRoutingPreview): boolean {
 
 export default function LeadInbox() {
   const router = useRouter();
+  const { status: initialStatus } = useLocalSearchParams<{ status?: string }>();
   const user = useAuthStore((state) => state.user);
   const [leads, setLeads] = useState<LeadRoutingPreview[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<LeadRoutingPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  // Lets the dashboard's pipeline widget deep-link straight into one status
+  // (e.g. /broker/lead-inbox?status=in_talks) — falls back to 'all' for a
+  // plain nav or an unrecognized value.
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>(
+    FILTERS.includes(initialStatus as FilterStatus) ? (initialStatus as FilterStatus) : 'all'
+  );
 
   useEffect(() => {
     const loadLeads = async () => {

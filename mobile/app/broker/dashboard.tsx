@@ -8,7 +8,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
-import { BrokerProfile, Subscription, LeadRoutingPreview } from '../../types';
+import { BrokerProfile, Subscription, LeadRoutingPreview, LeadRoutingStatus } from '../../types';
 import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
 import { LEAD_ROUTING_STATUS_LABELS } from '../../config/leadRoutingStatus';
 import { theme } from '../../theme';
@@ -20,12 +20,23 @@ interface DashboardMetrics {
   averageLeadValue: number;
 }
 
+const PIPELINE_STATUSES: LeadRoutingStatus[] = ['new', 'contacted', 'in_talks', 'converted', 'lost', 'revoked'];
+
+type PipelineCounts = Record<LeadRoutingStatus, number>;
+
+function countByStatus(leads: LeadRoutingPreview[]): PipelineCounts {
+  const counts = { new: 0, contacted: 0, in_talks: 0, converted: 0, lost: 0, revoked: 0 };
+  for (const lead of leads) counts[lead.status]++;
+  return counts;
+}
+
 export default function BrokerDashboard() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [brokerProfile, setBrokerProfile] = useState<BrokerProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [recentLeads, setRecentLeads] = useState<LeadRoutingPreview[]>([]);
+  const [pipelineCounts, setPipelineCounts] = useState<PipelineCounts | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
@@ -77,7 +88,11 @@ export default function BrokerDashboard() {
         // lead-inbox.tsx/lead-detail.tsx.
         const { data: leads, error: leadsError } = await supabase.rpc('get_my_lead_routings');
         if (leadsError) throw leadsError;
-        setRecentLeads(((leads as LeadRoutingPreview[]) || []).slice(0, 5));
+        const allLeads = (leads as LeadRoutingPreview[]) || [];
+        setRecentLeads(allLeads.slice(0, 5));
+        // Pipeline widget needs the full set, not just the 5-item preview
+        // above, to show an accurate count per status.
+        setPipelineCounts(countByStatus(allLeads));
 
         // Calculate metrics (mock data for now)
         setMetrics({
@@ -250,8 +265,29 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
       </View>
 
+      {/* Lead Pipeline — real counts per status across every lead routed to
+          this broker (not just the 5-item Recent Leads preview below).
+          Each chip deep-links into the inbox pre-filtered to that status. */}
+      <Text style={styles.sectionTitle}>Lead Pipeline</Text>
+
+      {pipelineCounts && (
+        <View style={styles.pipelineGrid}>
+          {PIPELINE_STATUSES.map((status) => (
+            <TouchableOpacity
+              key={status}
+              style={[styles.pipelineChip, pipelineChipStyles[status]]}
+              onPress={() => router.push(`/broker/lead-inbox?status=${status}`)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.pipelineChipCount}>{pipelineCounts[status]}</Text>
+              <Text style={styles.pipelineChipLabel}>{LEAD_ROUTING_STATUS_LABELS[status]}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Recent Leads */}
-      <Text style={styles.sectionTitle}>Recent Leads</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Leads</Text>
 
       {recentLeads.length > 0 ? (
         // A plain View/.map() here, not FlatList — this list never scrolls
@@ -355,6 +391,17 @@ export default function BrokerDashboard() {
     </SafeAreaWrapper>
   );
 }
+
+// Keyed the same way as lead-inbox.tsx's status badge colors, so a status
+// reads the same whether seen here or in the inbox list.
+const pipelineChipStyles: Record<LeadRoutingStatus, { backgroundColor: string }> = {
+  new: { backgroundColor: '#FEE2E2' },
+  contacted: { backgroundColor: '#FEF3C7' },
+  in_talks: { backgroundColor: '#DBEAFE' },
+  converted: { backgroundColor: theme.color.successWash },
+  lost: { backgroundColor: '#F3F4F6' },
+  revoked: { backgroundColor: '#FECACA' },
+};
 
 const styles = StyleSheet.create({
   loadingContainer: {
@@ -506,6 +553,31 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.text,
     marginBottom: 12,
+  },
+  pipelineGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  pipelineChip: {
+    // ~3 per row with the 8px gap above, same sizing idea as metricCard.
+    width: '31%',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  pipelineChipCount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.color.text,
+  },
+  pipelineChipLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
   },
   leadCard: {
     borderWidth: 1,
