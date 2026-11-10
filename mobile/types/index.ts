@@ -225,6 +225,28 @@ export interface LeadRoutingPreview {
   comparables?: any[];
 }
 
+/**
+ * One row per get_my_connected_brokers() (migration 039) — the consumer
+ * side's view of their own leads' routed brokers. Unlike
+ * LeadRoutingPreview this carries the broker's own public listing info
+ * (not the homeowner's PII — the consumer already has that), since the
+ * homeowner is the one deciding whether to keep or revoke each broker.
+ */
+export interface ConnectedBrokerRouting {
+  lead_routing_id: string;
+  lead_id: string;
+  report_id: string;
+  property_address: string;
+  broker_id: string;
+  broker_company_name?: string;
+  broker_first_name?: string;
+  broker_last_name?: string;
+  claim_status: LeadRoutingClaimStatus;
+  status: LeadRoutingStatus;
+  invited_at: string;
+  claimed_at?: string;
+}
+
 // Subscriptions & Billing
 export interface Subscription {
   id: string;

@@ -1,17 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { useAuthStore } from '../../stores/auth.store';
-import { useReportStore } from '../../stores/report.store';
 import { supabase, signOut } from '../../services/supabase';
 import { reportService } from '../../services/report.service';
-import { Report } from '../../types';
+import { ConnectedBrokerRouting } from '../../types';
+import { consumerLeadStatusLabel } from '../../config/leadRoutingStatus';
+import { REVOKE_REASON_OPTIONS } from '../../config/revokeReasons';
 import { beginSignOut } from '../../utils/signOutGuard';
 import { theme } from '../../theme';
+
+// A lead with nobody claimed yet, this long after the first brokers were
+// invited, gets a direct check-in prompt instead of just sitting there —
+// the escalation system (migration 037) is already working on it in the
+// background by this point (several 24h rounds in, if still silent), so
+// this is "want to keep waiting on that, or call it off" rather than the
+// first thing a homeowner sees.
+const CHECK_IN_DAYS = 5;
+
+type RevokeTarget = { type: 'broker'; leadRoutingId: string } | { type: 'lead'; leadId: string };
+
+interface LeadGroup {
+  leadId: string;
+  propertyAddress: string;
+  routings: ConnectedBrokerRouting[];
+}
+
+function brokerDisplayName(routing: ConnectedBrokerRouting): string {
+  if (routing.broker_company_name) return routing.broker_company_name;
+  const name = [routing.broker_first_name, routing.broker_last_name].filter(Boolean).join(' ');
+  return name || 'A professional';
+}
+
+/** Canned-reason picker shown inline under a Revoke action — mirrors
+ * lead-detail.tsx's broker-side lost-reason picker. */
+function ReasonPicker({
+  submitting,
+  onSelect,
+  onCancel,
+}: {
+  submitting: boolean;
+  onSelect: (reason: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Card variant="outlined" style={styles.reasonCard}>
+      <Text style={styles.reasonTitle}>Why are you revoking this?</Text>
+      <View style={styles.reasonOptions}>
+        {REVOKE_REASON_OPTIONS.map((opt) => (
+          <TouchableOpacity
+            key={opt.value}
+            style={styles.reasonOption}
+            onPress={() => onSelect(opt.value)}
+            disabled={submitting}
+          >
+            <Text style={styles.reasonOptionText}>{opt.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity onPress={onCancel} disabled={submitting}>
+        <Text style={styles.reasonCancel}>Never mind</Text>
+      </TouchableOpacity>
+    </Card>
+  );
+}
 
 export default function ConsumerSettings() {
   const router = useRouter();
@@ -23,12 +79,17 @@ export default function ConsumerSettings() {
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // Broker contact is opted in per report (see broker-optins.tsx), not one
-  // global preference, so "manage" means listing the reports it's currently
-  // on and letting each be revoked individually — not a single switch.
-  const [connectedReports, setConnectedReports] = useState<Report[]>([]);
+  // Broker contact is opted in per report (see broker-optins.tsx), and
+  // each report can now be routed to several brokers independently
+  // (migration 037) — "manage" means one row per routed broker, grouped by
+  // property, not one row per report the way it used to be.
+  const [connectedBrokers, setConnectedBrokers] = useState<ConnectedBrokerRouting[]>([]);
   const [loadingConnected, setLoadingConnected] = useState(true);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [revokingTarget, setRevokingTarget] = useState<RevokeTarget | null>(null);
+  const [pickingReasonFor, setPickingReasonFor] = useState<RevokeTarget | null>(null);
+  // Session-only — "Keep waiting" just hides the check-in prompt until the
+  // next time settings is opened, not persisted anywhere.
+  const [dismissedCheckIns, setDismissedCheckIns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -60,62 +121,66 @@ export default function ConsumerSettings() {
     loadPreferences();
   }, [user?.id]);
 
-  useEffect(() => {
-    const loadConnectedReports = async () => {
-      try {
-        if (!user?.id) return;
+  const loadConnectedBrokers = async () => {
+    try {
+      if (!user?.id) return;
 
-        setLoadingConnected(true);
-        const { success, reports } = await reportService.getUserReports(user.id);
-        if (success && reports) {
-          setConnectedReports(reports.filter((r) => r.broker_contact_opted_in));
-        }
-      } catch (err) {
-        console.error('Error loading connected reports:', err);
-      } finally {
-        setLoadingConnected(false);
+      setLoadingConnected(true);
+      const { success, brokers } = await reportService.getMyConnectedBrokers();
+      if (success && brokers) {
+        setConnectedBrokers(brokers);
       }
-    };
+    } catch (err) {
+      console.error('Error loading connected brokers:', err);
+    } finally {
+      setLoadingConnected(false);
+    }
+  };
 
-    loadConnectedReports();
+  useEffect(() => {
+    loadConnectedBrokers();
   }, [user?.id]);
 
-  const handleRevoke = (report: Report) => {
-    Alert.alert(
-      'Revoke Broker Contact',
-      `Professionals will no longer be able to reach out about ${report.property?.address || 'this property'}. This can't be undone from here — you'd need to opt in again from the report.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Revoke',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setRevokingId(report.id);
-              const result = await reportService.updateBrokerOptIn(report.id, false);
-              if (result.success) {
-                setConnectedReports((prev) => prev.filter((r) => r.id !== report.id));
-                // report-view.tsx (and anywhere else reading currentReport)
-                // reads this same shared store rather than re-fetching, so
-                // without this it kept showing "You're Connected!" for a
-                // report just revoked here, until the app was fully
-                // restarted and the store reset — same class of staleness
-                // broker-optins.tsx's opt-in path already guards against.
-                if (useReportStore.getState().currentReport?.id === report.id && result.report) {
-                  useReportStore.getState().setCurrentReport(result.report);
-                }
-              } else {
-                Alert.alert('Error', result.error?.message || 'Failed to revoke broker contact');
-              }
-            } catch (err) {
-              Alert.alert('Error', 'Failed to revoke broker contact');
-            } finally {
-              setRevokingId(null);
-            }
-          },
-        },
-      ]
-    );
+  const leadGroups: LeadGroup[] = React.useMemo(() => {
+    const byLead = new Map<string, LeadGroup>();
+    for (const routing of connectedBrokers) {
+      const existing = byLead.get(routing.lead_id);
+      if (existing) {
+        existing.routings.push(routing);
+      } else {
+        byLead.set(routing.lead_id, {
+          leadId: routing.lead_id,
+          propertyAddress: routing.property_address,
+          routings: [routing],
+        });
+      }
+    }
+    return Array.from(byLead.values());
+  }, [connectedBrokers]);
+
+  const submitRevoke = async (target: RevokeTarget, reason: string) => {
+    try {
+      setRevokingTarget(target);
+      const result =
+        target.type === 'broker'
+          ? await reportService.revokeBrokerContact(target.leadRoutingId, reason)
+          : await reportService.cancelRequestForLead(target.leadId, reason);
+
+      if (result.success) {
+        setPickingReasonFor(null);
+        await loadConnectedBrokers();
+      } else {
+        Alert.alert('Error', result.error?.message || 'Failed to revoke broker contact');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to revoke broker contact');
+    } finally {
+      setRevokingTarget(null);
+    }
+  };
+
+  const dismissCheckIn = (leadId: string) => {
+    setDismissedCheckIns((prev) => new Set(prev).add(leadId));
   };
 
   const handleSave = async () => {
@@ -215,38 +280,123 @@ export default function ConsumerSettings() {
         </View>
       </Card>
 
-      {/* Broker Contact — per report, not a single global switch, since
-          that's how it was opted into in the first place (see
-          broker-optins.tsx). */}
-      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Broker Contact</Text>
+      {/* Broker Contact — one card per property, listing each professional
+          routed to it individually (migration 037: a lead can now have
+          several, each at their own stage), not one switch per report the
+          way this used to work. */}
+      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Broker Contact</Text>
 
       {loadingConnected ? (
         <ActivityIndicator color={theme.color.accent} style={{ marginVertical: 12 }} />
-      ) : connectedReports.length > 0 ? (
+      ) : leadGroups.length > 0 ? (
         <>
           <Text style={styles.brokerContactHelper}>
-            Professionals can currently reach out about these properties. Revoke access anytime.
+            Professionals you've requested to connect with, and where things stand with each.
           </Text>
-          {connectedReports.map((report) => (
-            <Card key={report.id} variant="default" style={styles.connectedReportCard}>
-              <View style={styles.connectedReportRow}>
-                <View style={styles.connectedReportInfo}>
-                  <Text style={styles.connectedReportAddress} numberOfLines={1}>
-                    {report.property?.address || 'Property'}
-                  </Text>
-                  <Text style={styles.connectedReportStatus}>✓ Connected</Text>
-                </View>
-                <Button
-                  title="Revoke"
-                  variant="outline"
-                  size="small"
-                  onPress={() => handleRevoke(report)}
-                  loading={revokingId === report.id}
-                  disabled={revokingId !== null}
-                />
-              </View>
-            </Card>
-          ))}
+          {leadGroups.map((group) => {
+            const oldestInvite = group.routings.reduce(
+              (min, r) => (r.invited_at < min ? r.invited_at : min),
+              group.routings[0].invited_at
+            );
+            const daysSinceInvited = (Date.now() - new Date(oldestInvite).getTime()) / 86400000;
+            const nobodyClaimedYet = group.routings.every((r) => r.claim_status === 'invited');
+            const showCheckIn =
+              nobodyClaimedYet && daysSinceInvited >= CHECK_IN_DAYS && !dismissedCheckIns.has(group.leadId);
+            const pickingForThisLead =
+              pickingReasonFor?.type === 'lead' && pickingReasonFor.leadId === group.leadId;
+
+            return (
+              <Card key={group.leadId} variant="default" style={styles.connectedReportCard}>
+                <Text style={styles.connectedReportAddress} numberOfLines={1}>
+                  {group.propertyAddress}
+                </Text>
+
+                {showCheckIn && (
+                  <View style={styles.checkInBanner}>
+                    <Text style={styles.checkInTitle}>Still waiting to hear back</Text>
+                    <Text style={styles.checkInText}>
+                      It's been {Math.floor(daysSinceInvited)} days and no one has connected yet. We're
+                      still trying more professionals in the background — want to keep waiting, or
+                      cancel this request?
+                    </Text>
+                    <View style={styles.checkInActions}>
+                      <Button
+                        title="Keep waiting"
+                        variant="outline"
+                        size="small"
+                        onPress={() => dismissCheckIn(group.leadId)}
+                        style={{ flex: 1, marginRight: 8 }}
+                      />
+                      <Button
+                        title="Cancel this request"
+                        variant="outline"
+                        size="small"
+                        onPress={() => setPickingReasonFor({ type: 'lead', leadId: group.leadId })}
+                        style={{ flex: 1 }}
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {group.routings.map((routing) => {
+                  const pickingForThisBroker =
+                    pickingReasonFor?.type === 'broker' &&
+                    pickingReasonFor.leadRoutingId === routing.lead_routing_id;
+                  return (
+                    <View key={routing.lead_routing_id}>
+                      <View style={styles.connectedReportRow}>
+                        <View style={styles.connectedReportInfo}>
+                          <Text style={styles.brokerName} numberOfLines={1}>
+                            {brokerDisplayName(routing)}
+                          </Text>
+                          <Text style={styles.connectedReportStatus}>
+                            {consumerLeadStatusLabel(routing.claim_status, routing.status)}
+                          </Text>
+                        </View>
+                        {routing.status !== 'revoked' && (
+                          <Button
+                            title="Revoke"
+                            variant="outline"
+                            size="small"
+                            onPress={() =>
+                              setPickingReasonFor({ type: 'broker', leadRoutingId: routing.lead_routing_id })
+                            }
+                            disabled={revokingTarget !== null}
+                          />
+                        )}
+                      </View>
+                      {pickingForThisBroker && (
+                        <ReasonPicker
+                          submitting={revokingTarget !== null}
+                          onCancel={() => setPickingReasonFor(null)}
+                          onSelect={(reason) =>
+                            submitRevoke({ type: 'broker', leadRoutingId: routing.lead_routing_id }, reason)
+                          }
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+
+                {pickingForThisLead && (
+                  <ReasonPicker
+                    submitting={revokingTarget !== null}
+                    onCancel={() => setPickingReasonFor(null)}
+                    onSelect={(reason) => submitRevoke({ type: 'lead', leadId: group.leadId }, reason)}
+                  />
+                )}
+
+                {!pickingForThisLead && (
+                  <TouchableOpacity
+                    onPress={() => setPickingReasonFor({ type: 'lead', leadId: group.leadId })}
+                    disabled={revokingTarget !== null}
+                  >
+                    <Text style={styles.cancelAllLink}>Cancel entire request</Text>
+                  </TouchableOpacity>
+                )}
+              </Card>
+            );
+          })}
         </>
       ) : (
         <Card variant="outlined" style={styles.emptyConnectedCard}>
@@ -425,12 +575,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingTop: 10,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
   connectedReportInfo: {
     flex: 1,
     marginRight: 12,
   },
   connectedReportAddress: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.color.text,
+  },
+  brokerName: {
     fontSize: 14,
     fontWeight: '600',
     color: theme.color.text,
@@ -438,8 +597,68 @@ const styles = StyleSheet.create({
   },
   connectedReportStatus: {
     fontSize: 12,
-    color: '#059669',
+    color: theme.color.textMuted,
     fontWeight: '600',
+  },
+  checkInBanner: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+  },
+  checkInTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  checkInText: {
+    fontSize: 13,
+    color: '#78350F',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  checkInActions: {
+    flexDirection: 'row',
+  },
+  cancelAllLink: {
+    fontSize: 12,
+    color: theme.color.textMuted,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  reasonCard: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  reasonTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.color.text,
+    marginBottom: 10,
+  },
+  reasonOptions: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  reasonOption: {
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  reasonOptionText: {
+    fontSize: 13,
+    color: theme.color.text,
+    fontWeight: '600',
+  },
+  reasonCancel: {
+    fontSize: 13,
+    color: theme.color.textMuted,
+    textAlign: 'center',
   },
   emptyConnectedCard: {
     backgroundColor: theme.color.surface,

@@ -1,5 +1,5 @@
 import { supabase, parseSupabaseError } from './supabase';
-import { Report, Property, ComparableSale, ValueRange, ReportAllowance } from '../types';
+import { Report, Property, ComparableSale, ValueRange, ReportAllowance, ConnectedBrokerRouting } from '../types';
 import axios from 'axios';
 import { findCityId } from '../utils/matchCity';
 import { brokerService } from './broker.service';
@@ -477,11 +477,24 @@ export const reportService = {
         // If opted in, create a lead
         await this.createLeadFromReport(reportId, data.user_id, data.property_id);
       } else if (!optedIn) {
-        // Revoking (or declining outright) — archive any lead already
-        // created for this report so a broker who was routed to it stops
-        // seeing it as active. A no-op if none exists yet (the initial
-        // decline path, before any lead was ever created).
-        await supabase.from('leads').update({ status: 'archived' }).eq('report_id', reportId);
+        // Revoking (or declining outright). broker_contact_opted_in=false
+        // above already stops any future routing/escalation
+        // (route_all_orphaned_leads/escalate_all_pending_leads both check
+        // it) — this only needs to pull back brokers already routed,
+        // which is a no-op on the initial-decline path since no lead
+        // exists yet. Per-broker revoke_broker_contact (migration 037),
+        // not a leads.status write — that column no longer exists.
+        // settings.tsx's own "Cancel this request" flow calls
+        // cancelRequestForLead directly with a homeowner-chosen reason;
+        // this path (no UI reason available) uses a generic one.
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('report_id', reportId)
+          .maybeSingle();
+        if (lead) {
+          await this.cancelRequestForLead(lead.id, 'changed_mind');
+        }
       }
 
       return { success: true, report: data as Report };
@@ -490,6 +503,83 @@ export const reportService = {
         success: false,
         error: parseSupabaseError(error),
       };
+    }
+  },
+
+  // The consumer side's view of every broker routed to any of their leads
+  // (migration 039) — one row per lead_routings entry, with the broker's
+  // own public listing info rather than the homeowner's PII (the
+  // homeowner already has that). Backs consumer/settings.tsx's per-broker
+  // status list and revoke flow.
+  async getMyConnectedBrokers(): Promise<{ success: boolean; brokers?: ConnectedBrokerRouting[]; error?: any }> {
+    try {
+      const { data, error } = await supabase.rpc('get_my_connected_brokers');
+      if (error) throw error;
+      return { success: true, brokers: (data as ConnectedBrokerRouting[]) || [] };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
+    }
+  },
+
+  // Revokes one specific routed broker (migration 037's
+  // revoke_broker_contact) — not yet claimed: silently dropped, nothing
+  // for that broker to have seen; already claimed: kept and marked
+  // 'revoked' so their own inbox reflects it, with a stop-contact notice
+  // a later phase sends.
+  async revokeBrokerContact(leadRoutingId: string, reason: string, reasonNote?: string) {
+    try {
+      const { error } = await supabase.rpc('revoke_broker_contact', {
+        p_lead_routing_id: leadRoutingId,
+        p_reason: reason,
+        p_reason_note: reasonNote || null,
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
+    }
+  },
+
+  // "Cancel this request" — revokes every broker currently routed to this
+  // lead in one action, for a homeowner who wants out entirely rather than
+  // reviewing each one individually. Loops revokeBrokerContact (no new RPC
+  // needed: each row's own revoke is already a simple, independent
+  // operation — see migration 037's header comment on why routing doesn't
+  // need cross-row locking the way a shared-slot claim market would).
+  //
+  // Also flips the parent report's broker_contact_opted_in to false — this
+  // is what escalate_all_pending_leads/route_all_orphaned_leads actually
+  // check before inviting anyone else, so without this a "cancelled"
+  // lead would keep attracting new broker invites on its own. It's also
+  // what report-view.tsx's "You're connected" banner reads, so skipping it
+  // would leave that banner stuck on after the homeowner just cancelled.
+  async cancelRequestForLead(leadId: string, reason: string, reasonNote?: string) {
+    try {
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .select('id, report_id')
+        .eq('id', leadId)
+        .single();
+      if (leadError) throw leadError;
+
+      const { data: routings, error } = await supabase
+        .from('lead_routings')
+        .select('id')
+        .eq('lead_id', leadId);
+      if (error) throw error;
+
+      for (const routing of routings || []) {
+        await this.revokeBrokerContact(routing.id, reason, reasonNote);
+      }
+
+      await supabase
+        .from('reports')
+        .update({ broker_contact_opted_in: false })
+        .eq('id', lead.report_id);
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
     }
   },
 

@@ -188,18 +188,47 @@ from the code:
   real layout bug this way (the horizontal filter-pill row was stretching
   to fill the screen's height because the ScrollView itself had no
   `flexGrow: 0`).
-  **Remaining phases, not started**: Phase 3 (consumer-side UI —
-  per-broker status display, the check-in/revoke prompt), Phase 4
-  (notification emails/push for invite, escalation, a missed-lead notice,
-  the broker stop-contact notice, and the homeowner's check-in reminder).
-  **Do not apply migrations 037/038 to production until at least Phase 3
-  ships** — `report.service.ts`'s `updateBrokerOptIn` (the consumer-side
-  revoke flow, still called from `consumer/settings.tsx`'s existing
-  "Revoke" button) still runs
-  `supabase.from('leads').update({ status: 'archived' })...` directly;
-  once `leads.status` is dropped that call fails outright, breaking
-  revoke entirely until Phase 3 replaces it with
-  `revoke_broker_contact()`.
+  **Phase 3 (consumer-side UI) is done** —
+  `consumer/settings.tsx`'s "Broker Contact" section now reads through
+  `get_my_connected_brokers()` (migration 039 — mirrors
+  `get_my_lead_routings()` but for the homeowner side: one row per
+  `lead_routings` entry across every lead they've created, carrying the
+  routed broker's public listing info — company/own name, not sensitive,
+  it's what the broker's own profile already shows — rather than the
+  homeowner's own PII, which they obviously already have). Grouped by
+  property, one sub-row per routed broker in plain language
+  (`consumerLeadStatusLabel` in `config/leadRoutingStatus.ts` — "Waiting
+  to hear back," never raw terms like `in_talks`), each with its own
+  Revoke action and canned reason picker (`config/revokeReasons.ts`,
+  values matching `broker_contact_revocations.reason`'s CHECK exactly) —
+  plus a "Cancel entire request" action per property that revokes every
+  routed broker for that lead in one pass
+  (`reportService.cancelRequestForLead`, loops `revoke_broker_contact`
+  since each row's revoke is already independent, no new RPC needed).
+  Cancelling also flips `reports.broker_contact_opted_in` to false, which
+  matters beyond the UI: `escalate_all_pending_leads`/
+  `route_all_orphaned_leads` both gate on that flag, so skipping it would
+  have let escalation keep inviting new brokers to a lead the homeowner
+  had just cancelled. The **check-in prompt** ("Still waiting to hear
+  back... keep waiting, or cancel?") shows per property when every routed
+  broker is still `claim_status = 'invited'` (nobody's claimed yet) and
+  the earliest invite was `CHECK_IN_DAYS` (5) or more days ago — computed
+  client-side from existing data, no new backend infra; "Keep waiting"
+  only dismisses it for the current session, nothing persisted.
+  `report.service.ts`'s `updateBrokerOptIn` revoke branch (still the path
+  for the initial-decline flow, where it's always a no-op) now calls
+  `cancelRequestForLead` instead of writing to the dropped `leads.status`
+  column. Verified against mocked RPC responses via a web export
+  screenshot (check-in banner, per-broker statuses including a revoked
+  one with no Revoke button, and the reason picker actually opening).
+  **Remaining phase, not started**: Phase 4 (notification emails/push for
+  invite, escalation, a missed-lead notice, the broker stop-contact
+  notice, and an actual push/email version of the homeowner's check-in
+  reminder — today's version is in-app only, shown when the homeowner
+  happens to open Settings).
+  **Migrations 037/038/039 are now written and locally verified, with
+  both the broker and consumer sides of the app ready for them** — still
+  not yet applied to production (see "Known gaps").
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice
@@ -272,19 +301,16 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Claim-based lead routing (migrations 037/038) is written and locally
-  verified but NOT applied to production — do not apply until Phase 3
-  (consumer UI) at least also ships.** See "Implementation notes" above
-  for the full design. Unlike every other pending migration this project
-  has shipped so far, this one is deliberately being held back rather than
-  applied ahead of the UI that depends on it. Phase 2 (broker-side UI —
-  `lead-inbox.tsx`, `lead-detail.tsx`, `dashboard.tsx`) is done and
-  already assumes the new schema, so the broker side is actually ready for
-  this migration now — but the consumer-side revoke flow
-  (`consumer/settings.tsx`'s "Revoke" button, via `report.service.ts`'s
-  `updateBrokerOptIn`) still writes to `leads.status`, which these
-  migrations drop; applying now would leave that one call failing
-  outright until Phase 3 replaces it with `revoke_broker_contact()`.
+- **Claim-based lead routing (migrations 037/038/039) is written and
+  locally verified but NOT applied to production.** See "Implementation
+  notes" above for the full design. Phase 2 (broker-side UI) and Phase 3
+  (consumer-side UI) are both done and the app now fully assumes the new
+  schema on both sides — unlike earlier in this effort, there's no longer
+  a known reason to hold this back once applied; the usual review before
+  running a migration against production still applies, same as any
+  other. Phase 4 (notifications) is the only piece left, and it's
+  additive (new email/push sends) rather than something the schema itself
+  needs first.
 - **Single-tier pricing model — resolved (migration 034), applied and
   confirmed live in production.** Replaced the three-tier Founder Lifetime
   / Premium Annual / Basic Annual model with the single tier described
