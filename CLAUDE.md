@@ -121,36 +121,59 @@ from the code:
 
 ## Implementation notes (recent work, worth pinning down)
 
-- **A consumer's requested broker count is now enforced at routing
-  (migration 032).** `reports.requested_broker_count` (migration 026) used
-  to be collected on opt-in and never read — every active, subscribed
-  broker in the lead's city got routed the lead regardless of what the
-  consumer asked for. `route_lead_to_brokers` now caps routing to that
-  count, ranked by earliest active subscription (there's only one tier as of
-  migration 034, so the old tier-first ranking no longer applies — see
-  "Membership tiers" above). This is "Option A" of two ways
-  to enforce the cap — the platform decides up front who gets the lead.
-  **Option B — notify every eligible broker and let the first N to
-  respond actually connect — was deliberately not built** and is left as
-  an open decision for the product owner; it would need a new
-  claim/response state on `lead_routings` that doesn't exist today. Don't
-  build Option B without an explicit request, and don't treat Option A as
-  the final word on this if that decision comes back the other way.
-  **Consent/masking requirement if Option B is ever built:** today, the
-  moment a broker is routed a lead they see full contact info immediately
-  (consumer email/phone, exact address — see `lead-inbox.tsx`/
-  `lead-detail.tsx`) because Option A only ever routes to the brokers
-  chosen to receive it. Option B cannot reuse that same immediate reveal —
-  showing every eligible broker full contact details up front would let
-  any of them contact the homeowner directly without ever claiming
-  anything, defeating the first-come model and going beyond what the
-  homeowner actually consented to (being contacted by a professional
-  through the platform, not broadcast to every broker covering their
-  city). Option B must show eligible brokers a masked preview only
-  (property type, general area, price range — no name/phone/email/exact
-  address) until a broker claims the lead, at which point full details
-  unlock for that broker only and the lead drops out of/shows as claimed
-  for everyone else's inbox.
+- **Claim-based lead routing is being built, replacing immediate full
+  reveal — Phase 1 (database foundation, migration 037) is written and
+  locally verified, NOT yet applied to production.** This is a hybrid of
+  what used to be documented here as "Option A" (the platform pre-selects
+  `requested_broker_count` brokers, ranked by earliest active subscription
+  — unchanged) and "Option B" (brokers must actively claim a lead before
+  seeing contact info — now the reveal mechanism for those chosen
+  brokers, rather than a separate everyone-in-the-city race). The
+  `route_lead_to_brokers`/`route_all_orphaned_leads` selection logic
+  itself is untouched; what changes is that a routed broker now sees only
+  a masked preview (property type, general area, price range, condition,
+  lead tags — no name/phone/email/exact address) until they tap "I want
+  this lead," enforced at the RLS layer via `lead_routings.claim_status`
+  (not just hidden in the UI — see migration 037's tightened policies on
+  `leads`/`properties`/`reports`/`users` and the new
+  `get_my_lead_routings()` function, the only place PII is ever selected
+  conditionally). **Escalation**: if not enough of the originally-routed
+  brokers claim, the pool widens on its own — while zero have claimed,
+  check every 24h and invite 1 more; once at least one has claimed, check
+  every 48h and invite as many new brokers as there are still-open slots
+  (`escalate_lead_routing`/`escalate_all_pending_leads`, hourly via
+  pg_cron, same pattern as `route_all_orphaned_leads`). Nobody already
+  invited is ever removed — they can still claim anytime until every slot
+  fills. **Why this needed a quota check inside `claim_lead()` itself**:
+  because non-responders are never dropped, the invited pool can exceed
+  `requested_broker_count` once escalation has run — without the check,
+  several of them claiming around the same time could push a lead's
+  claimed count past what the homeowner actually asked for (`claim_lead`
+  uses `pg_advisory_xact_lock` to make the quota check atomic; caught by a
+  local test before this shipped). **Revoke** (`revoke_broker_contact`)
+  is per broker, not per lead: a broker who hasn't claimed yet is just
+  silently dropped (they never had any contact info, nothing to revoke);
+  one who has already claimed keeps their `lead_routings` row but marked
+  `'revoked'` (distinct from broker-marked `'lost'`) — this cannot force a
+  broker who already has a homeowner's phone number to stop contacting
+  them (no platform can enforce that once contact info is shared), so the
+  real teeth has to come from a later phase's broker-ToS consequence for
+  ignoring it, not from this migration alone. Every revoke is logged with
+  a reason (`broker_contact_revocations` — decided_not_to_sell /
+  changed_mind / not_satisfied_with_appraisal / found_own_professional /
+  other) for the same kind of revoke-rate-by-reason visibility the
+  existing refund-rate tracking already gives. `leads.status` is dropped
+  entirely — status is now per-broker on `lead_routings`
+  (new/contacted/in_talks/converted/lost/revoked, broker-settable except
+  `revoked`) since one lead can now have several brokers independently
+  making progress. **Remaining phases, not started**: Phase 2 (broker-side
+  UI — masked/full lead cards, the claim button, the 5-state pipeline
+  UI), Phase 3 (consumer-side UI — per-broker status display, the
+  check-in/revoke prompt), Phase 4 (notification emails/push for invite,
+  escalation, a missed-lead notice, the broker stop-contact notice, and
+  the homeowner's check-in reminder). **Do not apply migration 037 to
+  production until at least Phase 2 ships** — the live mobile app still
+  reads/writes the columns this migration removes.
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice
@@ -223,6 +246,17 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
+- **Claim-based lead routing (migration 037) is written and locally
+  verified but NOT applied to production — do not apply until Phase 2
+  (broker UI) at least also ships.** See "Implementation notes" above for
+  the full design. Unlike every other pending migration this project has
+  shipped so far, this one is deliberately being held back rather than
+  applied ahead of the UI that depends on it: it drops `leads.status` and
+  tightens `leads`/`properties`/`reports`/`users` RLS for brokers to
+  require `claim_status = 'claimed'`, both of which the live app
+  (`lead-inbox.tsx`, `lead-detail.tsx`) still assumes the old way. Applying
+  this now would break the broker inbox and lead detail screens for real
+  users.
 - **Single-tier pricing model — resolved (migration 034), applied and
   confirmed live in production.** Replaced the three-tier Founder Lifetime
   / Premium Annual / Basic Annual model with the single tier described
