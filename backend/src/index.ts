@@ -15,6 +15,7 @@ import webhookRoutes from './routes/webhooks.js';
 import healthRoutes from './routes/health.js';
 import placesRoutes from './routes/places.js';
 import valuationRoutes from './routes/valuation.js';
+import { startNotificationPoller } from './services/notificationPoller.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +61,11 @@ app.listen(PORT, () => {
   logger.info(`🚀 Server running on http://localhost:${PORT}`);
   logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// Drains notification_queue (migration 040) — see
+// services/notificationPoller.ts for why this is a poller rather than a
+// Postgres-triggered HTTP call.
+startNotificationPoller();
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {

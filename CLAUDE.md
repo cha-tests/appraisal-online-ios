@@ -221,12 +221,34 @@ from the code:
   column. Verified against mocked RPC responses via a web export
   screenshot (check-in banner, per-broker statuses including a revoked
   one with no Revoke button, and the reason picker actually opening).
-  **Remaining phase, not started**: Phase 4 (notification emails/push for
-  invite, escalation, a missed-lead notice, the broker stop-contact
-  notice, and an actual push/email version of the homeowner's check-in
-  reminder — today's version is in-app only, shown when the homeowner
-  happens to open Settings).
-  **Migrations 037/038/039 are now written and locally verified, with
+  **Phase 4 (notifications) is done** — email only for now (push doesn't
+  exist anywhere in this codebase yet — no token capture, no sending
+  code — so it was out of scope for this phase); a backend poller, not
+  pg_net or Edge Functions, drains the queue (see migration 040's header
+  comment for why). `notification_queue` (migration 040) is a Postgres
+  outbox: three triggers on `lead_routings` (`AFTER INSERT` for
+  `broker_invite`, `AFTER UPDATE OF claim_status` for
+  `broker_missed_lead` — fires once a claim fills every requested slot,
+  to every other still-invited broker on that lead — and
+  `AFTER UPDATE OF status` for `broker_stop_contact` on a revoke of an
+  already-claimed row) plus `queue_consumer_check_ins()`, the email/push
+  equivalent of `consumer/settings.tsx`'s in-app check-in banner, same
+  5-day threshold and once-per-lead-ever guard, on its own daily pg_cron
+  job (`queue-consumer-check-ins-daily`, separate from the hourly
+  `escalate-lead-routings-hourly` job so either can be retimed alone). No
+  RLS policies at all on the table on purpose — only the service-role key
+  the backend already uses can touch it. `backend/src/services/email.ts`
+  gained four Postmark-backed senders (`sendBrokerInviteEmail`,
+  `sendBrokerMissedLeadEmail`, `sendBrokerStopContactEmail` — carries
+  explicit ToS-violation language, since revoke can't technically stop a
+  broker who already has the homeowner's number — `sendConsumerCheckInEmail`),
+  and the new `backend/src/services/notificationPoller.ts` polls every 2
+  minutes (`setInterval`, started from `index.ts` alongside `app.listen`),
+  batches 25 pending rows at a time, sends via the matching function, and
+  marks each row sent/failed — best-effort, no retry loop, matching
+  `lead_routings.delivery_status`'s existing pending/sent/failed/bounced
+  pattern.
+  **Migrations 037/038/039/040 are now written and locally verified, with
   both the broker and consumer sides of the app ready for them** — still
   not yet applied to production (see "Known gaps").
 - **Requested broker count has no hard cap (migration 036 reversed
@@ -301,16 +323,17 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Claim-based lead routing (migrations 037/038/039) is written and
+- **Claim-based lead routing (migrations 037/038/039/040) is written and
   locally verified but NOT applied to production.** See "Implementation
-  notes" above for the full design. Phase 2 (broker-side UI) and Phase 3
-  (consumer-side UI) are both done and the app now fully assumes the new
-  schema on both sides — unlike earlier in this effort, there's no longer
-  a known reason to hold this back once applied; the usual review before
-  running a migration against production still applies, same as any
-  other. Phase 4 (notifications) is the only piece left, and it's
-  additive (new email/push sends) rather than something the schema itself
-  needs first.
+  notes" above for the full design. All four phases (Phase 1 DB
+  foundation, Phase 2 broker-side UI, Phase 3 consumer-side UI, Phase 4
+  notifications) are now done and the app fully assumes the new schema on
+  both sides — there's no longer a known reason to hold this back once
+  applied; the usual review before running a migration against
+  production still applies, same as any other. The backend also needs a
+  deploy/restart to pick up the new notification poller once 040 is
+  applied, since the poller queries a table that doesn't exist until
+  then.
 - **Single-tier pricing model — resolved (migration 034), applied and
   confirmed live in production.** Replaced the three-tier Founder Lifetime
   / Premium Annual / Basic Annual model with the single tier described
