@@ -8,8 +8,9 @@ import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
-import { Lead, BrokerProfile, Subscription } from '../../types';
+import { BrokerProfile, Subscription, LeadRoutingPreview } from '../../types';
 import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
+import { LEAD_ROUTING_STATUS_LABELS } from '../../config/leadRoutingStatus';
 import { theme } from '../../theme';
 
 interface DashboardMetrics {
@@ -19,26 +20,12 @@ interface DashboardMetrics {
   averageLeadValue: number;
 }
 
-// Shape of a lead_routings row as fetched below (`lead:lead_id(*, ...)`),
-// not the bare `Lead` row itself — the list actually renders the routing's
-// nested `lead`, `lead_id`, and `delivery_status`, not fields on `Lead`.
-interface RecentLeadRouting {
-  id: string;
-  lead_id: string;
-  delivery_status?: string;
-  lead?: Lead & {
-    consumer_email?: string;
-    property?: { address_components?: { country_code?: string } };
-    report?: { title_url?: string };
-  };
-}
-
 export default function BrokerDashboard() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [brokerProfile, setBrokerProfile] = useState<BrokerProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [recentLeads, setRecentLeads] = useState<RecentLeadRouting[]>([]);
+  const [recentLeads, setRecentLeads] = useState<LeadRoutingPreview[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
@@ -85,24 +72,12 @@ export default function BrokerDashboard() {
           });
         }
 
-        // Fetch recent leads for this broker
-        const { data: leads } = await supabase
-          .from('lead_routings')
-          .select(
-            '*, lead:lead_id(*, consumer:consumer_id(email), property:property_id(address_components), report:report_id(title_url))'
-          )
-          .eq('broker_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (leads) {
-          // A consumer who revokes broker contact archives the underlying
-          // lead (see report.service.ts's updateBrokerOptIn) — filtered
-          // client-side since the archive status lives on the nested
-          // `lead`, not lead_routings itself, so it can't be pushed into
-          // the query above without an inner-join filter.
-          setRecentLeads(leads.filter((r: any) => r.lead?.status !== 'archived') as any);
-        }
+        // Fetch recent leads for this broker — single source of truth
+        // (migrations 037/038), PII fields null until claimed, same as
+        // lead-inbox.tsx/lead-detail.tsx.
+        const { data: leads, error: leadsError } = await supabase.rpc('get_my_lead_routings');
+        if (leadsError) throw leadsError;
+        setRecentLeads(((leads as LeadRoutingPreview[]) || []).slice(0, 5));
 
         // Calculate metrics (mock data for now)
         setMetrics({
@@ -286,28 +261,40 @@ export default function BrokerDashboard() {
         // pattern that breaks windowing: on web it left a large block of
         // extra blank space below the list instead of sizing to content.
         <View>
-          {recentLeads.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.leadCard}
-              onPress={() => router.push(`/broker/lead-detail?id=${item.lead_id}`)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.leadCardHeader}>
-                <Text style={styles.leadAddress}>{item.lead?.property_address || 'Property'}</Text>
-                <Text style={styles.leadValue}>
-                  {formatCurrency(item.lead?.property_value || 0, item.lead?.property?.address_components?.country_code)}
-                </Text>
-              </View>
-              <View style={styles.leadCardFooter}>
-                <Text style={styles.leadEmail}>{item.lead?.consumer_email || 'Unknown'}</Text>
-                <Text style={styles.leadStatus}>{item.delivery_status}</Text>
-              </View>
-              {item.lead?.report?.title_url && (
-                <Text style={styles.leadTitleBadge}>✓ Title on file</Text>
-              )}
-            </TouchableOpacity>
-          ))}
+          {recentLeads.map((item) => {
+            const claimed = item.claim_status === 'claimed';
+            const full = !claimed && item.requested_broker_count != null && item.claimed_count >= item.requested_broker_count;
+            return (
+              <TouchableOpacity
+                key={item.lead_routing_id}
+                style={styles.leadCard}
+                onPress={() => router.push(`/broker/lead-detail?id=${item.lead_routing_id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.leadCardHeader}>
+                  <Text style={styles.leadAddress}>
+                    {claimed
+                      ? item.property_address || 'Property'
+                      : `${item.property_type || 'Property'} in ${item.city_name || 'your area'}`}
+                  </Text>
+                  <Text style={styles.leadValue}>
+                    {claimed
+                      ? formatCurrency(item.estimated_value || 0, item.city_country)
+                      : item.estimated_value_low != null && item.estimated_value_high != null
+                      ? `${formatCurrency(item.estimated_value_low, item.city_country)}–${formatCurrency(item.estimated_value_high, item.city_country)}`
+                      : ''}
+                  </Text>
+                </View>
+                <View style={styles.leadCardFooter}>
+                  <Text style={styles.leadEmail}>
+                    {claimed ? item.consumer_email || 'Unknown' : full ? 'Already connected' : 'Tap to view & claim'}
+                  </Text>
+                  <Text style={styles.leadStatus}>{LEAD_ROUTING_STATUS_LABELS[item.status]}</Text>
+                </View>
+                {item.has_title_on_file && <Text style={styles.leadTitleBadge}>✓ Title on file</Text>}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       ) : (
         <Card variant="default" style={styles.emptyState}>

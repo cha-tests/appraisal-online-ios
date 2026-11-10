@@ -163,7 +163,6 @@ export interface Lead {
   // Copied from reports.help_tags at lead creation (migration 031) — a
   // visible signal for a specialized broker niche, not a routing input.
   lead_tags?: string[];
-  status: 'new' | 'contacted' | 'converted' | 'archived';
   created_at: string;
   updated_at: string;
 }
@@ -179,6 +178,51 @@ export interface LeadRouting {
   included_in_digest: boolean;
   digest_date?: string;
   created_at: string;
+}
+
+export type LeadRoutingClaimStatus = 'invited' | 'claimed';
+export type LeadRoutingStatus = 'new' | 'contacted' | 'in_talks' | 'converted' | 'lost' | 'revoked';
+
+/**
+ * One row per get_my_lead_routings() (migrations 037/038) — the single
+ * source of truth for the broker-side inbox/dashboard/detail screens.
+ * PII fields (consumer_name/email/phone, property_address, estimated_value,
+ * is_owner, intends_to_sell, title_url, comparables) are only ever
+ * populated when claim_status is 'claimed'; before that they come back
+ * null/undefined from the RPC itself, not just hidden by the UI.
+ */
+export interface LeadRoutingPreview {
+  lead_routing_id: string;
+  lead_id: string;
+  claim_status: LeadRoutingClaimStatus;
+  status: LeadRoutingStatus;
+  lost_reason?: string;
+  delivery_channel: 'email' | 'push' | 'sms';
+  invited_at: string;
+  claimed_at?: string;
+  property_type?: string;
+  condition?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  city_name?: string;
+  city_state?: string;
+  city_country?: string;
+  estimated_value_low?: number;
+  estimated_value_high?: number;
+  lead_tags?: string[];
+  has_title_on_file: boolean;
+  requested_broker_count?: number;
+  claimed_count: number;
+  // Claimed-only — see the migration comment above.
+  property_address?: string;
+  consumer_name?: string;
+  consumer_email?: string;
+  consumer_phone?: string;
+  estimated_value?: number;
+  is_owner?: boolean;
+  intends_to_sell?: boolean;
+  title_url?: string;
+  comparables?: any[];
 }
 
 // Subscriptions & Billing

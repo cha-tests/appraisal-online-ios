@@ -3,47 +3,54 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   SectionList,
+  ScrollView,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
 import { useAuthStore } from '../../stores/auth.store';
 import { supabase } from '../../services/supabase';
-import { Lead } from '../../types';
+import { LeadRoutingPreview, LeadRoutingStatus } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
 import { leadTagBadgeLabel } from '../../config/leadTags';
+import { LEAD_ROUTING_STATUS_LABELS as STATUS_LABELS } from '../../config/leadRoutingStatus';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { theme } from '../../theme';
-
-interface LeadWithRouting extends Lead {
-  delivery_status?: string;
-  delivery_channel?: string;
-  delivery_timestamp?: string;
-  property?: { address_components?: { country_code?: string } };
-  // Only present when the consumer opted in AND attached a title — see
-  // Clause 5/6 of the Sep 1 spec. A self-reported flag, never verified by
-  // the platform itself (see BROKER_DISCLAIMER_TEXT).
-  report?: { title_url?: string };
-}
 
 const showTitleBadgeInfo = () =>
   Alert.alert('About the title badge', BROKER_DISCLAIMER_TEXT);
 
+type FilterStatus = 'all' | LeadRoutingStatus;
+
+const FILTERS: FilterStatus[] = ['all', 'new', 'contacted', 'in_talks', 'converted', 'lost', 'revoked'];
+
+/** Masked price range (low–high), formatted in the lead's own market
+ * currency — the only money figure shown before a broker claims. */
+function formatPriceRange(item: LeadRoutingPreview): string {
+  if (item.estimated_value_low == null || item.estimated_value_high == null) return 'Price range unavailable';
+  return `${formatCurrency(item.estimated_value_low, item.city_country)} – ${formatCurrency(item.estimated_value_high, item.city_country)}`;
+}
+
+/** Whether another broker already filled every slot this homeowner asked
+ * for — true only once requested_broker_count is known and met, so a
+ * report with no count set (shouldn't happen once opted in, but defensive)
+ * never falsely reads as full. */
+function isAlreadyFull(item: LeadRoutingPreview): boolean {
+  return item.requested_broker_count != null && item.claimed_count >= item.requested_broker_count;
+}
+
 export default function LeadInbox() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const [leads, setLeads] = useState<LeadWithRouting[]>([]);
-  const [filteredLeads, setFilteredLeads] = useState<LeadWithRouting[]>([]);
+  const [leads, setLeads] = useState<LeadRoutingPreview[]>([]);
+  const [filteredLeads, setFilteredLeads] = useState<LeadRoutingPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'new' | 'contacted' | 'converted'>('all');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
 
   useEffect(() => {
     const loadLeads = async () => {
@@ -52,26 +59,13 @@ export default function LeadInbox() {
 
         setLoading(true);
 
-        // Fetch leads routed to this broker
-        const { data: leadRoutings } = await supabase
-          .from('lead_routings')
-          .select(
-            '*, lead:lead_id(*, property:property_id(address_components), report:report_id(title_url))'
-          )
-          .eq('broker_id', user.id)
-          .order('created_at', { ascending: false });
+        // Single source of truth for the broker side (migrations 037/038)
+        // — PII fields come back null/undefined for anything not yet
+        // claimed, enforced by the function itself, not just hidden here.
+        const { data, error } = await supabase.rpc('get_my_lead_routings');
+        if (error) throw error;
 
-        if (leadRoutings) {
-          const enrichedLeads = leadRoutings.map((routing: any) => ({
-            ...routing.lead,
-            delivery_status: routing.delivery_status,
-            delivery_channel: routing.delivery_channel,
-            delivery_timestamp: routing.created_at,
-          }));
-
-          setLeads(enrichedLeads);
-          setFilteredLeads(enrichedLeads);
-        }
+        setLeads((data as LeadRoutingPreview[]) || []);
       } catch (err) {
         console.error('Error loading leads:', err);
       } finally {
@@ -110,99 +104,125 @@ export default function LeadInbox() {
   useEffect(() => {
     let filtered = leads;
 
-    // Filter by status
     if (filterStatus !== 'all') {
       filtered = filtered.filter((lead) => lead.status === filterStatus);
     }
 
-    // Search by address or email
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (lead) =>
-          lead.property_address.toLowerCase().includes(query) ||
-          lead.consumer_email.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter((lead) => {
+        // A claimed row can be searched by its real address/email; an
+        // unclaimed one only has the masked fields to search against.
+        const haystack =
+          lead.claim_status === 'claimed'
+            ? `${lead.property_address} ${lead.consumer_email}`
+            : `${lead.property_type || ''} ${lead.city_name || ''}`;
+        return haystack.toLowerCase().includes(query);
+      });
     }
 
     setFilteredLeads(filtered);
   }, [searchQuery, filterStatus, leads]);
 
-  // Group leads by status
-  const groupedLeads = {
-    new: filteredLeads.filter((l) => l.status === 'new'),
-    contacted: filteredLeads.filter((l) => l.status === 'contacted'),
-    converted: filteredLeads.filter((l) => l.status === 'converted'),
-  };
+  const groupedLeads = FILTERS.filter((f) => f !== 'all').reduce(
+    (acc, status) => ({ ...acc, [status]: filteredLeads.filter((l) => l.status === status) }),
+    {} as Record<LeadRoutingStatus, LeadRoutingPreview[]>
+  );
 
-  const sections = [
-    { title: `New (${groupedLeads.new.length})`, data: groupedLeads.new, status: 'new' },
-    { title: `Contacted (${groupedLeads.contacted.length})`, data: groupedLeads.contacted, status: 'contacted' },
-    { title: `Converted (${groupedLeads.converted.length})`, data: groupedLeads.converted, status: 'converted' },
-  ].filter((s) => s.data.length > 0 || filterStatus === 'all');
+  const sections = (Object.keys(groupedLeads) as LeadRoutingStatus[])
+    .map((status) => ({
+      title: `${STATUS_LABELS[status]} (${groupedLeads[status].length})`,
+      data: groupedLeads[status],
+      status,
+    }))
+    .filter((s) => s.data.length > 0 || filterStatus === 'all');
 
-  const renderLeadItem = ({ item }: { item: LeadWithRouting }) => (
-    <TouchableOpacity
-      style={styles.leadItem}
-      onPress={() => router.push(`/broker/lead-detail?id=${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.leadItemHeader}>
-        <View>
-          <Text style={styles.leadItemAddress}>{item.property_address}</Text>
-          <Text style={styles.leadItemEmail}>{item.consumer_email}</Text>
-          {item.report?.title_url ? (
-            // A real tap target, not just the tiny visual chip — this is
-            // nested inside the much larger tappable lead card (which
-            // navigates to lead-detail), so a too-small hit area made it a
-            // coin flip whether a tap near the badge opened the info popup
-            // or navigated away instead.
-            <TouchableOpacity
-              style={styles.titleBadge}
-              onPress={showTitleBadgeInfo}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+  const renderLeadItem = ({ item }: { item: LeadRoutingPreview }) => {
+    const claimed = item.claim_status === 'claimed';
+    const full = !claimed && isAlreadyFull(item);
+
+    return (
+      <TouchableOpacity
+        style={[styles.leadItem, full && styles.leadItemMuted]}
+        onPress={() => router.push(`/broker/lead-detail?id=${item.lead_routing_id}`)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.leadItemHeader}>
+          <View style={{ flex: 1 }}>
+            {claimed ? (
+              <>
+                <Text style={styles.leadItemAddress}>{item.property_address}</Text>
+                <Text style={styles.leadItemEmail}>{item.consumer_email}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.leadItemAddress}>
+                  {item.property_type || 'Property'} in {item.city_name || 'your area'}
+                  {item.city_state ? `, ${item.city_state}` : ''}
+                </Text>
+                <Text style={styles.leadItemEmail}>
+                  {full ? 'Already connected with enough professionals' : 'Tap to view & claim'}
+                </Text>
+              </>
+            )}
+            {item.has_title_on_file ? (
+              // A real tap target, not just the tiny visual chip — this is
+              // nested inside the much larger tappable lead card (which
+              // navigates to lead-detail), so a too-small hit area made it a
+              // coin flip whether a tap near the badge opened the info popup
+              // or navigated away instead.
+              <TouchableOpacity
+                style={styles.titleBadge}
+                onPress={showTitleBadgeInfo}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.titleBadgeText}>✓ Title on file</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.titleBadgeMuted}>
+                <Text style={styles.titleBadgeMutedText}>No title yet</Text>
+              </View>
+            )}
+            {!!item.lead_tags?.length && (
+              <View style={styles.nicheTagsRow}>
+                {item.lead_tags.map((tag) => (
+                  <View key={tag} style={styles.nicheTag}>
+                    <Text style={styles.nicheTagText}>{leadTagBadgeLabel(tag)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+          <View style={styles.leadItemRight}>
+            <Text style={styles.leadItemValue}>
+              {claimed
+                ? formatCurrency(item.estimated_value || 0, item.city_country)
+                : formatPriceRange(item)}
+            </Text>
+            <View
+              style={[
+                styles.statusBadge,
+                item.status === 'new' && styles.statusNew,
+                item.status === 'contacted' && styles.statusContacted,
+                item.status === 'in_talks' && styles.statusInTalks,
+                item.status === 'converted' && styles.statusConverted,
+                item.status === 'lost' && styles.statusLost,
+                item.status === 'revoked' && styles.statusRevoked,
+              ]}
             >
-              <Text style={styles.titleBadgeText}>✓ Title on file</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.titleBadgeMuted}>
-              <Text style={styles.titleBadgeMutedText}>No title yet</Text>
+              <Text style={styles.statusText}>{STATUS_LABELS[item.status]}</Text>
             </View>
-          )}
-          {!!item.lead_tags?.length && (
-            <View style={styles.nicheTagsRow}>
-              {item.lead_tags.map((tag) => (
-                <View key={tag} style={styles.nicheTag}>
-                  <Text style={styles.nicheTagText}>{leadTagBadgeLabel(tag)}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-        <View style={styles.leadItemRight}>
-          <Text style={styles.leadItemValue}>
-            {formatCurrency(item.property_value || 0, item.property?.address_components?.country_code)}
-          </Text>
-          <View
-            style={[
-              styles.statusBadge,
-              item.status === 'new' && styles.statusNew,
-              item.status === 'contacted' && styles.statusContacted,
-              item.status === 'converted' && styles.statusConverted,
-            ]}
-          >
-            <Text style={styles.statusText}>{item.status}</Text>
           </View>
         </View>
-      </View>
-      <View style={styles.leadItemFooter}>
-        <Text style={styles.leadItemChannel}>via {item.delivery_channel || 'email'}</Text>
-        <Text style={styles.leadItemDate}>
-          {new Date(item.delivery_timestamp || item.created_at).toLocaleDateString()}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.leadItemFooter}>
+          <Text style={styles.leadItemChannel}>
+            {claimed ? `via ${item.delivery_channel}` : full ? 'No longer available' : 'Not yet claimed'}
+          </Text>
+          <Text style={styles.leadItemDate}>{new Date(item.invited_at).toLocaleDateString()}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderSectionHeader = ({ section }: any) => (
     <View style={styles.sectionHeader}>
@@ -227,33 +247,32 @@ export default function LeadInbox() {
 
       {/* Search & Filter */}
       <TextInput
-        placeholder="Search by address or email..."
+        placeholder="Search by address, email, or area..."
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
 
       {/* Filter Buttons */}
-      <View style={styles.filterButtons}>
-        {(['all', 'new', 'contacted', 'converted'] as const).map((status) => (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterButtons}
+        contentContainerStyle={styles.filterButtonsContent}
+      >
+        {FILTERS.map((status) => (
           <TouchableOpacity
             key={status}
-            style={[
-              styles.filterButton,
-              filterStatus === status && styles.filterButtonActive,
-            ]}
+            style={[styles.filterButton, filterStatus === status && styles.filterButtonActive]}
             onPress={() => setFilterStatus(status)}
           >
             <Text
-              style={[
-                styles.filterButtonText,
-                filterStatus === status && styles.filterButtonTextActive,
-              ]}
+              style={[styles.filterButtonText, filterStatus === status && styles.filterButtonTextActive]}
             >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === 'all' ? 'All' : STATUS_LABELS[status]}
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
       {/* Leads List */}
       {loading ? (
@@ -264,7 +283,7 @@ export default function LeadInbox() {
       ) : filteredLeads.length > 0 ? (
         <SectionList
           sections={sections}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.lead_routing_id}
           renderItem={renderLeadItem}
           renderSectionHeader={renderSectionHeader}
           scrollEnabled={true}
@@ -302,10 +321,18 @@ const styles = StyleSheet.create({
     color: theme.color.textMuted,
   },
   filterButtons: {
-    flexDirection: 'row',
-    gap: 8,
+    // flexGrow: 0 stops the ScrollView itself from stretching to fill the
+    // parent's available vertical space (its default in this layout) —
+    // without it, every child pill stretched to fill that inherited
+    // height instead of sizing to its own text.
+    flexGrow: 0,
     marginBottom: 16,
     marginHorizontal: -16,
+  },
+  filterButtonsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 16,
   },
   filterButton: {
@@ -348,6 +375,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: theme.color.surface,
   },
+  leadItemMuted: {
+    opacity: 0.6,
+  },
   leadItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -359,7 +389,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.text,
     marginBottom: 4,
-    maxWidth: '70%',
   },
   leadItemEmail: {
     fontSize: 13,
@@ -412,12 +441,14 @@ const styles = StyleSheet.create({
   },
   leadItemRight: {
     alignItems: 'flex-end',
+    marginLeft: 8,
   },
   leadItemValue: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: theme.color.success,
     marginBottom: 6,
+    textAlign: 'right',
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -430,13 +461,21 @@ const styles = StyleSheet.create({
   statusContacted: {
     backgroundColor: '#FEF3C7',
   },
+  statusInTalks: {
+    backgroundColor: '#DBEAFE',
+  },
   statusConverted: {
     backgroundColor: theme.color.successWash,
+  },
+  statusLost: {
+    backgroundColor: '#F3F4F6',
+  },
+  statusRevoked: {
+    backgroundColor: '#FECACA',
   },
   statusText: {
     fontSize: 11,
     fontWeight: '700',
-    textTransform: 'capitalize',
   },
   leadItemFooter: {
     flexDirection: 'row',

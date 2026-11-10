@@ -166,14 +166,40 @@ from the code:
   entirely — status is now per-broker on `lead_routings`
   (new/contacted/in_talks/converted/lost/revoked, broker-settable except
   `revoked`) since one lead can now have several brokers independently
-  making progress. **Remaining phases, not started**: Phase 2 (broker-side
-  UI — masked/full lead cards, the claim button, the 5-state pipeline
-  UI), Phase 3 (consumer-side UI — per-broker status display, the
-  check-in/revoke prompt), Phase 4 (notification emails/push for invite,
-  escalation, a missed-lead notice, the broker stop-contact notice, and
-  the homeowner's check-in reminder). **Do not apply migration 037 to
-  production until at least Phase 2 ships** — the live mobile app still
-  reads/writes the columns this migration removes.
+  making progress.
+  **Phase 2 (broker-side UI) is done** — `lead-inbox.tsx`, `lead-detail.tsx`,
+  and `dashboard.tsx`'s Recent Leads preview all now read through
+  `get_my_lead_routings()` (migration 038 extended it with
+  `claimed_count`/`requested_broker_count`, so an invited-but-unclaimed row
+  can tell "still open" from "already filled by others" — needed for the
+  "This lead has already been connected with enough professionals" state
+  — plus `is_owner`/`intends_to_sell`/`title_url`/`comparables`, which
+  lead-detail.tsx needed and the original migration 037 function didn't
+  expose yet). Masked cards show property type/area/price-range/condition/
+  lead-tags with a plain "I Want This Lead" button; claimed cards are the
+  full original detail view. The 5-state pipeline (New/Contacted/In
+  Talks/Converted/Lost, `config/leadRoutingStatus.ts` for shared labels)
+  replaces the old 3-state one, with a canned reason picker
+  (`config/lostReasons.ts`) on marking a lead Lost, mirroring the
+  homeowner's own revoke reasons. A revoked lead shows a dedicated banner
+  instead of the normal status actions. Verified against mocked RPC
+  responses via a web export screenshot (masked, claimed, and
+  already-full states, plus the dashboard preview) — caught and fixed one
+  real layout bug this way (the horizontal filter-pill row was stretching
+  to fill the screen's height because the ScrollView itself had no
+  `flexGrow: 0`).
+  **Remaining phases, not started**: Phase 3 (consumer-side UI —
+  per-broker status display, the check-in/revoke prompt), Phase 4
+  (notification emails/push for invite, escalation, a missed-lead notice,
+  the broker stop-contact notice, and the homeowner's check-in reminder).
+  **Do not apply migrations 037/038 to production until at least Phase 3
+  ships** — `report.service.ts`'s `updateBrokerOptIn` (the consumer-side
+  revoke flow, still called from `consumer/settings.tsx`'s existing
+  "Revoke" button) still runs
+  `supabase.from('leads').update({ status: 'archived' })...` directly;
+  once `leads.status` is dropped that call fails outright, breaking
+  revoke entirely until Phase 3 replaces it with
+  `revoke_broker_contact()`.
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice
@@ -246,17 +272,19 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Claim-based lead routing (migration 037) is written and locally
-  verified but NOT applied to production — do not apply until Phase 2
-  (broker UI) at least also ships.** See "Implementation notes" above for
-  the full design. Unlike every other pending migration this project has
-  shipped so far, this one is deliberately being held back rather than
-  applied ahead of the UI that depends on it: it drops `leads.status` and
-  tightens `leads`/`properties`/`reports`/`users` RLS for brokers to
-  require `claim_status = 'claimed'`, both of which the live app
-  (`lead-inbox.tsx`, `lead-detail.tsx`) still assumes the old way. Applying
-  this now would break the broker inbox and lead detail screens for real
-  users.
+- **Claim-based lead routing (migrations 037/038) is written and locally
+  verified but NOT applied to production — do not apply until Phase 3
+  (consumer UI) at least also ships.** See "Implementation notes" above
+  for the full design. Unlike every other pending migration this project
+  has shipped so far, this one is deliberately being held back rather than
+  applied ahead of the UI that depends on it. Phase 2 (broker-side UI —
+  `lead-inbox.tsx`, `lead-detail.tsx`, `dashboard.tsx`) is done and
+  already assumes the new schema, so the broker side is actually ready for
+  this migration now — but the consumer-side revoke flow
+  (`consumer/settings.tsx`'s "Revoke" button, via `report.service.ts`'s
+  `updateBrokerOptIn`) still writes to `leads.status`, which these
+  migrations drop; applying now would leave that one call failing
+  outright until Phase 3 replaces it with `revoke_broker_contact()`.
 - **Single-tier pricing model — resolved (migration 034), applied and
   confirmed live in production.** Replaced the three-tier Founder Lifetime
   / Premium Annual / Basic Annual model with the single tier described
