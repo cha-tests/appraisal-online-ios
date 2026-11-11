@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { AI_ESTIMATE_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { theme } from '../../theme';
 
 export default function SampleReportScreen() {
@@ -28,11 +30,7 @@ export default function SampleReportScreen() {
         <Text style={styles.reportMeta}>Based on 5 comparable sales</Text>
       </Card>
 
-      <View style={styles.disclaimerCard}>
-        <Text style={styles.disclaimerText}>
-          ⚠️ This is a computer estimate. It is not a licensed appraisal. Banks, courts, and government agencies do not accept this as a formal valuation.
-        </Text>
-      </View>
+      <DisclaimerNotice title="⚠️ Important Notice" text={AI_ESTIMATE_DISCLAIMER_TEXT} />
 
       {/* Sample Comparables */}
       <Text style={styles.sectionTitle}>Similar Properties Sold</Text>
@@ -132,6 +130,8 @@ export default function SampleReportScreen() {
         />
       </Card>
 
+      <DisclaimerNotice title="⚠️ Working With a Professional" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
+
       {/* Features Highlight */}
       <Text style={styles.sectionTitle}>What You'll Get</Text>
 
@@ -220,19 +220,6 @@ const styles = StyleSheet.create({
   reportMeta: {
     fontSize: 13,
     color: theme.color.textMuted,
-  },
-  disclaimerCard: {
-    backgroundColor: '#FEF3C7',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FBBF24',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 24,
-  },
-  disclaimerText: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
   },
   comparableCard: {
     marginBottom: 12,

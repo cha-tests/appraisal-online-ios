@@ -293,13 +293,25 @@ from the code:
   itself, and a signed-out visitor hitting `/broker/splash` or
   `/broker/welcome` landing on a bare login form — were already fixed in
   an earlier commit (`869731c`), confirmed still in place when re-checked
-  here. Its remaining finding (two different AI-disclaimer versions, the
-  short one on the public Sample Report page vs. the longer,
-  legally-reviewed one used everywhere real valuations show) is a
-  content/legal call, not something to just pick a version for — held for
-  the user to confirm with whoever owns that copy. The audit also
-  referenced a "Founder Membership" page, which no longer exists at all
-  (removed by migration 034) — stale by the time the audit ran.
+  here. Its remaining finding — resolved — was two different AI-disclaimer
+  versions: `public/sample-report.tsx` hardcoded just
+  `AI_ESTIMATE_DISCLAIMER_TEXT` inline instead of importing it, and never
+  showed `CLIENT_DISCLAIMER_TEXT` (the broker-license-verification/PRC
+  disclaimer) at all, despite also showing a Sample Broker Profile card on
+  the same page. `config/disclaimers.ts`'s own header comment is explicit
+  that both disclaimers are current and meant to coexist (confirmed by
+  `report-view.tsx`, which already shows both) — this wasn't a "which
+  version is current" ambiguity, just an omission on the one page that
+  never got the second disclaimer. Fixed by importing both constants and
+  rendering them through the shared `DisclaimerNotice` component (same as
+  `report-view.tsx`): the AI disclaimer stays where it was, and the
+  broker-verification one (with its PRC link) now sits right under the
+  Sample Broker Profile card. Verified via a web export screenshot. The
+  audit also referenced a "Founder Membership" page, which no longer
+  exists at all (removed by migration 034) — stale by the time the audit
+  ran. Separately, `sample-report.tsx` still shows other retired-tier
+  content (a "Sample Weekly Digest (Basic)" section, "Founder Member"
+  broker badge) — out of scope for this fix, queued as its own follow-up.
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice
