@@ -15,9 +15,11 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { TextInput } from '../../components/ui/TextInput';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { signOut } from '../../services/supabase';
+import { withTimeout } from '../../services/withTimeout';
 import { BrokerProfile } from '../../types';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
@@ -48,6 +50,8 @@ export default function BrokerSettings() {
   const brokerProfile = useAuthStore((state) => state.brokerProfile);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<BrokerProfile | null>(null);
 
@@ -68,7 +72,8 @@ export default function BrokerSettings() {
         if (!user?.id) return;
 
         setLoading(true);
-        const { profile: fetchedProfile } = await brokerService.getProfile(user.id);
+        setLoadError(false);
+        const { profile: fetchedProfile } = await withTimeout(brokerService.getProfile(user.id));
 
         if (fetchedProfile) {
           setProfile(fetchedProfile);
@@ -82,14 +87,14 @@ export default function BrokerSettings() {
         }
       } catch (err) {
         console.error('Error loading profile:', err);
-        Alert.alert('Error', 'Failed to load settings');
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
 
     loadProfile();
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
 
   const handleSavePreferences = async () => {
     try {
@@ -151,6 +156,17 @@ export default function BrokerSettings() {
       Alert.alert('Sharing not available', `Your code is ${code} — copy it from the box above instead.`);
     }
   };
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your settings. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   if (loading) {
     return (

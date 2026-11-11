@@ -264,6 +264,42 @@ from the code:
   **Migrations 037/038/039/040 are now written and locally verified, with
   both the broker and consumer sides of the app ready for them** — still
   not yet applied to production (see "Known gaps").
+- **Data-dependent screens now time out instead of spinning forever**
+  (`services/withTimeout.ts` + `components/ui/LoadError.tsx`). A QA audit
+  found that Broker Dashboard, Lead Inbox, Broker Settings, Consumer
+  Settings (both its main preferences load and its Broker Contact
+  sub-section), Consumer Account, and the public Coverage page ("Is Your
+  City Covered?") all stayed on their loading spinner indefinitely if the
+  backend call hung rather than erroring quickly — a `catch`/`finally`
+  only helps once a promise actually rejects, and a request to a
+  genuinely unreachable host can just never settle. `withTimeout(promise,
+  ms = 12000)` races any promise/thenable (including Supabase's
+  `PostgrestFilterBuilder`) against a 12s ceiling and rejects with
+  `LoadTimeoutError` if it's not back by then; each screen now has a
+  `loadError` state + a `reloadToken` bumped by `LoadError`'s Retry
+  button, which re-runs the same load effect rather than duplicating its
+  body. Consumer Settings' Broker Contact sub-section gets a lighter
+  inline "Couldn't load this section — Retry" row instead of replacing
+  the whole screen, since the rest of the page (notification toggles)
+  still works fine even if that one RPC call fails; that fix also closed
+  a second, smaller pre-existing bug where `getMyConnectedBrokers()`
+  returning `success: false` was silently treated as "no connected
+  brokers" instead of surfacing as a real error. Verified via a web
+  export screenshot with `supabase.rpc` mocked to a promise that never
+  resolves — confirms the dashboard correctly flips to the Retry UI
+  after the 12s ceiling instead of hanging. The same audit's three other
+  findings — the Lead Inbox header showing "0 leads" while still
+  loading, the broker-contact toggle only responding to the switch
+  itself, and a signed-out visitor hitting `/broker/splash` or
+  `/broker/welcome` landing on a bare login form — were already fixed in
+  an earlier commit (`869731c`), confirmed still in place when re-checked
+  here. Its remaining finding (two different AI-disclaimer versions, the
+  short one on the public Sample Report page vs. the longer,
+  legally-reviewed one used everywhere real valuations show) is a
+  content/legal call, not something to just pick a version for — held for
+  the user to confirm with whoever owns that copy. The audit also
+  referenced a "Founder Membership" page, which no longer exists at all
+  (removed by migration 034) — stale by the time the audit ran.
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice

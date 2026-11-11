@@ -12,10 +12,12 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
 import { authService } from '../../services/auth.service';
+import { withTimeout } from '../../services/withTimeout';
 import { Report } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
 import { shortAddressLabel } from '../../utils/addressComponents';
@@ -32,6 +34,8 @@ export default function ConsumerAccount() {
   const [reports, setReports] = useState<Report[]>([]);
   const [allowance, setAllowance] = useState({ used: 0, remaining: 3 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
 
@@ -41,32 +45,38 @@ export default function ConsumerAccount() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
-        // Fetch user's reports
-        const { success, reports: userReports } = await reportService.getUserReports(user.id);
-        if (success && userReports) {
-          setReports(userReports);
-        }
+        await withTimeout(
+          (async () => {
+            // Fetch user's reports
+            const { success, reports: userReports } = await reportService.getUserReports(user.id);
+            if (success && userReports) {
+              setReports(userReports);
+            }
 
-        // Check free allowance
-        const today = new Date();
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthDate = monthStart.toISOString().split('T')[0];
+            // Check free allowance
+            const today = new Date();
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthDate = monthStart.toISOString().split('T')[0];
 
-        const allowanceData = await reportService.checkReportAllowance(user.id);
-        setAllowance({
-          used: 3 - (allowanceData.remaining || 0),
-          remaining: allowanceData.remaining || 0,
-        });
+            const allowanceData = await reportService.checkReportAllowance(user.id);
+            setAllowance({
+              used: 3 - (allowanceData.remaining || 0),
+              remaining: allowanceData.remaining || 0,
+            });
+          })()
+        );
       } catch (err) {
         console.error('Error loading account data:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
 
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -129,6 +139,17 @@ export default function ConsumerAccount() {
       setOpeningReportId(null);
     }
   };
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your account. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   if (loading) {
     return (

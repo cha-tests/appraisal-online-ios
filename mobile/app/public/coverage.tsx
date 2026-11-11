@@ -5,7 +5,9 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TextInput } from '../../components/ui/TextInput';
+import { LoadError } from '../../components/ui/LoadError';
 import { brokerService } from '../../services/broker.service';
+import { withTimeout } from '../../services/withTimeout';
 import { ALL_COUNTRIES, countryFlagEmoji } from '../../config/countries';
 import { City } from '../../types';
 import { theme } from '../../theme';
@@ -32,20 +34,30 @@ export default function CoveragePage() {
   const router = useRouter();
   const [cities, setCities] = useState<City[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const { success, cities: fetchedCities } = await brokerService.getCities();
-        if (success && fetchedCities) setCities(fetchedCities);
+        setLoadError(false);
+        const { success, cities: fetchedCities } = await withTimeout(brokerService.getCities());
+        if (success && fetchedCities) {
+          setCities(fetchedCities);
+        } else {
+          setLoadError(true);
+        }
+      } catch (err) {
+        console.error('Error loading coverage:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [reloadToken]);
 
   const sections = useMemo<CitySection[]>(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -68,6 +80,17 @@ export default function CoveragePage() {
   }, [cities, searchQuery]);
 
   const totalMatches = sections.reduce((sum, s) => sum + s.data.length, 0);
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper onBackPress={() => router.back()}>
+        <LoadError
+          message="Couldn't load coverage. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   return (
     <SafeAreaWrapper scrollable onBackPress={() => router.back()}>

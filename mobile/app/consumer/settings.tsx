@@ -5,9 +5,11 @@ import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { supabase, signOut } from '../../services/supabase';
 import { reportService } from '../../services/report.service';
+import { withTimeout } from '../../services/withTimeout';
 import { ConnectedBrokerRouting } from '../../types';
 import { consumerLeadStatusLabel } from '../../config/leadRoutingStatus';
 import { REVOKE_REASON_OPTIONS } from '../../config/revokeReasons';
@@ -73,6 +75,8 @@ export default function ConsumerSettings() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -85,6 +89,7 @@ export default function ConsumerSettings() {
   // property, not one row per report the way it used to be.
   const [connectedBrokers, setConnectedBrokers] = useState<ConnectedBrokerRouting[]>([]);
   const [loadingConnected, setLoadingConnected] = useState(true);
+  const [connectedBrokersError, setConnectedBrokersError] = useState(false);
   const [revokingTarget, setRevokingTarget] = useState<RevokeTarget | null>(null);
   const [pickingReasonFor, setPickingReasonFor] = useState<RevokeTarget | null>(null);
   // Session-only — "Keep waiting" just hides the check-in prompt until the
@@ -97,13 +102,12 @@ export default function ConsumerSettings() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
         // Fetch user preferences from database
-        const { data, error } = await supabase
-          .from('users')
-          .select('preferences')
-          .eq('id', user.id)
-          .single();
+        const { data, error } = await withTimeout(
+          supabase.from('users').select('preferences').eq('id', user.id).single()
+        );
 
         if (data?.preferences) {
           setNotifications((prev) => ({
@@ -113,25 +117,30 @@ export default function ConsumerSettings() {
         }
       } catch (err) {
         console.error('Error loading preferences:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
 
     loadPreferences();
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
 
   const loadConnectedBrokers = async () => {
     try {
       if (!user?.id) return;
 
       setLoadingConnected(true);
-      const { success, brokers } = await reportService.getMyConnectedBrokers();
+      setConnectedBrokersError(false);
+      const { success, brokers } = await withTimeout(reportService.getMyConnectedBrokers());
       if (success && brokers) {
         setConnectedBrokers(brokers);
+      } else {
+        setConnectedBrokersError(true);
       }
     } catch (err) {
       console.error('Error loading connected brokers:', err);
+      setConnectedBrokersError(true);
     } finally {
       setLoadingConnected(false);
     }
@@ -233,6 +242,17 @@ export default function ConsumerSettings() {
     ]);
   };
 
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your settings. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaWrapper>
@@ -288,6 +308,13 @@ export default function ConsumerSettings() {
 
       {loadingConnected ? (
         <ActivityIndicator color={theme.color.accent} style={{ marginVertical: 12 }} />
+      ) : connectedBrokersError ? (
+        <View style={styles.inlineErrorRow}>
+          <Text style={styles.inlineErrorText}>Couldn't load this section.</Text>
+          <TouchableOpacity onPress={loadConnectedBrokers}>
+            <Text style={styles.inlineErrorRetry}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : leadGroups.length > 0 ? (
         <>
           <Text style={styles.brokerContactHelper}>
@@ -525,6 +552,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: theme.color.textMuted,
+  },
+  inlineErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  inlineErrorText: {
+    fontSize: 14,
+    color: theme.color.textMuted,
+  },
+  inlineErrorRetry: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.color.accent,
   },
   header: {
     marginBottom: 24,

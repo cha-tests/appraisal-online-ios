@@ -19,6 +19,8 @@ import { formatCurrency } from '../../config/marketConfig';
 import { leadTagBadgeLabel } from '../../config/leadTags';
 import { LEAD_ROUTING_STATUS_LABELS as STATUS_LABELS } from '../../config/leadRoutingStatus';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { LoadError } from '../../components/ui/LoadError';
+import { withTimeout } from '../../services/withTimeout';
 import { theme } from '../../theme';
 
 const showTitleBadgeInfo = () =>
@@ -50,6 +52,8 @@ export default function LeadInbox() {
   const [leads, setLeads] = useState<LeadRoutingPreview[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<LeadRoutingPreview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   // Lets the dashboard's pipeline widget deep-link straight into one status
   // (e.g. /broker/lead-inbox?status=in_talks) — falls back to 'all' for a
@@ -64,16 +68,20 @@ export default function LeadInbox() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
         // Single source of truth for the broker side (migrations 037/038)
         // — PII fields come back null/undefined for anything not yet
         // claimed, enforced by the function itself, not just hidden here.
-        const { data, error } = await supabase.rpc('get_my_lead_routings');
+        // Raced against a timeout so a hung call surfaces as a Retry state
+        // instead of an indefinite spinner.
+        const { data, error } = await withTimeout(supabase.rpc('get_my_lead_routings'));
         if (error) throw error;
 
         setLeads((data as LeadRoutingPreview[]) || []);
       } catch (err) {
         console.error('Error loading leads:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -104,7 +112,7 @@ export default function LeadInbox() {
     return () => {
       supabase.removeChannel(leadsSubscription);
     };
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
 
   // Filter and search leads
   useEffect(() => {
@@ -235,6 +243,17 @@ export default function LeadInbox() {
       <Text style={styles.sectionTitle}>{section.title}</Text>
     </View>
   );
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper onBackPress={() => router.back()}>
+        <LoadError
+          message="Couldn't load your leads. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   return (
     <SafeAreaWrapper onBackPress={() => router.back()}>

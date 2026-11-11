@@ -4,10 +4,12 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
+import { withTimeout } from '../../services/withTimeout';
 import { BrokerProfile, Subscription, LeadRoutingPreview, LeadRoutingStatus } from '../../types';
 import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
 import { LEAD_ROUTING_STATUS_LABELS } from '../../config/leadRoutingStatus';
@@ -39,6 +41,10 @@ export default function BrokerDashboard() {
   const [pipelineCounts, setPipelineCounts] = useState<PipelineCounts | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  // Bumped by the Retry button to re-run the load effect below without
+  // duplicating its body.
+  const [reloadToken, setReloadToken] = useState(0);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
   // Broker's own market, for the aggregate "Avg Lead Value" metric below —
   // per-lead values (see the recent-leads list) already use each lead's own
@@ -58,51 +64,59 @@ export default function BrokerDashboard() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
-        // Fetch broker profile
-        const { profile } = await brokerService.getProfile(user.id);
-        if (profile) {
-          setBrokerProfile(profile);
-          setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
-        }
+        // Raced against a timeout so a hung/slow backend call surfaces as a
+        // normal error (→ Retry UI below) instead of spinning forever.
+        await withTimeout(
+          (async () => {
+            // Fetch broker profile
+            const { profile } = await brokerService.getProfile(user.id);
+            if (profile) {
+              setBrokerProfile(profile);
+              setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
+            }
 
-        // Fetch subscription
-        const { subscription: sub } = await subscriptionService.getBrokerSubscription(user.id);
-        if (sub) {
-          setSubscription(sub);
+            // Fetch subscription
+            const { subscription: sub } = await subscriptionService.getBrokerSubscription(user.id);
+            if (sub) {
+              setSubscription(sub);
 
-          // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
-          // daysSincePurchase is legitimately 0 on the day of purchase, and
-          // a truthy check treated that as "no value", showing 0 days left
-          // instead of the full window on day one.
-          const eligibility = await subscriptionService.checkRefundEligibility(user.id);
-          const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
-          setRefundInfo({
-            daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
-            canRefund: eligibility.eligible,
-          });
-        }
+              // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
+              // daysSincePurchase is legitimately 0 on the day of purchase, and
+              // a truthy check treated that as "no value", showing 0 days left
+              // instead of the full window on day one.
+              const eligibility = await subscriptionService.checkRefundEligibility(user.id);
+              const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
+              setRefundInfo({
+                daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
+                canRefund: eligibility.eligible,
+              });
+            }
 
-        // Fetch recent leads for this broker — single source of truth
-        // (migrations 037/038), PII fields null until claimed, same as
-        // lead-inbox.tsx/lead-detail.tsx.
-        const { data: leads, error: leadsError } = await supabase.rpc('get_my_lead_routings');
-        if (leadsError) throw leadsError;
-        const allLeads = (leads as LeadRoutingPreview[]) || [];
-        setRecentLeads(allLeads.slice(0, 5));
-        // Pipeline widget needs the full set, not just the 5-item preview
-        // above, to show an accurate count per status.
-        setPipelineCounts(countByStatus(allLeads));
+            // Fetch recent leads for this broker — single source of truth
+            // (migrations 037/038), PII fields null until claimed, same as
+            // lead-inbox.tsx/lead-detail.tsx.
+            const { data: leads, error: leadsError } = await supabase.rpc('get_my_lead_routings');
+            if (leadsError) throw leadsError;
+            const allLeads = (leads as LeadRoutingPreview[]) || [];
+            setRecentLeads(allLeads.slice(0, 5));
+            // Pipeline widget needs the full set, not just the 5-item preview
+            // above, to show an accurate count per status.
+            setPipelineCounts(countByStatus(allLeads));
 
-        // Calculate metrics (mock data for now)
-        setMetrics({
-          totalLeads: 24,
-          thisMonthLeads: 7,
-          conversionRate: 28.5,
-          averageLeadValue: 5000,
-        });
+            // Calculate metrics (mock data for now)
+            setMetrics({
+              totalLeads: 24,
+              thisMonthLeads: 7,
+              conversionRate: 28.5,
+              averageLeadValue: 5000,
+            });
+          })()
+        );
       } catch (err) {
         console.error('Error loading dashboard:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -135,7 +149,18 @@ export default function BrokerDashboard() {
     return () => {
       supabase.removeChannel(leadsSubscription);
     };
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your dashboard. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   if (loading) {
     return (
