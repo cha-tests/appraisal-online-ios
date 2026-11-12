@@ -59,7 +59,6 @@ export default function BrokerOnboarding() {
     tier: 'Premium Annual' as BrokerTier,
     selectedCities: [] as string[],
     emailEnabled: true,
-    pushEnabled: true,
   });
 
   // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo. Each
@@ -736,19 +735,6 @@ export default function BrokerOnboarding() {
             </View>
           </Card>
 
-          <Card variant="default" style={styles.preferencesCard}>
-            <View style={styles.preferenceRow}>
-              <View>
-                <Text style={styles.preferenceLabel}>Push Notifications</Text>
-                <Text style={styles.preferenceHelper}>Get instant alerts on your phone</Text>
-              </View>
-              <Toggle
-                value={formData.pushEnabled}
-                onToggle={(val) => setFormData((prev) => ({ ...prev, pushEnabled: val }))}
-              />
-            </View>
-          </Card>
-
           <Card variant="outlined" style={styles.infoCard}>
             <Text style={styles.infoTitle}>Next Step</Text>
             <Text style={styles.infoText}>
@@ -844,11 +830,6 @@ export default function BrokerOnboarding() {
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Email</Text>
               <Text style={styles.reviewValue}>{formData.emailEnabled ? 'On' : 'Off'}</Text>
-            </View>
-            <View style={styles.reviewDivider} />
-            <View style={styles.reviewRow}>
-              <Text style={styles.reviewLabel}>Push</Text>
-              <Text style={styles.reviewValue}>{formData.pushEnabled ? 'On' : 'Off'}</Text>
             </View>
           </Card>
         </View>

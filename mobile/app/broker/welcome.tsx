@@ -109,7 +109,7 @@ export default function Welcome() {
           <Text style={styles.stepIcon}>📍</Text>
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Start Receiving Leads</Text>
-            <Text style={styles.stepDescription}>Real-time notifications as they come in</Text>
+            <Text style={styles.stepDescription}>Real-time email alerts as they come in</Text>
           </View>
         </View>
 
@@ -142,7 +142,7 @@ export default function Welcome() {
           <Text style={styles.stepIcon}>⚡</Text>
           <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>Set Notification Preferences</Text>
-            <Text style={styles.stepDescription}>Choose how and when you receive leads (email, push)</Text>
+            <Text style={styles.stepDescription}>Choose how and when you receive lead emails</Text>
           </View>
         </View>
 

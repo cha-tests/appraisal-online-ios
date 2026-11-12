@@ -54,7 +54,7 @@ export default function BrokerSplash() {
             <Text style={styles.valueIcon}>⚡</Text>
             <Text style={styles.valueTitle}>Real-Time Leads</Text>
             <Text style={styles.valueDescription}>
-              Get instant notifications when consumers opt in to broker contact
+              Get an email the instant a consumer opts in to broker contact
             </Text>
           </View>
         </Card>
