@@ -32,6 +32,33 @@
 --     reason/free-text note stays out until someone decides otherwise.
 --   - notification_queue rows. Server-side outbox with no client access
 --     at all; its payloads are copies of data already exported elsewhere.
+--
+-- Four more flagged-for-human-decision points this migration's own review
+-- surfaced, kept here (not just in chat) so they aren't lost before merge:
+--   - reports.gemini_response (001, "Full API response for audit") is
+--     included verbatim in a consumer's own report export via the plain
+--     to_jsonb(r) wildcard copy below. It can be large and exposes raw
+--     model output. Decide whether to keep it or strip it before export.
+--   - A broker who already CLAIMED a lead keeps seeing the homeowner's
+--     contact details after being revoked, here and in-app, because
+--     revoke_broker_contact() (037) only flips lead_routings.status to
+--     'revoked' -- claim_status (the actual PII gate) stays 'claimed'.
+--     This matches the documented design (a revoke can't force a broker
+--     who already has the number to stop contacting them), so it's
+--     intentional, not a bug -- flagged here only so it's an explicit
+--     sign-off, not an assumption.
+--   - broker_profiles.referred_by is exported as a bare referrer user_id,
+--     no name attached. There is also no "brokers I referred" reverse
+--     list -- that would mean reading other users' own profile rows.
+--
+-- Separately (not an export-scope question, a real finding): consumer/
+-- settings.tsx runs supabase.from('users').select('preferences') as live
+-- code, but no migration from 001 through this one ever adds a
+-- `preferences` column to `users`. Either production has it added outside
+-- migration history, or that query is silently failing today. Worth its
+-- own investigation outside this migration -- to_jsonb(u) below will
+-- simply include whatever is actually there for the caller's own row,
+-- correctly, regardless of how that's resolved.
 --   - auth.users (credentials). public.users has no password column, but
 --     the user row is still stripped of any password-ish key defensively
 --     in case a column like that is ever added.
