@@ -15,6 +15,7 @@ import webhookRoutes from './routes/webhooks.js';
 import healthRoutes from './routes/health.js';
 import placesRoutes from './routes/places.js';
 import valuationRoutes from './routes/valuation.js';
+import accountRoutes from './routes/account.js';
 import { startNotificationPoller } from './services/notificationPoller.js';
 
 const app = express();
@@ -49,6 +50,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/valuation', valuationRoutes);
+app.use('/api/account', accountRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

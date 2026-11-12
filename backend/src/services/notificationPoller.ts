@@ -72,12 +72,20 @@ export async function pollAndSendNotifications(): Promise<{ sent: number; failed
     try {
       const { data: recipient, error: recipientError } = await supabase
         .from('users')
-        .select('email, first_name')
+        .select('email, first_name, deleted_at')
         .eq('id', notification.recipient_user_id)
         .single();
 
       if (recipientError || !recipient?.email) {
         throw recipientError || new Error('Recipient has no email on file');
+      }
+
+      // Deleted accounts (migration 041) keep a scrubbed users row whose
+      // email is a placeholder — never send to it. Can still be queued,
+      // e.g. a homeowner revoking a claimed lead whose broker has since
+      // deleted their account fires broker_stop_contact at the tombstone.
+      if (recipient.deleted_at) {
+        throw new Error('Recipient account has been deleted');
       }
 
       await sendOne(notification, recipient.email, recipient.first_name || 'there');
