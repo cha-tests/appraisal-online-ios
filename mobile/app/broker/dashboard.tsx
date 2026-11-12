@@ -32,6 +32,71 @@ function countByStatus(leads: LeadRoutingPreview[]): PipelineCounts {
   return counts;
 }
 
+// Same client-side-aggregation shape as countByStatus above — all three KPIs
+// are derived from the one get_my_lead_routings() result this screen already
+// fetches, no extra RPCs.
+//
+//  - Leads This Month: rows whose invited_at (lr.created_at — the only
+//    creation-style timestamp get_my_lead_routings() exposes; see migration
+//    037/038) falls in the current calendar month. For the common case this
+//    is also when the underlying lead/report was created, since
+//    route_lead_to_brokers fires in the same transaction as the consumer's
+//    opt-in (CLAUDE.md's "lead speed gate") — it only diverges for a row
+//    added later by escalate_lead_routing, where invited_at is genuinely
+//    later than the lead's own creation. Using it anyway is the more
+//    broker-meaningful reading here: it counts leads as they actually landed
+//    in *this* broker's pipeline this month, escalation invite included.
+//  - Conversion Rate: converted / claimed-and-not-revoked, as a percentage.
+//    Revoked is homeowner-initiated (they called it off), not a broker
+//    underperformance signal, so it's dropped from the denominator entirely
+//    rather than counted as a loss.
+//  - Avg Lead Value: mean estimated_value across claimed rows (the only rows
+//    the RPC ever populates estimated_value for — see the CASE WHEN
+//    claim_status = 'claimed' in get_my_lead_routings()). Revoked rows are
+//    still claim_status = 'claimed' (a revoke after claiming keeps the row,
+//    just flips status — see CLAUDE.md) and keep a real estimated_value, so
+//    they're left in: a broker genuinely spent the claim on a real property
+//    value, which is what this metric is about, not the outcome.
+function computeMetrics(leads: LeadRoutingPreview[]): DashboardMetrics {
+  const now = new Date();
+  const thisMonthLeads = leads.filter((lead) => {
+    const invitedAt = new Date(lead.invited_at);
+    return invitedAt.getFullYear() === now.getFullYear() && invitedAt.getMonth() === now.getMonth();
+  }).length;
+
+  const claimedLeads = leads.filter((lead) => lead.claim_status === 'claimed');
+  const conversionEligible = claimedLeads.filter((lead) => lead.status !== 'revoked');
+  const converted = conversionEligible.filter((lead) => lead.status === 'converted');
+  const conversionRate =
+    conversionEligible.length > 0 ? (converted.length / conversionEligible.length) * 100 : 0;
+
+  // estimated_value is stored (and returned by get_my_lead_routings) in
+  // minor units — cents — same convention as everywhere else it's read
+  // (Recent Leads below, lead-inbox.tsx, lead-detail.tsx all pass it
+  // straight through formatCurrency, which divides by 100; see
+  // report.service.ts's "estimated_value * 100" write and its own comment
+  // on the convention). DashboardMetrics.averageLeadValue is kept in whole
+  // currency units instead, to match thisMonthLeads/conversionRate already
+  // being plain display-ready numbers — converted once here, so the JSX
+  // below can keep its existing `/ 1000` "K" formatting unchanged.
+  const claimedValuesMinorUnits = claimedLeads
+    .map((lead) => lead.estimated_value)
+    .filter((value): value is number => value != null);
+  const averageLeadValue =
+    claimedValuesMinorUnits.length > 0
+      ? claimedValuesMinorUnits.reduce((sum, value) => sum + value, 0) / claimedValuesMinorUnits.length / 100
+      : 0;
+
+  return {
+    totalLeads: leads.length,
+    thisMonthLeads,
+    // One decimal place (e.g. 28.5), matching the precision the old mock
+    // value used — rounded, not truncated, so 1/3 reads as 33.3 not 33.
+    conversionRate: Math.round(conversionRate * 10) / 10,
+    averageLeadValue,
+  };
+}
+
 export default function BrokerDashboard() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -104,14 +169,7 @@ export default function BrokerDashboard() {
             // Pipeline widget needs the full set, not just the 5-item preview
             // above, to show an accurate count per status.
             setPipelineCounts(countByStatus(allLeads));
-
-            // Calculate metrics (mock data for now)
-            setMetrics({
-              totalLeads: 24,
-              thisMonthLeads: 7,
-              conversionRate: 28.5,
-              averageLeadValue: 5000,
-            });
+            setMetrics(computeMetrics(allLeads));
           })()
         );
       } catch (err) {
