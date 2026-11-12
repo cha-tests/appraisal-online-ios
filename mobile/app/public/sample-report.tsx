@@ -58,7 +58,7 @@ export default function SampleReportScreen() {
       </Card>
 
       {/* Sample Lead Alert */}
-      <Text style={styles.sectionTitle}>Sample Lead Alert (Premium/Founder)</Text>
+      <Text style={styles.sectionTitle}>Sample Lead Alert</Text>
 
       <Card variant="elevated" style={styles.alertCard}>
         <Text style={styles.alertIcon}>🔔</Text>
@@ -68,36 +68,6 @@ export default function SampleReportScreen() {
         <Text style={styles.alertMeta}>
           Homeowner is interested in professional guidance • Contacted 2 minutes ago
         </Text>
-      </Card>
-
-      {/* Sample Weekly Digest */}
-      <Text style={styles.sectionTitle}>Sample Weekly Digest (Basic)</Text>
-
-      <Card variant="default" style={styles.digestCard}>
-        <Text style={styles.digestTitle}>📧 Your Weekly Leads • Monday, June 24</Text>
-        <Text style={styles.digestSubtitle}>3 new opportunities in your city</Text>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>123 Oak Avenue</Text>
-          <Text style={styles.digestItemValue}>$850,000</Text>
-        </View>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>456 Elm Street</Text>
-          <Text style={styles.digestItemValue}>$825,000</Text>
-        </View>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>789 Maple Drive</Text>
-          <Text style={styles.digestItemValue}>$875,000</Text>
-        </View>
-
-        <Button
-          title="View All Details"
-          size="small"
-          onPress={() => {}}
-          style={{ marginTop: 12 }}
-        />
       </Card>
 
       {/* Sample Broker Profile */}
@@ -110,7 +80,6 @@ export default function SampleReportScreen() {
           </View>
           <View style={styles.brokerInfo}>
             <Text style={styles.brokerName}>Sarah Martinez</Text>
-            <Text style={styles.brokerBadge}>Founder Member</Text>
           </View>
         </View>
 
@@ -279,36 +248,6 @@ const styles = StyleSheet.create({
     color: theme.color.textFaint,
     textAlign: 'center',
   },
-  digestCard: {
-    marginBottom: 24,
-  },
-  digestTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.color.text,
-    marginBottom: 4,
-  },
-  digestSubtitle: {
-    fontSize: 13,
-    color: theme.color.textMuted,
-    marginBottom: 12,
-  },
-  digestItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.color.border,
-  },
-  digestItemAddress: {
-    fontSize: 14,
-    color: theme.color.text,
-  },
-  digestItemValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.color.success,
-  },
   brokerCard: {
     backgroundColor: '#F0F9FF',
     marginBottom: 24,
@@ -338,16 +277,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.text,
     marginBottom: 2,
-  },
-  brokerBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: theme.color.accent,
-    backgroundColor: theme.color.accentWash,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
   },
   brokerBio: {
     fontSize: 14,

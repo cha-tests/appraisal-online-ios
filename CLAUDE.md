@@ -309,9 +309,14 @@ from the code:
   Sample Broker Profile card. Verified via a web export screenshot. The
   audit also referenced a "Founder Membership" page, which no longer
   exists at all (removed by migration 034) — stale by the time the audit
-  ran. Separately, `sample-report.tsx` still shows other retired-tier
-  content (a "Sample Weekly Digest (Basic)" section, "Founder Member"
-  broker badge) — out of scope for this fix, queued as its own follow-up.
+  ran. `sample-report.tsx`'s other retired-tier content is also now
+  cleaned up: the "Sample Weekly Digest (Basic)" section is removed
+  entirely (card + now-unused `digest*` styles), "Sample Lead Alert
+  (Premium/Founder)" is now just "Sample Lead Alert", and the "Founder
+  Member" badge on the Sample Broker Profile card is gone (no badge at
+  all now, matching the single-tier model — there's no meaningful tier
+  distinction left to badge). Verified via `tsc --noEmit` and a web
+  export screenshot.
 - **Requested broker count has no hard cap (migration 036 reversed
   migration 035's 5-max).** MVP decision: trust the homeowner rather than
   block them. `broker-optins.tsx` still rejects zero/blank (a real choice
