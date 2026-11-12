@@ -37,7 +37,8 @@
 --   - A lead where at least one broker CLAIMED (that broker has a real
 --     pipeline entry and may already have spoken to the homeowner): the
 --     property/report/lead rows are KEPT but every piece of homeowner PII
---     is scrubbed — address, Google Places components, phone, email,
+--     is scrubbed — address, Google Places components, special_situation,
+--     recent_updates, phone, email,
 --     Gemini raw response (can echo the address), PDF/title links — and
 --     reports.broker_contact_opted_in is set FALSE so escalation
 --     (escalate_all_pending_leads), orphan routing
@@ -158,7 +159,9 @@ BEGIN
 
   UPDATE properties
   SET address = 'Address removed (homeowner deleted their account)',
-      address_components = NULL
+      address_components = NULL,
+      special_situation = NULL,  -- free text (029), can name family/heirs
+      recent_updates = NULL      -- free-text renovation notes (001)
   WHERE user_id = v_user_id;
 
   UPDATE reports
