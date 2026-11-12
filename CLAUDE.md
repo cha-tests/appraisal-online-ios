@@ -21,8 +21,9 @@ the data model lives in the repo itself and should be read there.
 Annual / Basic Annual three-tier model — there is no more "Basic" or
 "Lifetime").** DB/code value is still `'Premium Annual'` (kept for schema
 continuity, not a meaningful tier name anymore). Every broker gets the same
-product: **5 cities, email + push delivered in real time, no SMS, no weekly
-digest, 30-day refund window.**
+product: **5 cities, email delivered in real time, no SMS, no weekly
+digest, 30-day refund window.** (Push was dropped from this product entirely
+— see "Implementation notes" below; email is the only real-time channel.)
 
 Price is set by **global signup order** (`broker_profiles.signup_rank`,
 assigned once at onboarding via `claim_broker_signup_rank`), not by anything
@@ -65,8 +66,11 @@ client:
   refund rate; alert on the founder dashboard if the rolling 30-day rate
   exceeds 10%.
 - **Lead speed gate:** on consumer opt-in, immediately notify every active
-  broker in that city via email + push, in real time. There is no weekly
-  digest tier anymore, so no digest queue or empty-digest handling applies.
+  broker in that city via email, in real time. There is no weekly digest tier
+  anymore, so no digest queue or empty-digest handling applies. Push was
+  never built (no token capture, no send pipeline — see "Implementation
+  notes"); do not reintroduce it into any in-app copy without a new,
+  explicit request.
 - **AI disclaimer, all three places** (in-app view, email body, PDF): "This is
   a computer estimate. It is not a licensed appraisal. Banks, courts, and
   government agencies do not accept this as a formal valuation."
@@ -98,10 +102,12 @@ from the code:
   for consumer purchases.
 - **Comparables:** US — RealtyMole (primary), ATTOM Data (secondary).
   Philippines — Lamudi public-listings parser + zip-code baselines.
-- Other fixed picks: Postmark (transactional email), APNs via Expo (push),
-  PostHog (analytics), Google Places (address autocomplete). SendGrid (weekly
-  digest) and Twilio (SMS) are no longer used — the single broker tier
-  (migration 034) dropped both the digest tier and SMS delivery entirely.
+- Other fixed picks: Postmark (transactional email), PostHog (analytics),
+  Google Places (address autocomplete). SendGrid (weekly digest) and Twilio
+  (SMS) are no longer used — the single broker tier (migration 034) dropped
+  both the digest tier and SMS delivery entirely. Push (APNs via Expo) was
+  never built at all — a confirmed decision, not a gap — email is the only
+  real-time delivery channel; see "Implementation notes."
 
 ## Never
 
