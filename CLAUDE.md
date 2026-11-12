@@ -395,6 +395,52 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
+- **Account deletion and personal-data export (migrations 041/042) are
+  written and locally verified but NOT applied to production.** Closes two
+  of the pre-launch gaps identified this session (account deletion is also
+  a literal App Store Guideline 5.1.1(v) requirement). Built and
+  independently verified as a multi-agent gauntlet run; see each
+  migration's own header comment for full design/decision notes rather than
+  re-deriving them here.
+  - **`delete_my_account()`** (041): real deletion for both account types.
+    Anonymizes (scrubs identifying fields, keeps the row) anything with
+    audit/history value to the OTHER party — a claimed lead's property/
+    report fields, a routed-but-deleted broker's `lead_routings` row — and
+    hard-deletes everything only the deleting user themselves could see.
+    The `users` row itself is never deleted, only scrubbed to a
+    `deleted-<id>@deleted.invalid` placeholder, since deleting it would
+    cascade and destroy exactly the rows kept for the other party's
+    history. Idempotent (safe to call twice). Backend
+    (`accountDeletion.service.ts`) additionally clears Storage KYC/photo
+    objects and deletes the real login via the Admin API — things no DB
+    function can do.
+    - **Open decision, not yet resolved**: a broker's claimed-lead slot is
+      never refilled by escalation after their account is deleted, because
+      of a pre-existing mismatch between `claim_lead()` (counts revoked
+      claimed rows toward quota) and escalation (excludes them) from
+      migration 037. A homeowner who asked for one broker and whose broker
+      later deletes their account is left permanently short. Needs
+      `claim_lead()`'s quota counting fixed before this can be addressed.
+    - **Open decision, not yet resolved**: whether keeping a scrubbed
+      `users` placeholder row (rather than deleting the row outright)
+      satisfies GDPR/CCPA/NPC "right to erasure." Treated as yes for now
+      (identifying fields are genuinely cleared), but the privacy policy
+      should say explicitly that anonymized lead history and financial
+      records are retained — don't finalize that copy without confirming
+      this holds up.
+  - **`export_my_data()`** (042): a single jsonb bundle of everything the
+    calling user owns. Reuses `get_my_lead_routings()`/
+    `get_my_connected_brokers()` verbatim for anything cross-user, rather
+    than re-deriving the masking rule, so the export can't drift out of
+    sync with what the app already shows. Deliberately excludes a
+    broker-named `broker_contact_revocations` row's reason/note (brokers
+    can't see these in-app either) and `notification_queue` (no app access
+    at all, duplicate data).
+    - **Separate finding, not an export question — real schema drift**:
+      `consumer/settings.tsx` reads a `users.preferences` column that no
+      migration from 001 onward ever creates. Either production has it
+      added outside migration history, or that query is silently failing
+      today. Worth its own investigation.
 - **Claim-based lead routing (migrations 037/038/039/040) is written and
   locally verified but NOT applied to production.** See "Implementation
   notes" above for the full design. All four phases (Phase 1 DB
