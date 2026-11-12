@@ -1,8 +1,9 @@
 import Stripe from 'stripe';
 import { logger } from '../utils/logger.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
-// Stripe constructor auto-selects a compatible API version
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-08-16',
+});
 
 /**
  * Single broker tier (migration 034) — 'Premium Annual' is the only value.
