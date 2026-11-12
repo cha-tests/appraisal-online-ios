@@ -20,7 +20,6 @@
   "dependencies": {
     "@expo-google-fonts/archivo": "^0.4.2",
     "@expo-google-fonts/bodoni-moda": "^0.4.2",
-    "@react-native-async-storage/async-storage": "3.1.1",
     "@react-native-community/masked-view": "0.1.11",
     "@react-native-google-signin/google-signin": "^17.0.0",
     "@react-navigation/native": "^7.1.8",
@@ -44,6 +43,7 @@
     "expo-router": "~58.0.31",
     "expo-sharing": "~58.0.23",
     "expo-splash-screen": "~58.0.14",
+    "expo-sqlite": "~58.0.17",
     "expo-store-review": "~58.0.3",
     "jpeg-js": "^0.4.4",
     "posthog-react-native": "^4.86.0",
