@@ -13,7 +13,6 @@ interface ValueMetrics {
   estimatedLeadsPerMonth: number;
   estimatedLeadValue: number;
   marketingBudgetPercentage: number;
-  competitorCount: number;
 }
 
 export default function ValueReveal() {
@@ -43,7 +42,6 @@ export default function ValueReveal() {
           estimatedLeadsPerMonth: avgLeadsPerMonth,
           estimatedLeadValue: avgLeadValue,
           marketingBudgetPercentage: 100 / selectedCities.length,
-          competitorCount: Math.max(1, Math.floor(Math.random() * 5) + 2),
         });
       } catch (err) {
         console.error('Error calculating metrics:', err);
@@ -51,7 +49,6 @@ export default function ValueReveal() {
           estimatedLeadsPerMonth: selectedCities.length * 3,
           estimatedLeadValue: 5000,
           marketingBudgetPercentage: 100 / selectedCities.length,
-          competitorCount: 2,
         });
       } finally {
         setLoading(false);
@@ -138,19 +135,6 @@ export default function ValueReveal() {
             </Text>
           </View>
         </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.metricCardContent}>
-          <Text style={styles.metricCardIcon}>🏆</Text>
-          <View style={styles.metricCardText}>
-            <Text style={styles.metricCardLabel}>Competitive Position</Text>
-            <Text style={styles.metricCardValue}>{metrics.competitorCount - 1} Competitors</Text>
-            <Text style={styles.metricCardHelper}>
-              Limited to {metrics.competitorCount} members per city
-            </Text>
-          </View>
-        </View>
       </Card>
 
       {/* How It Works */}
@@ -192,7 +176,7 @@ export default function ValueReveal() {
           <View style={styles.howItWorksContent}>
             <Text style={styles.howItWorksTitle}>You Get The Lead</Text>
             <Text style={styles.howItWorksText}>
-              You receive real-time notification with full details
+              You get an email the moment it happens, with full details
             </Text>
           </View>
         </View>
