@@ -419,12 +419,14 @@ from the code:
   ordered by `created_at`, since onboarding only claims a rank for a
   brand-new signup) before adding the constraint. Re-ran clean afterward;
   confirmed live via `pg_constraint`.
-- **Requested broker count's hard cap (migration 035) was reversed
-  (migration 036) — migration 036 is written and locally verified but not
-  yet applied to production.** See "Implementation notes" above for the
-  current behavior (no hard max, confirm dialog above 10). Migration 035
-  itself is still correctly applied/live — 036 only loosens the constraint
-  it added, doesn't undo the column or the rest of it.
+- **Requested broker count's hard cap (migration 035) was reversed —
+  resolved (migration 036), applied and confirmed live in production.**
+  See "Implementation notes" above for the current behavior (no hard max,
+  confirm dialog above 10). Migration 035 itself is still correctly
+  applied/live — 036 only loosens the constraint it added, doesn't undo
+  the column or the rest of it. Confirmed live via `pg_constraint`: only
+  `reports_requested_broker_count_positive` exists on `reports`, the old
+  `reports_requested_broker_count_range` is gone.
 - **Free-tier monthly cap silently stopped enforcing after a user's first
   month — resolved (migration 033), applied and confirmed live in
   production.** `report_allowance` had a bare `UNIQUE` constraint on
