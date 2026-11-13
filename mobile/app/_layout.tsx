@@ -13,9 +13,11 @@ import { useAuthStore } from '../stores/auth.store';
 import { brokerService } from '../services/broker.service';
 import { theme } from '../theme';
 
-// Initialize the Stripe SDK. lib/stripe is platform-split, so this is a no-op
-// on web (where the SDK has no implementation) without the web bundle ever
-// resolving the native module.
+// Initialize the Stripe SDK. lib/stripe is platform-split: on native this
+// calls the real @stripe/stripe-react-native initStripe(); on web it's a
+// no-op (Stripe.js loads itself lazily the first time CardField mounts —
+// see lib/stripe/index.tsx) without the web bundle ever resolving the
+// native-only module.
 const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 if (publishableKey) {
   try {

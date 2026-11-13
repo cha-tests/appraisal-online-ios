@@ -10,9 +10,10 @@ import { subscriptionService } from '../../services/subscription.service';
 import { paymentService } from '../../services/payment.service';
 import { formatPriceCents, BROKER_REFUND_WINDOW_DAYS } from '../../config/brokerTiers';
 
-// lib/stripe is platform-split: the real SDK on native, inert stubs on web.
-// Importing through it keeps the native-only module out of the web bundle.
-import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
+// lib/stripe is platform-split: @stripe/stripe-react-native on native,
+// Stripe Elements (@stripe/stripe-js + @stripe/react-stripe-js) on web.
+// Importing through it keeps each platform's SDK out of the other's bundle.
+import { CardField, useConfirmPayment } from '../../lib/stripe';
 import { theme } from '../../theme';
 
 export default function Checkout() {
@@ -28,8 +29,6 @@ export default function Checkout() {
   // response — this is the only amount ever displayed or recorded, never a
   // locally-computed guess (see payment.service.ts's createPaymentIntent).
   const [chargedAmountCents, setChargedAmountCents] = useState<number | null>(null);
-  // Resolved at bundle time by the platform-split lib/stripe module.
-  const stripeAvailable = isStripeAvailable;
 
   if (!selectedTier) {
     return (
@@ -37,24 +36,6 @@ export default function Checkout() {
         <View style={styles.container}>
           <Text style={styles.error}>No tier selected</Text>
           <Button title="Go Back" onPress={() => router.back()} />
-        </View>
-      </SafeAreaWrapper>
-    );
-  }
-
-  if (!stripeAvailable) {
-    return (
-      <SafeAreaWrapper>
-        <View style={styles.container}>
-          <Card variant="outlined" style={styles.noticeCard}>
-            <Text style={styles.noticeIcon}>📱</Text>
-            <Text style={styles.noticeTitle}>Web Checkout Not Available</Text>
-            <Text style={styles.noticeText}>
-              Stripe checkout only works on physical devices running Expo Go.
-              Open this app on your iPhone to complete your purchase.
-            </Text>
-          </Card>
-          <Button title="Go Back" onPress={() => router.back()} style={{ marginTop: 16 }} />
         </View>
       </SafeAreaWrapper>
     );
@@ -217,12 +198,6 @@ export default function Checkout() {
                 placeholder={{
                   number: '4242 4242 4242 4242',
                 }}
-                onCardChange={(cardDetails) => {
-                  // Update state if needed for validation
-                  if (cardDetails.expiryMonth) {
-                    // Card details are available
-                  }
-                }}
                 style={styles.cardField}
               />
             </View>
@@ -332,27 +307,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.color.textMuted,
     marginTop: 12,
-  },
-  noticeCard: {
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FBBF24',
-  },
-  noticeIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  noticeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.color.text,
-    marginBottom: 8,
-  },
-  noticeText: {
-    fontSize: 14,
-    color: theme.color.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
   },
   instructionCard: {
     marginBottom: 16,

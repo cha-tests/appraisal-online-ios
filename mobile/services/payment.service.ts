@@ -1,4 +1,17 @@
 import axios from 'axios';
+import { supabase } from './supabase';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+
+// Both backend routes below require a real broker session (authMiddleware +
+// brokerOnly) — this was previously missing entirely, so every call 401'd
+// before the broker/Stripe web work surfaced it (checkout.tsx's web branch
+// had masked it: nobody had reached createPaymentIntent() on web before,
+// and this went unnoticed on native too).
+async function authHeaders() {
+  const { data } = await supabase.auth.getSession();
+  return { Authorization: `Bearer ${data.session?.access_token}` };
+}
 
 interface CreatePaymentIntentResponse {
   clientSecret: string;
@@ -39,10 +52,9 @@ export const paymentService = {
   async createPaymentIntent(): Promise<CreatePaymentIntentResponse> {
     try {
       const response = await axios.post(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/intent`,
-        {
-          tier: 'Premium Annual',
-        }
+        `${API_URL}/api/payments/intent`,
+        { tier: 'Premium Annual' },
+        { headers: await authHeaders() }
       );
 
       if (!response.data.success) {
@@ -76,10 +88,9 @@ export const paymentService = {
   async confirmPayment(paymentIntentId: string): Promise<PaymentResult> {
     try {
       const response = await axios.post(
-        `${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/api/payments/confirm`,
-        {
-          paymentIntentId,
-        }
+        `${API_URL}/api/payments/confirm`,
+        { paymentIntentId },
+        { headers: await authHeaders() }
       );
 
       if (response.data.success) {
