@@ -445,20 +445,21 @@ from the code:
     broker-named `broker_contact_revocations` row's reason/note (brokers
     can't see these in-app either) and `notification_queue` (no app access
     at all, duplicate data).
-    - **Separate finding, not an export question — real schema drift,
-      now confirmed and fixed (migration 043), NOT yet applied to
+    - **Separate finding, not an export question — real schema drift —
+      resolved (migration 043), applied and confirmed live in
       production.** `consumer/settings.tsx` reads/writes a
       `users.preferences` column that no migration from 001 through 042
       ever created. Confirmed directly against production
-      (`information_schema.columns` — zero rows) rather than assumed: the
-      column genuinely doesn't exist, so every consumer hitting Settings
-      has been getting the Notifications section's load-error state, and
-      every save attempt has been failing with "Failed to save
-      preferences." It's the only place in the app that touches this
+      (`information_schema.columns` returned zero rows) before fixing it,
+      rather than assumed: the column genuinely didn't exist, so every
+      consumer hitting Settings had been getting the Notifications
+      section's load-error state, and every save attempt had been failing
+      with "Failed to save preferences" — a real, live bug, not a
+      hypothetical one. It's the only place in the app that touches this
       column — one toggle (`{ email: boolean }`), not a wider preferences
-      blob. Migration 043 adds it (`NOT NULL DEFAULT '{}'::jsonb`); no
-      client-side change needed, since `consumer/settings.tsx` already
-      reads/writes the right shape.
+      blob. Migration 043 added it (`NOT NULL DEFAULT '{}'::jsonb`); no
+      client-side change was needed, since `consumer/settings.tsx` already
+      read/wrote the right shape.
 - **Claim-based lead routing — resolved (migrations 037/038/039/040),
   applied and confirmed live in production.** See "Implementation notes"
   above for the full design. All four phases (Phase 1 DB foundation,
