@@ -267,9 +267,12 @@ from the code:
   marks each row sent/failed — best-effort, no retry loop, matching
   `lead_routings.delivery_status`'s existing pending/sent/failed/bounced
   pattern.
-  **Migrations 037/038/039/040 are now written and locally verified, with
-  both the broker and consumer sides of the app ready for them** — still
-  not yet applied to production (see "Known gaps").
+  **Migrations 037/038/039/040 are now applied and confirmed live in
+  production** — both the broker and consumer sides of the app already
+  assumed this schema, so nothing else needed to change on deploy. The
+  backend's notification poller (Phase 4) won't actually send anything
+  until the backend itself is deployed somewhere reachable — see "Known
+  gaps."
 - **Data-dependent screens now time out instead of spinning forever**
   (`services/withTimeout.ts` + `components/ui/LoadError.tsx`). A QA audit
   found that Broker Dashboard, Lead Inbox, Broker Settings, Consumer
@@ -395,13 +398,19 @@ from the code:
 
 ## Known gaps — re-check before every TestFlight build
 
-- **Account deletion and personal-data export (migrations 041/042) are
-  written and locally verified but NOT applied to production.** Closes two
-  of the pre-launch gaps identified this session (account deletion is also
-  a literal App Store Guideline 5.1.1(v) requirement). Built and
+- **Account deletion and personal-data export — resolved (migrations
+  041/042), applied and confirmed live in production.** Closes two of the
+  pre-launch gaps identified this session (account deletion is also a
+  literal App Store Guideline 5.1.1(v) requirement). Built and
   independently verified as a multi-agent gauntlet run; see each
   migration's own header comment for full design/decision notes rather than
-  re-deriving them here.
+  re-deriving them here. The DB side (`delete_my_account()`/
+  `export_my_data()`) is fully live. The backend-side half of deletion
+  (Storage KYC/photo cleanup, the real `auth.users` deletion via the Admin
+  API — see `accountDeletion.service.ts`) only runs once the backend
+  itself is deployed somewhere reachable, which it isn't yet — same
+  pending-deploy caveat as claim-based lead routing's notification poller
+  below.
   - **`delete_my_account()`** (041): real deletion for both account types.
     Anonymizes (scrubs identifying fields, keeps the row) anything with
     audit/history value to the OTHER party — a claimed lead's property/
@@ -441,17 +450,22 @@ from the code:
       migration from 001 onward ever creates. Either production has it
       added outside migration history, or that query is silently failing
       today. Worth its own investigation.
-- **Claim-based lead routing (migrations 037/038/039/040) is written and
-  locally verified but NOT applied to production.** See "Implementation
-  notes" above for the full design. All four phases (Phase 1 DB
-  foundation, Phase 2 broker-side UI, Phase 3 consumer-side UI, Phase 4
-  notifications) are now done and the app fully assumes the new schema on
-  both sides — there's no longer a known reason to hold this back once
-  applied; the usual review before running a migration against
-  production still applies, same as any other. The backend also needs a
-  deploy/restart to pick up the new notification poller once 040 is
-  applied, since the poller queries a table that doesn't exist until
-  then.
+- **Claim-based lead routing — resolved (migrations 037/038/039/040),
+  applied and confirmed live in production.** See "Implementation notes"
+  above for the full design. All four phases (Phase 1 DB foundation,
+  Phase 2 broker-side UI, Phase 3 consumer-side UI, Phase 4 notifications)
+  are live — confirmed via direct queries for every table/column/function/
+  trigger/policy/cron-job each migration adds (not just a clean migration
+  run), including the masking policies on `leads`/`properties`/`reports`/
+  `users` actually checking `claim_status = 'claimed'`.
+  - **Still open**: the Express backend (`backend/`) has never been
+    deployed anywhere — it only ever runs locally during development — so
+    the poller that drains `notification_queue` isn't running yet.
+    Nothing is lost in the meantime: rows just queue up and will send once
+    the backend is deployed and running. Same pending-deploy caveat
+    applies to account deletion's Storage/Auth cleanup above, and to the
+    Gemini/Places proxy and Stripe payment-intent work the web build
+    depends on.
 - **Single-tier pricing model — resolved (migration 034), applied and
   confirmed live in production.** Replaced the three-tier Founder Lifetime
   / Premium Annual / Basic Annual model with the single tier described
