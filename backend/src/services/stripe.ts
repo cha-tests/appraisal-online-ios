@@ -165,10 +165,13 @@ export async function processRefund(
 }
 
 /**
- * Verify Stripe webhook signature
+ * Verify Stripe webhook signature. `body` must be the exact raw request
+ * bytes Stripe signed (a Buffer, from an express.raw() body parser) —
+ * never a parsed-then-re-stringified copy, which is a different byte
+ * sequence that always fails verification.
  */
 export function verifyWebhookSignature(
-  body: string,
+  body: string | Buffer,
   signature: string
 ): any {
   try {

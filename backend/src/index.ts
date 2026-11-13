@@ -21,6 +21,14 @@ import { startNotificationPoller } from './services/notificationPoller.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Webhook routes are mounted before the global body parsers below, and
+// parse their own bodies individually (see routes/webhooks.ts) rather
+// than relying on them. Stripe's signature check needs the exact raw
+// bytes it signed — a JSON.stringify of an already-parsed body is a
+// different (if structurally identical) byte sequence and always fails
+// verification, which is what express.json() running first would do.
+app.use('/webhooks', webhookRoutes);
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
@@ -35,9 +43,6 @@ app.use(cors({
 
 // Health check (no auth required)
 app.use('/health', healthRoutes);
-
-// Webhook routes (no auth required, but have their own validation)
-app.use('/webhooks', webhookRoutes);
 
 // Public API endpoints
 app.get('/api/status', (req, res) => {

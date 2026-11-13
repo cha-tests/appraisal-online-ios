@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, raw, json } from 'express';
 import * as stripeService from '../services/stripe.js';
 import * as supabaseService from '../services/supabase.js';
 import { logger } from '../utils/logger.js';
@@ -9,16 +9,20 @@ const router = Router();
  * POST /webhooks/stripe
  * Handle Stripe webhook events
  * Configure webhook endpoint in Stripe dashboard
+ *
+ * raw({ type: 'application/json' }) rather than the app-wide json()
+ * parser (this router is mounted before that in index.ts, specifically
+ * so it can make this choice per-route): stripe.webhooks.constructEvent
+ * needs the exact raw request bytes to recompute the signature against,
+ * not a parsed-then-re-stringified copy.
  */
-router.post('/stripe', async (req: Request, res: Response) => {
+router.post('/stripe', raw({ type: 'application/json' }), async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
 
   try {
-    // Verify webhook signature
-    const event = stripeService.verifyWebhookSignature(
-      JSON.stringify(req.body),
-      sig
-    );
+    // req.body is the raw Buffer here (see the raw() middleware above),
+    // which is what verifyWebhookSignature/constructEvent actually wants.
+    const event = stripeService.verifyWebhookSignature(req.body, sig);
 
     logger.info(`Webhook event: ${event.type}`);
 
@@ -117,8 +121,13 @@ async function handleSubscriptionDeleted(subscription: any) {
 /**
  * POST /webhooks/postmark
  * Handle Postmark email bounce/complaint events
+ *
+ * Parses its own JSON body explicitly, same reasoning as the raw() call
+ * above: this router is mounted before the app-wide json() parser (see
+ * index.ts), so each route here is responsible for its own body parsing
+ * rather than assuming a global middleware ran first.
  */
-router.post('/postmark', async (req: Request, res: Response) => {
+router.post('/postmark', json(), async (req: Request, res: Response) => {
   try {
     const event = req.body;
 
