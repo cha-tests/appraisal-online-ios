@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { supabase, parseSupabaseError } from './supabase';
 import { Report, Property, ComparableSale, ValueRange, ReportAllowance, ConnectedBrokerRouting } from '../types';
 import axios from 'axios';
@@ -5,6 +6,7 @@ import { findCityId } from '../utils/matchCity';
 import { brokerService } from './broker.service';
 import { formatCurrency, getMarketConfig } from '../config/marketConfig';
 
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
 // Use the "-latest" alias rather than a pinned version. Verified live against
 // a real key: gemini-2.5-flash now 404s for new API keys/projects ("no longer
@@ -88,6 +90,26 @@ export const reportService = {
     error?: any;
   }> {
     try {
+      // Web can't hold GEMINI_API_KEY at all — any EXPO_PUBLIC_* value ships
+      // as plain text in the page source, not just a decompilable binary.
+      // The backend's /api/valuation/generate mirrors this function's own
+      // logic server-side (backend/src/services/gemini.ts) and returns the
+      // exact same shape, so the result can be passed straight through. A
+      // signed-out guest has no session — the backend's optionalAuthMiddleware
+      // accepts that (see its own comment), same as the Places proxy already
+      // does for anonymous address lookup on web.
+      if (Platform.OS === 'web') {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const response = await axios.post(
+          `${API_URL}/api/valuation/generate`,
+          { propertyDetails, location, comparables, countryCode },
+          sessionData.session
+            ? { headers: { Authorization: `Bearer ${sessionData.session.access_token}` } }
+            : undefined
+        );
+        return response.data;
+      }
+
       // If no API key, use mock valuation based on comparables
       if (!GEMINI_API_KEY) {
         return this.generateMockValuation(propertyDetails, comparables, countryCode);

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { Report, Property } from '../types';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -33,8 +34,13 @@ export const pdfService = {
     report: Report,
     property: Property | null,
     propertyAddress: string
-  ): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  ): Promise<{ success: boolean; filePath?: string; printedInBrowser?: boolean; error?: string }> {
     try {
+      if (Platform.OS === 'web') {
+        printReportInBrowser(report, property, propertyAddress);
+        return { success: true, printedInBrowser: true };
+      }
+
       const fileUri = await generateLocalPdf(report, property, propertyAddress);
 
       if (await Sharing.isAvailableAsync()) {
@@ -66,6 +72,11 @@ export const pdfService = {
     propertyAddress: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      if (Platform.OS === 'web') {
+        printReportInBrowser(report, property, propertyAddress);
+        return { success: true };
+      }
+
       if (!(await Sharing.isAvailableAsync())) {
         return { success: false, error: 'Sharing is not available on this device' };
       }
@@ -111,6 +122,34 @@ async function generateLocalPdf(
 
   await FileSystem.copyAsync({ from: uri, to: destination });
   return destination;
+}
+
+/**
+ * Web has no equivalent of generateLocalPdf: expo-print's web shim doesn't
+ * generate a file at all — `printToFileAsync()` just calls `window.print()`
+ * and returns nothing (confirmed by reading node_modules/expo-print's own
+ * web implementation), and there's no sandboxed Documents directory for
+ * expo-file-system to write into either. The practical substitute is the
+ * same report HTML opened in its own tab with the browser's native print
+ * dialog triggered immediately — "Save as PDF" there produces the same
+ * artifact a user actually wants, just through the OS/browser's own print
+ * pipeline instead of a generated file this app can share.
+ */
+function printReportInBrowser(report: Report, property: Property | null, propertyAddress: string): void {
+  const html = buildReportHtml(report, property, propertyAddress);
+
+  // No `await` before this — some browsers only honor window.open as a
+  // direct result of a user gesture (the button press that led here) and
+  // silently block it as a popup once a microtask/timer has intervened.
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    throw new Error('Please allow pop-ups for this site to save the report as a PDF.');
+  }
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function escapeHtml(text: string): string {

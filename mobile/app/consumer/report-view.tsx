@@ -61,9 +61,12 @@ export default function ReportView() {
       const result = await pdfService.downloadReportPDF(report, currentProperty, propertyAddress);
 
       if (result.success) {
-        Alert.alert('Success', `Report downloaded successfully!\n\nFile: ${propertyAddress}.pdf`, [
-          { text: 'OK' },
-        ]);
+        // On web there's no downloadable file — a print dialog opened
+        // instead, where "Save as PDF" is the user's own next step.
+        const message = result.printedInBrowser
+          ? 'Use your browser\'s print dialog to save this report as a PDF.'
+          : `Report downloaded successfully!\n\nFile: ${propertyAddress}.pdf`;
+        Alert.alert('Success', message, [{ text: 'OK' }]);
       } else {
         Alert.alert('Error', result.error || 'Failed to download PDF report');
       }
