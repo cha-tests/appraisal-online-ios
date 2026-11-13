@@ -10,6 +10,8 @@ import {
   Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -18,8 +20,10 @@ import { TextInput } from '../../components/ui/TextInput';
 import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
+import { accountService } from '../../services/account.service';
 import { signOut } from '../../services/supabase';
 import { withTimeout } from '../../services/withTimeout';
+import { beginSignOut } from '../../utils/signOutGuard';
 import { BrokerProfile } from '../../types';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { BROKER_DISCLAIMER_TEXT } from '../../config/disclaimers';
@@ -57,7 +61,6 @@ export default function BrokerSettings() {
 
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
-    pushNotifications: true,
     smsNotifications: false, // SMS isn't offered on any tier any more (migration 034)
     quietHoursEnabled: false,
     quietHours: '6:00 PM - 8:00 AM',
@@ -65,6 +68,8 @@ export default function BrokerSettings() {
   });
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -157,6 +162,92 @@ export default function BrokerSettings() {
     }
   };
 
+  // Fetches the real export bundle (export_my_data(), migration 042) and
+  // hands it to the OS share sheet as a .json file — same
+  // generate-locally-then-Sharing.shareAsync pattern pdf.service.ts already
+  // uses for report PDFs, just with JSON instead of a rendered PDF.
+  const handleExportData = async () => {
+    try {
+      setExporting(true);
+      const result = await accountService.exportMyData();
+      if (!result.success || !result.data) {
+        Alert.alert('Export Failed', result.error || 'Could not export your data. Please try again.');
+        return;
+      }
+
+      const fileName = `appraisal-online-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(result.data, null, 2));
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('Export Ready', `Your data was saved as ${fileName}, but sharing isn't available on this device.`);
+      }
+    } catch (err: any) {
+      Alert.alert('Export Failed', err?.message || 'Could not export your data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const performAccountDeletion = async () => {
+    setDeleting(true);
+    // Per deleteMyAccount()'s own doc comment: call this BEFORE the delete
+    // call, same as the normal sign-out flow, so the stale-redirect guard
+    // doesn't race a competing redirect once the account is gone.
+    beginSignOut();
+    const result = await accountService.deleteMyAccount();
+    if (result.success) {
+      // NOTE: broker/_layout.tsx's RequireUserType redirects to /auth/login
+      // itself the moment `user` goes null, and (unlike consumer's
+      // useRequireAccount) never checks isSigningOut() — so that redirect
+      // can still win the race against this explicit one, landing on
+      // /auth/login instead of /welcome. Reproduced locally; reordering
+      // clear()/replace() here didn't change the outcome either way, so
+      // this is RequireUserType's own gap, not fixable from this screen.
+      // Flagged for a follow-up there rather than fixed here (out of this
+      // change's scope). Either destination is a dead end for a just-
+      // deleted account, so this isn't a functional break, just not the
+      // exact screen asked for.
+      useAuthStore.getState().clear();
+      router.replace('/welcome');
+    } else {
+      // Nothing was cleared on failure — the user is still signed in, so
+      // just let them retry.
+      setDeleting(false);
+      Alert.alert('Could Not Delete Account', result.error || 'Something went wrong. Please try again.');
+    }
+  };
+
+  // Irreversible, so this is a deliberate two-step confirmation rather than
+  // a single destructive button — never fire on one tap.
+  const handleRequestDeletion = () => {
+    Alert.alert(
+      'Delete Your Account',
+      'Your account and personal information will be deleted. Some anonymized records may be retained as required. ' +
+        "If you have an active or claimed lead, the homeowner's own record of it is kept (with your identifying details removed) rather than erased.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: confirmAccountDeletion },
+      ]
+    );
+  };
+
+  const confirmAccountDeletion = () => {
+    Alert.alert(
+      'Are You Sure?',
+      'This is permanent and cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete Account', style: 'destructive', onPress: performAccountDeletion },
+      ]
+    );
+  };
+
   if (loadError) {
     return (
       <SafeAreaWrapper>
@@ -205,21 +296,6 @@ export default function BrokerSettings() {
         </View>
       </Card>
 
-      <Card variant="default" style={styles.preferenceCard}>
-        <View style={styles.preferenceRow}>
-          <View style={styles.preferenceContent}>
-            <Text style={styles.preferenceLabel}>Push Notifications</Text>
-            <Text style={styles.preferenceHelper}>Get alerts on your phone</Text>
-          </View>
-          <Toggle
-            value={preferences.pushNotifications}
-            onToggle={(val) =>
-              setPreferences((prev) => ({ ...prev, pushNotifications: val }))
-            }
-          />
-        </View>
-      </Card>
-
       {/* Privacy & Data */}
       <Text style={styles.sectionTitle}>🔐 Privacy & Data</Text>
 
@@ -232,14 +308,61 @@ export default function BrokerSettings() {
       </Card>
 
       <Button
-        title="Export My Data"
+        title={exporting ? 'Preparing Export...' : 'Export My Data'}
         variant="outline"
         size="medium"
-        onPress={() =>
-          Alert.alert('Coming Soon', 'Data export feature will be available soon')
-        }
+        onPress={handleExportData}
+        disabled={exporting}
         style={{ marginBottom: 12 }}
       />
+
+      <Card variant="outlined" style={styles.dangerCard}>
+        <Text style={styles.dangerTitle}>Delete Account</Text>
+        <Text style={styles.dangerText}>
+          Permanently delete your account and personal information. This cannot be undone.
+        </Text>
+        <Button
+          title={deleting ? 'Deleting...' : 'Request Deletion'}
+          variant="outline"
+          size="medium"
+          onPress={handleRequestDeletion}
+          disabled={deleting}
+          style={{ marginTop: 12 }}
+        />
+      </Card>
+
+      {/* Legal */}
+      <Text style={styles.sectionTitle}>📄 Legal</Text>
+
+      <View style={styles.legalLinkItem}>
+        <Text style={styles.legalLinkText}>Terms of Service</Text>
+        <Button
+          title="View"
+          variant="outline"
+          size="small"
+          onPress={() => router.push('/public/terms-of-service')}
+        />
+      </View>
+
+      <View style={styles.legalLinkItem}>
+        <Text style={styles.legalLinkText}>Privacy Policy</Text>
+        <Button
+          title="View"
+          variant="outline"
+          size="small"
+          onPress={() => router.push('/public/privacy-policy')}
+        />
+      </View>
+
+      <View style={[styles.legalLinkItem, { marginBottom: 24 }]}>
+        <Text style={styles.legalLinkText}>Professional Terms</Text>
+        <Button
+          title="View"
+          variant="outline"
+          size="small"
+          onPress={() => router.push('/public/professional-terms')}
+        />
+      </View>
 
       {/* Account Information */}
       <Text style={styles.sectionTitle}>ℹ️ Account Information</Text>
@@ -549,6 +672,35 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: theme.color.border,
     marginVertical: 8,
+  },
+  dangerCard: {
+    marginBottom: 16,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  dangerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 6,
+  },
+  dangerText: {
+    fontSize: 13,
+    color: '#991B1B',
+    lineHeight: 18,
+  },
+  legalLinkItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.color.border,
+  },
+  legalLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.color.text,
   },
   footer: {
     paddingBottom: 32,
