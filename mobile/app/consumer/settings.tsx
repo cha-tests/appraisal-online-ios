@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -10,6 +12,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { supabase, signOut } from '../../services/supabase';
 import { reportService } from '../../services/report.service';
 import { withTimeout } from '../../services/withTimeout';
+import { accountService } from '../../services/account.service';
 import { ConnectedBrokerRouting } from '../../types';
 import { consumerLeadStatusLabel } from '../../config/leadRoutingStatus';
 import { REVOKE_REASON_OPTIONS } from '../../config/revokeReasons';
@@ -79,9 +82,10 @@ export default function ConsumerSettings() {
   const [reloadToken, setReloadToken] = useState(0);
   const [notifications, setNotifications] = useState({
     email: true,
-    push: true,
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Broker contact is opted in per report (see broker-optins.tsx), and
   // each report can now be routed to several brokers independently
@@ -222,6 +226,86 @@ export default function ConsumerSettings() {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      setExporting(true);
+      const result = await accountService.exportMyData();
+      if (!result.success || !result.data) {
+        Alert.alert('Export Failed', result.error || 'Could not export your data. Please try again.');
+        return;
+      }
+
+      const json = JSON.stringify(result.data, null, 2);
+      const fileName = `appraisal-online-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, json);
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('Export Ready', 'Your data export was saved, but sharing is not available on this device.');
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      Alert.alert('Export Failed', 'Could not export your data. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const performAccountDeletion = async () => {
+    try {
+      setDeleting(true);
+      // Guards against the stale-redirect race during sign-out (see
+      // utils/signOutGuard.ts) — set before the network call, same as the
+      // normal sign-out flow.
+      beginSignOut();
+      const result = await accountService.deleteMyAccount();
+
+      if (result.success) {
+        useAuthStore.getState().clear();
+        router.replace('/welcome');
+        return;
+      }
+
+      // Failure: nothing was cleared and the session is still valid, so
+      // just surface the error and let the user try again.
+      setDeleting(false);
+      Alert.alert('Could Not Delete Account', result.error || 'Something went wrong. Please try again.');
+    } catch (err) {
+      setDeleting(false);
+      Alert.alert('Could Not Delete Account', 'Something went wrong. Please try again.');
+    }
+  };
+
+  // Irreversible action — never a single tap. First dialog states plainly
+  // what does and doesn't happen; only after explicitly continuing does the
+  // second, final dialog offer the actual destructive action.
+  const handleRequestDeletion = () => {
+    Alert.alert(
+      'Delete Your Account?',
+      "Your account and personal information will be deleted. Some anonymized records may be retained as required. This can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: confirmAccountDeletion },
+      ]
+    );
+  };
+
+  const confirmAccountDeletion = () => {
+    Alert.alert(
+      'Confirm Account Deletion',
+      "This is permanent. Once deleted, you won't be able to sign back in or recover your reports.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete My Account', style: 'destructive', onPress: performAccountDeletion },
+      ]
+    );
+  };
+
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', onPress: () => {}, style: 'cancel' },
@@ -283,19 +367,6 @@ export default function ConsumerSettings() {
           <Toggle
             value={notifications.email}
             onToggle={(val) => setNotifications((prev) => ({ ...prev, email: val }))}
-          />
-        </View>
-      </Card>
-
-      <Card variant="default" style={styles.preferencesCard}>
-        <View style={styles.preferenceRow}>
-          <View>
-            <Text style={styles.preferenceLabel}>Push Notifications</Text>
-            <Text style={styles.preferenceHelper}>Get alerts on your phone</Text>
-          </View>
-          <Toggle
-            value={notifications.push}
-            onToggle={(val) => setNotifications((prev) => ({ ...prev, push: val }))}
           />
         </View>
       </Card>
@@ -434,7 +505,7 @@ export default function ConsumerSettings() {
       )}
 
       {/* Privacy */}
-      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Privacy & Data</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Privacy & Data</Text>
 
       <Card variant="outlined" style={styles.privacyCard}>
         <Text style={styles.privacyTitle}>Your Data</Text>
@@ -446,51 +517,40 @@ export default function ConsumerSettings() {
       <Card variant="default" style={styles.actionCard}>
         <Text style={styles.actionTitle}>📥 Export My Data</Text>
         <Text style={styles.actionDescription}>
-          Download all your reports and valuation history
+          Download all your reports and valuation history as a file you can keep
         </Text>
         <Button
-          title="Export Data"
+          title={exporting ? 'Preparing Export...' : 'Export Data'}
           variant="outline"
           size="small"
-          onPress={() => Alert.alert('Feature', 'Data export coming soon')}
+          onPress={handleExportData}
+          disabled={exporting}
+          loading={exporting}
           style={{ marginTop: 12 }}
         />
       </Card>
 
       <Card variant="default" style={styles.actionCard}>
-        <Text style={styles.actionTitle}>🗑️ Delete My Data</Text>
+        <Text style={styles.actionTitle}>🗑️ Delete My Account</Text>
         <Text style={styles.actionDescription}>
-          Permanently remove all your reports and information
+          Permanently delete your account and personal information
         </Text>
         <Text style={styles.actionWarning}>
-          This will be processed within 30 days
+          This can't be undone. Some anonymized records may be retained as required.
         </Text>
         <Button
-          title="Request Deletion"
-          variant="outline"
+          title={deleting ? 'Deleting...' : 'Request Deletion'}
+          variant="danger"
           size="small"
-          onPress={() => {
-            Alert.alert(
-              'Delete Data',
-              'Are you sure? This cannot be undone. Your data will be permanently deleted within 30 days.',
-              [
-                { text: 'Cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: () => {
-                    Alert.alert('Requested', 'Your deletion request has been submitted.');
-                  },
-                },
-              ]
-            );
-          }}
+          onPress={handleRequestDeletion}
+          disabled={deleting}
+          loading={deleting}
           style={{ marginTop: 12 }}
         />
       </Card>
 
       {/* Legal */}
-      <Text style={styles.sectionTitle} style={{ marginTop: 32 }}>Legal</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Legal</Text>
 
       <View style={styles.linkItem}>
         <Text style={styles.linkText}>
@@ -500,7 +560,7 @@ export default function ConsumerSettings() {
           title="View"
           variant="outline"
           size="small"
-          onPress={() => Alert.alert('Feature', 'Terms coming soon')}
+          onPress={() => router.push('/public/terms-of-service')}
         />
       </View>
 
@@ -512,7 +572,7 @@ export default function ConsumerSettings() {
           title="View"
           variant="outline"
           size="small"
-          onPress={() => Alert.alert('Feature', 'Privacy policy coming soon')}
+          onPress={() => router.push('/public/privacy-policy')}
         />
       </View>
 
