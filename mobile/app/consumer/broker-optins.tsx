@@ -94,7 +94,10 @@ export default function BrokerOptins() {
   // Mandatory once opted in, but no default — left blank until the
   // consumer actively enters a number (see handleContinue's validation).
   const [brokerCount, setBrokerCount] = useState('');
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  // For failures that aren't about a specific field (a save that failed,
+  // an unexpected exception) — shown once at the bottom, same as before.
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Only ever asked here, alongside the broker opt-in — never on the
@@ -220,26 +223,41 @@ export default function BrokerOptins() {
 
   const handleContinue = async () => {
     try {
-      setError('');
+      setFormError('');
 
-      if (optedIn && !disclaimerAcknowledged) {
-        setError('Please acknowledge the notice above before connecting with a broker.');
-        return;
-      }
-
-      let brokerCountToSave: number | undefined;
       if (optedIn) {
+        const newErrors: Record<string, string> = {};
+
         const parsedCount = parseInt(brokerCount, 10);
         if (!brokerCount.trim() || !Number.isInteger(parsedCount) || parsedCount < 1) {
-          setError('Please enter how many professionals you want to connect with.');
-          return;
+          newErrors.brokerCount = 'Please enter how many professionals you want to connect with.';
         }
+
+        if (sharePhone) {
+          // Only validated when the consumer has actually turned sharing on
+          // — the field itself always holds whatever's on file, shared or not.
+          const digitCount = phone.replace(/\D/g, '').length;
+          if (digitCount < 7 || digitCount > 15) {
+            newErrors.phone = 'Please enter a valid mobile number';
+          }
+        }
+
+        if (!disclaimerAcknowledged) {
+          newErrors.disclaimer = 'Please acknowledge the notice above before connecting with a broker.';
+        }
+
+        setErrors(newErrors);
+        if (Object.keys(newErrors).length > 0) return;
+
         if (parsedCount > LARGE_REQUEST_CONFIRM_THRESHOLD) {
           const confirmed = await confirmLargeBrokerRequest(parsedCount);
           if (!confirmed) return;
         }
-        brokerCountToSave = parsedCount;
+      } else {
+        setErrors({});
       }
+
+      const brokerCountToSave: number | undefined = optedIn ? parseInt(brokerCount, 10) : undefined;
 
       setLoading(true);
 
@@ -251,13 +269,6 @@ export default function BrokerOptins() {
           });
         }
         if (sharePhone) {
-          // Only validated when the consumer has actually turned sharing on
-          // — the field itself always holds whatever's on file, shared or not.
-          const digitCount = phone.replace(/\D/g, '').length;
-          if (digitCount < 7 || digitCount > 15) {
-            setError('Please enter a valid mobile number');
-            return;
-          }
           phoneToSave = phone;
         }
       }
@@ -295,10 +306,10 @@ export default function BrokerOptins() {
           router.push('/consumer/report-view');
         }
       } else {
-        setError(result.error?.message || 'Failed to save preferences');
+        setFormError(result.error?.message || 'Failed to save preferences');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setFormError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -345,10 +356,10 @@ export default function BrokerOptins() {
             value={brokerCount}
             onChangeText={(text) => {
               setBrokerCount(text.replace(/[^\d]/g, ''));
-              if (error) setError('');
+              if (errors.brokerCount) setErrors((prev) => ({ ...prev, brokerCount: '' }));
             }}
             keyboardType="number-pad"
-            error={error && error.includes('professionals you want') ? error : undefined}
+            error={errors.brokerCount}
           />
           <Text style={styles.brokerCountHelper}>Most homeowners choose 1-3.</Text>
         </View>
@@ -363,8 +374,11 @@ export default function BrokerOptins() {
           <Text style={styles.phoneLabel}>Phone Number</Text>
           <PhoneInput
             value={phone}
-            onChangeText={setPhone}
-            error={error && error.includes('mobile number') ? error : undefined}
+            onChangeText={(text) => {
+              setPhone(text);
+              if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+            }}
+            error={errors.phone}
           />
 
           <TouchableOpacity
@@ -454,7 +468,11 @@ export default function BrokerOptins() {
           text={CLIENT_DISCLAIMER_TEXT}
           showPrcLink
           acknowledged={disclaimerAcknowledged}
-          onToggleAcknowledged={setDisclaimerAcknowledged}
+          onToggleAcknowledged={(val) => {
+            setDisclaimerAcknowledged(val);
+            if (errors.disclaimer) setErrors((prev) => ({ ...prev, disclaimer: '' }));
+          }}
+          error={errors.disclaimer}
         />
       )}
 
@@ -481,10 +499,9 @@ export default function BrokerOptins() {
         </View>
       </Card>
 
-      {/* Error Message */}
-      {!!error && !error.includes('mobile number') && !error.includes('professionals you want') && (
-        <Text style={styles.errorMessage}>{error}</Text>
-      )}
+      {/* Error Message — a save failure or unexpected exception, not a
+          field-level validation error (those are shown inline above). */}
+      {!!formError && <Text style={styles.errorMessage}>{formError}</Text>}
 
       {/* Actions */}
       <View style={styles.footer}>

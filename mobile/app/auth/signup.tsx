@@ -20,6 +20,7 @@ import {
 } from '../../services/pendingValuationCompletion';
 import { theme } from '../../theme';
 import { friendlyAuthErrorMessage } from '../../utils/retry';
+import { IconWarning } from '../../components/ui/icons';
 
 /**
  * Sign-up gate — screen 3 of 3 of the valuation flow, reached from
@@ -46,7 +47,10 @@ function GateScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [gateError, setGateError] = useState('');
+  const [gateErrors, setGateErrors] = useState<Record<string, string>>({});
+  // For a failure that isn't about a specific field (signup itself failing,
+  // an unexpected exception) — shown once at the bottom, same as before.
+  const [gateFormError, setGateFormError] = useState('');
   // Never pre-checked — same rule as every other consent checkbox in this
   // app (see broker-optins.tsx's disclaimer, CLAUDE.md's "Never pre-check a
   // consent checkbox").
@@ -63,31 +67,33 @@ function GateScreen() {
   const lowFormatted = formatCurrency(pendingValuation.confidenceRange.low, countryCode);
   const highFormatted = formatCurrency(pendingValuation.confidenceRange.high, countryCode);
 
-  const validate = (): string | null => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email';
+  const validate = (): Record<string, string> => {
+    const newErrors: Record<string, string> = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Please enter a valid email';
     const digitCount = phone.replace(/\D/g, '').length;
-    if (digitCount < 7) return 'Please enter a valid mobile number';
-    if (password.length < 8) return 'Password must be at least 8 characters';
-    if (!agreedToTerms) return 'Please agree to the Terms of Service and Privacy Policy';
-    return null;
+    if (digitCount < 7) newErrors.phone = 'Please enter a valid mobile number';
+    if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+    if (!agreedToTerms) newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
+    return newErrors;
   };
 
   const handleCreateAccount = async () => {
-    const validationError = validate();
-    if (validationError) {
-      setGateError(validationError);
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setGateErrors(validationErrors);
       return;
     }
 
-    setGateError('');
+    setGateErrors({});
+    setGateFormError('');
     setLoading(true);
 
     try {
       const breachCheck = await checkPasswordBreach(password);
       if (breachCheck.breached) {
-        setGateError(
-          'This password has appeared in known data breaches. Please choose a different password.'
-        );
+        setGateErrors({
+          password: 'This password has appeared in known data breaches. Please choose a different password.',
+        });
         return;
       }
 
@@ -120,13 +126,13 @@ function GateScreen() {
             });
             return;
           } else {
-            setGateError(
+            setGateFormError(
               "An account with this email already exists. Try logging in, or use Forgot Password if you don't remember your password."
             );
             return;
           }
         } else {
-          setGateError(friendlyAuthErrorMessage(result.error, 'Unable to create account'));
+          setGateFormError(friendlyAuthErrorMessage(result.error, 'Unable to create account'));
           return;
         }
       }
@@ -147,7 +153,7 @@ function GateScreen() {
       setUser(signedInUser!);
       const completion = await completePendingValuation(signedInUser!.id, payload);
       if (!completion.success) {
-        setGateError(completion.error);
+        setGateFormError(completion.error);
         return;
       }
 
@@ -159,7 +165,7 @@ function GateScreen() {
       router.replace('/consumer/report-view');
     } catch (err) {
       console.error('Gate signup error:', err);
-      setGateError('An unexpected error occurred. Please try again.');
+      setGateFormError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -197,27 +203,39 @@ function GateScreen() {
           label="Email"
           placeholder="you@example.com"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text);
+            if (gateErrors.email) setGateErrors((prev) => ({ ...prev, email: '' }));
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           editable={!loading}
+          error={gateErrors.email}
         />
         <TextInput
           label="Password"
           placeholder="At least 8 characters"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            setPassword(text);
+            if (gateErrors.password) setGateErrors((prev) => ({ ...prev, password: '' }));
+          }}
           secureTextEntry
           editable={!loading}
           style={{ marginTop: 12 }}
+          error={gateErrors.password}
         />
         <View style={{ marginTop: 12 }}>
           <PhoneInput
             label="Mobile number"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => {
+              setPhone(text);
+              if (gateErrors.phone) setGateErrors((prev) => ({ ...prev, phone: '' }));
+            }}
             editable={!loading}
             style={{ marginBottom: 0 }}
+            error={gateErrors.phone}
           />
           <Text style={styles.phoneHelper}>
             Only shared with a professional if you opt in to be contacted on a report.
@@ -226,10 +244,19 @@ function GateScreen() {
 
         <TouchableOpacity
           style={styles.gateTermsRow}
-          onPress={() => setAgreedToTerms((prev) => !prev)}
+          onPress={() => {
+            setAgreedToTerms((prev) => !prev);
+            if (gateErrors.terms) setGateErrors((prev) => ({ ...prev, terms: '' }));
+          }}
           activeOpacity={0.7}
         >
-          <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+          <View
+            style={[
+              styles.checkbox,
+              agreedToTerms && styles.checkboxChecked,
+              !!gateErrors.terms && styles.checkboxError,
+            ]}
+          >
             {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={styles.gateTermsText}>
@@ -243,8 +270,14 @@ function GateScreen() {
             </Text>
           </Text>
         </TouchableOpacity>
+        {!!gateErrors.terms && (
+          <View style={styles.gateErrorRow}>
+            <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+            <Text style={styles.gateErrorText}>{gateErrors.terms}</Text>
+          </View>
+        )}
 
-        {!!gateError && <Text style={styles.gateErrorText}>{gateError}</Text>}
+        {!!gateFormError && <Text style={styles.gateErrorText}>{gateFormError}</Text>}
 
         <Button
           title={loading ? 'Creating account…' : 'Create account and see value'}
@@ -581,13 +614,18 @@ export default function SignupScreen() {
         {/* Terms Agreement — a real checkbox, not just informational text:
             explicit, required, never pre-checked (see CLAUDE.md's "Never
             pre-check a consent checkbox"). */}
-        <Card variant="outlined" style={styles.termsCard}>
+        <Card variant="outlined" style={[styles.termsCard, !!errors.terms && styles.termsCardError]}>
           <TouchableOpacity
             style={styles.termsCheckboxRow}
-            onPress={() => setAgreedToTerms((prev) => !prev)}
+            onPress={() => {
+              setAgreedToTerms((prev) => !prev);
+              if (errors.terms) setErrors((prev) => ({ ...prev, terms: '' }));
+            }}
             activeOpacity={0.7}
           >
-            <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+            <View
+              style={[styles.checkbox, agreedToTerms && styles.checkboxChecked, !!errors.terms && styles.checkboxError]}
+            >
               {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.termsText}>
@@ -602,7 +640,12 @@ export default function SignupScreen() {
             </Text>
           </TouchableOpacity>
         </Card>
-        {!!errors.terms && <Text style={styles.errorMessage}>{errors.terms}</Text>}
+        {!!errors.terms && (
+          <View style={styles.gateErrorRow}>
+            <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+            <Text style={styles.errorMessage}>{errors.terms}</Text>
+          </View>
+        )}
 
         <Button
           title={loading ? 'Creating Account...' : 'Create Account'}
@@ -663,6 +706,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F9FF',
     borderColor: '#BFDBFE',
     marginTop: 16,
+  },
+  termsCardError: {
+    borderColor: theme.color.danger,
   },
   termsCheckboxRow: {
     flexDirection: 'row',
@@ -731,6 +777,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.text,
     borderColor: theme.color.text,
   },
+  checkboxError: {
+    borderColor: theme.color.danger,
+  },
   checkmark: {
     color: theme.color.surface,
     fontSize: 13,
@@ -775,11 +824,17 @@ const styles = StyleSheet.create({
     color: theme.color.textMuted,
     marginBottom: theme.space.xl,
   },
+  gateErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.xs,
+    marginTop: theme.space.sm,
+    marginBottom: theme.space.sm,
+  },
   gateErrorText: {
     ...theme.type.bodySm,
     color: theme.color.danger,
-    marginTop: theme.space.sm,
-    marginBottom: theme.space.sm,
+    flex: 1,
   },
   footerLink: {
     ...theme.type.bodySm,

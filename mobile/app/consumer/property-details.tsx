@@ -17,6 +17,7 @@ import {
   type SizeUnit,
 } from '../../config/marketConfig';
 import { theme, pill } from '../../theme';
+import { IconWarning } from '../../components/ui/icons';
 
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
 
@@ -362,7 +363,10 @@ export default function PropertyDetails() {
             max={10}
           />
           {(!!errors.bedrooms || !!errors.bathrooms) && (
-            <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
+            <View style={styles.errorRow}>
+              <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+              <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
+            </View>
           )}
         </View>
       )}
@@ -424,7 +428,7 @@ export default function PropertyDetails() {
       {!isLand && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>State</Text>
-          <View style={styles.conditionGrid}>
+          <View style={[styles.conditionGrid, !!errors.condition && styles.conditionGridError]}>
             {CONDITIONS.map((condition) => {
               const active = formData.condition === condition;
               return (
@@ -438,7 +442,12 @@ export default function PropertyDetails() {
               );
             })}
           </View>
-          {!!errors.condition && <Text style={styles.errorText}>{errors.condition}</Text>}
+          {!!errors.condition && (
+            <View style={styles.errorRow}>
+              <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+              <Text style={styles.errorText}>{errors.condition}</Text>
+            </View>
+          )}
 
           <TextInput
             label="Year Built"
@@ -508,10 +517,16 @@ const styles = StyleSheet.create({
     marginTop: theme.space.md,
     marginBottom: theme.space.md,
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.xs,
+    marginTop: theme.space.xs,
+  },
   errorText: {
     ...theme.type.caption,
     color: theme.color.danger,
-    marginTop: theme.space.xs,
+    flex: 1,
   },
   stepperRow: {
     flexDirection: 'row',
@@ -574,6 +589,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.space.sm + 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: theme.radius.md,
+    padding: theme.space.xs,
+    margin: -theme.space.xs,
+  },
+  conditionGridError: {
+    borderColor: theme.color.danger,
   },
   conditionButton: {
     flexGrow: 1,

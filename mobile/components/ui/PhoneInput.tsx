@@ -12,6 +12,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { PHONE_COUNTRIES, DEFAULT_PHONE_COUNTRY, type PhoneCountry } from '../../config/marketConfig';
+import { IconWarning } from './icons';
 
 interface PhoneInputProps {
   label?: string;
@@ -101,7 +102,12 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
           editable={editable}
         />
       </View>
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && (
+        <View style={styles.errorRow}>
+          <IconWarning size={14} color="#EF4444" strokeWidth={2} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <Modal visible={pickerVisible} transparent animationType="fade" onRequestClose={() => setPickerVisible(false)}>
         <TouchableOpacity
@@ -185,10 +191,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+  },
   errorText: {
     color: '#EF4444',
     fontSize: 12,
-    marginTop: 4,
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,

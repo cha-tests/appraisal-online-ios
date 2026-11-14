@@ -9,6 +9,7 @@ import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { AttachmentPreview } from '../../components/ui/AttachmentPreview';
+import { IconWarning } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
@@ -442,8 +443,8 @@ export default function BrokerOnboarding() {
                 setDisclaimerAcknowledged(val);
                 setFormErrors((prev) => ({ ...prev, disclaimer: '' }));
               }}
+              error={formErrors.disclaimer}
             />
-            {formErrors.disclaimer ? <Text style={styles.errorMessage}>{formErrors.disclaimer}</Text> : null}
           </View>
 
           {(kycIdUri || kycSelfieUri) && (
@@ -577,7 +578,7 @@ export default function BrokerOnboarding() {
 
               <Text style={styles.dropdownLabel}>Cities or Towns Where You'll Get Leads</Text>
               <TouchableOpacity
-                style={styles.countryDropdown}
+                style={[styles.countryDropdown, !!formErrors.cities && styles.countryDropdownError]}
                 onPress={() => setCityPickerVisible(true)}
                 activeOpacity={0.7}
               >
@@ -597,6 +598,12 @@ export default function BrokerOnboarding() {
                 </Text>
                 <Text style={styles.countryDropdownChevron}>▾</Text>
               </TouchableOpacity>
+              {formErrors.cities ? (
+                <View style={styles.errorRow}>
+                  <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+                  <Text style={styles.errorMessage}>{formErrors.cities}</Text>
+                </View>
+              ) : null}
 
               <Modal
                 visible={cityPickerVisible}
@@ -1028,6 +1035,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
     marginBottom: 16,
   },
+  countryDropdownError: {
+    borderColor: theme.color.danger,
+  },
   countryDropdownText: {
     flex: 1,
     marginRight: 8,
@@ -1167,6 +1177,12 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
+    flex: 1,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
   },
   preferencesCard: {
     marginBottom: 12,

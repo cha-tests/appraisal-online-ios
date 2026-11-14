@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TextInput as RNTextInput, StyleSheet, View, Text, StyleProp, ViewStyle, TouchableOpacity } from 'react-native';
 import { theme } from '../../theme';
-import { IconEye, IconEyeOff } from './icons';
+import { IconEye, IconEyeOff, IconWarning } from './icons';
 
 interface TextInputProps {
   label?: string;
@@ -77,7 +77,12 @@ export function TextInput({
           </TouchableOpacity>
         )}
       </View>
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && (
+        <View style={styles.errorRow}>
+          <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -121,9 +126,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.accentWash,
     color: theme.color.textFaint,
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.xs,
+    marginTop: theme.space.xs,
+  },
   errorText: {
     ...theme.type.caption,
     color: theme.color.danger,
-    marginTop: theme.space.xs,
+    flex: 1,
   },
 });
