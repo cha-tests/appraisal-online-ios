@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { supabase, parseSupabaseError } from './supabase';
 import { Report, Property, ComparableSale, ValueRange, ReportAllowance, ConnectedBrokerRouting } from '../types';
 import axios from 'axios';
@@ -5,7 +6,19 @@ import { findCityId } from '../utils/matchCity';
 import { brokerService } from './broker.service';
 import { formatCurrency, getMarketConfig } from '../config/marketConfig';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
+// Separate keys per platform rather than one shared key: a Google API key's
+// "Application restrictions" are mutually exclusive (Websites XOR iOS apps
+// XOR Android apps XOR none), and this app's native side calls Gemini with
+// a plain REST request rather than through Google's own native SDK, so an
+// "iOS apps"/"Android apps" restriction wouldn't even recognize it as a
+// legitimate caller — only "Websites" (HTTP referrer) is a restriction that
+// actually works for how this app calls Gemini. That's web-only, so the web
+// key and the native key have to be genuinely different keys, each
+// restricted (or not) appropriately for how it's actually used.
+const GEMINI_API_KEY =
+  Platform.OS === 'web'
+    ? process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY_WEB
+    : process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
 // Use the "-latest" alias rather than a pinned version. Verified live against
 // a real key: gemini-2.5-flash now 404s for new API keys/projects ("no longer
 // available to new users") — Google had already moved the recommended model
@@ -89,16 +102,19 @@ export const reportService = {
   }> {
     try {
       // Called directly from the client on every platform, including web.
-      // EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY is meant to be restricted by HTTP
-      // referrer in Google Cloud Console (appraisalonline.com/* + localhost
-      // for dev) rather than proxied through a backend — the Generative
-      // Language API supports direct browser calls (it sends the CORS
-      // headers for it, unlike the Places REST API — see placesWeb.service.ts's
-      // header comment for why that one genuinely can't go this route), and
-      // this keeps the whole consumer valuation flow working on web with no
-      // backend dependency at all. Same exposure tier the native app already
-      // accepts for this key, just via referrer restriction instead of
-      // app-binary obscurity.
+      // EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY_WEB (see the const above) is meant
+      // to be restricted by HTTP referrer in Google Cloud Console
+      // (appraisalonline.com/* + localhost for dev) rather than proxied
+      // through a backend — the Generative Language API supports direct
+      // browser calls (it sends the CORS headers for it, unlike the Places
+      // REST API — see placesWeb.service.ts's header comment for why that
+      // one genuinely can't go this route), and this keeps the whole
+      // consumer valuation flow working on web with no backend dependency
+      // at all. EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY (no _WEB suffix) is the
+      // separate native-only key, unrestricted — same exposure tier it
+      // already accepted before this, just via app-binary obscurity rather
+      // than a key-level restriction (Google's "iOS apps"/"Android apps"
+      // restriction types don't apply here; see the const's own comment).
       //
       // If you do want this proxied through a backend again later (e.g. once
       // one is deployed for other reasons), see backend/src/routes/valuation.ts

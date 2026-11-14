@@ -16,9 +16,17 @@
  * shape the JS SDK's own callback hands back, so consumer/home.tsx's
  * existing status-check / field-access code didn't need to change — only
  * which function it calls on web.
+ *
+ * Uses a separate _WEB-suffixed key from the one consumer/home.tsx's native
+ * branch uses (EXPO_PUBLIC_GOOGLE_PLACES_API_KEY) — a Google API key's
+ * "Application restrictions" are mutually exclusive (Websites XOR iOS apps
+ * XOR Android apps XOR none), so a key restricted by HTTP referrer for this
+ * web usage genuinely can't also work for the native app's calls, and vice
+ * versa. See report.service.ts's matching comment on the Gemini key for the
+ * same reasoning.
  */
 
-const PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
+const PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY_WEB;
 
 let scriptLoadPromise: Promise<void> | null = null;
 
