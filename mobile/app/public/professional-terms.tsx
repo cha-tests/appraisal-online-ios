@@ -2,23 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
-import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function ProfessionalTerms() {
   const router = useRouter();
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
         <Text style={styles.title}>Professional Terms</Text>
         <Text style={styles.subtitle}>For Real Estate Brokers & Agents</Text>
         <Text style={styles.lastUpdated}>Last updated: August 21, 2026</Text>
@@ -37,7 +30,7 @@ export default function ProfessionalTerms() {
           • All leads come from consumers who have explicitly opted in to professional contact
           {'\n'}• Lead data is automatically verified against property records
           {'\n'}• No synthesized or duplicate leads
-          {'\n'}• Leads are delivered in real-time (Lifetime/Premium) or as weekly digest (Basic)
+          {'\n'}• Leads are delivered in real-time
           {'\n'}• We do not resell or share leads with competitors
         </Text>
       </Card>
@@ -84,74 +77,42 @@ export default function ProfessionalTerms() {
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>6. Subscription Tiers</Text>
+        <Text style={styles.sectionTitle}>6. Subscription</Text>
         <Text style={styles.sectionText}>
-          <Text style={styles.bold}>Founder Lifetime - $499</Text>
-          {'\n'}• 25 cities
+          <Text style={styles.bold}>Premium Annual</Text>
+          {'\n'}• 5 cities
           {'\n'}• Real-time lead notifications
-          {'\n'}• Email, push, and SMS
-          {'\n'}• 14-day refund window
-          {'\n'}
-          {'\n'}<Text style={styles.bold}>Premium Annual - $199/year</Text>
-          {'\n'}• 10 cities
-          {'\n'}• Real-time lead notifications
-          {'\n'}• Email and push only
+          {'\n'}• Email and push
           {'\n'}• 30-day refund window
           {'\n'}
-          {'\n'}<Text style={styles.bold}>Basic Annual - $49/year</Text>
-          {'\n'}• 1 city
-          {'\n'}• Weekly digest only
-          {'\n'}• Email only
-          {'\n'}• 30-day refund window
+          {'\n'}Price is set by signup order as intro pricing through December 31, 2026: $9.95/year for the first
+          1,000 brokers, $14.95/year for the next 1,000, and $19.95/year after that. Starting January 1, 2027, the
+          price is $24.95/year for every broker, new or renewing — intro pricing is not locked in for life.
         </Text>
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>7. Founder Capacity</Text>
-        <Text style={styles.sectionText}>
-          To maintain lead quality, we limit Founder Lifetime subscriptions to 30 per city. Each city has a Founder counter visible to all brokers. Once full, Founder tier cannot be selected for that city.
-        </Text>
-      </Card>
-
-      <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>8. Marketing Allocation</Text>
-        <Text style={styles.sectionText}>
-          Monthly marketing budget is allocated based on subscription tiers:
-          {'\n'}• Founder Lifetime = 3x weight
-          {'\n'}• Premium Annual = 2x weight
-          {'\n'}• Basic Annual = 1x weight
-          {'\n'}
-          {'\n'}Your allocation determines lead volume and priority ranking in your city.
-        </Text>
-      </Card>
-
-      <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>9. Notification Preferences</Text>
+        <Text style={styles.sectionTitle}>7. Notification Preferences</Text>
         <Text style={styles.sectionText}>
           You can customize:
           {'\n'}• Email notifications (on/off)
           {'\n'}• Push notifications (on/off)
-          {'\n'}• SMS notifications (on/off, Founder only)
-          {'\n'}• Quiet hours (Founder only)
-          {'\n'}• Weekly digest time (Basic only)
           {'\n'}
           {'\n'}Changes take effect immediately.
         </Text>
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>10. Refunds & Cancellation</Text>
+        <Text style={styles.sectionTitle}>8. Refunds & Cancellation</Text>
         <Text style={styles.sectionText}>
-          • Cancellation available anytime with refund within the window
-          {'\n'}• Founder: 14 days
-          {'\n'}• Premium/Basic: 30 days
+          • Cancellation available anytime with a refund within 30 days of purchase
           {'\n'}• Account closure removes all your data
           {'\n'}• No refunds after the window closes
         </Text>
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>11. Professional Conduct</Text>
+        <Text style={styles.sectionTitle}>9. Professional Conduct</Text>
         <Text style={styles.sectionText}>
           You agree to:
           {'\n'}• Maintain professional standards
@@ -164,7 +125,7 @@ export default function ProfessionalTerms() {
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>12. Account Termination</Text>
+        <Text style={styles.sectionTitle}>10. Account Termination</Text>
         <Text style={styles.sectionText}>
           We may terminate your account for:
           {'\n'}• Violation of fair housing laws
@@ -178,7 +139,7 @@ export default function ProfessionalTerms() {
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>13. Liability & Indemnification</Text>
+        <Text style={styles.sectionTitle}>11. Liability & Indemnification</Text>
         <Text style={styles.sectionText}>
           • You are solely responsible for your professional conduct
           {'\n'}• You indemnify Appraisal Online against claims arising from your violations
@@ -188,7 +149,7 @@ export default function ProfessionalTerms() {
       </Card>
 
       <Card variant="outlined" style={styles.section}>
-        <Text style={styles.sectionTitle}>14. Contact</Text>
+        <Text style={styles.sectionTitle}>12. Contact</Text>
         <Text style={styles.sectionText}>
           Professional inquiries:
           {'\n'}Email: brokers@appraisalonline.com
@@ -208,38 +169,38 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 12,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 4,
   },
   lastUpdated: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   section: {
     marginBottom: 16,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   sectionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 22,
   },
   bold: {
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   footer: {
     height: 32,

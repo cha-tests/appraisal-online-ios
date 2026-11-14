@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { signOut } from '../../services/supabase';
 import { useAuthStore } from '../../stores/auth.store';
+import { theme } from '../../theme';
 
 export default function BrokerSplash() {
   const router = useRouter();
@@ -33,7 +34,11 @@ export default function BrokerSplash() {
     <SafeAreaWrapper scrollable>
       {/* Hero Section */}
       <View style={styles.hero}>
-        <Text style={styles.heroIcon}>🎯</Text>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.heroLogo}
+          resizeMode="contain"
+        />
         <Text style={styles.heroTitle}>Grow Your Real Estate Business</Text>
         <Text style={styles.heroSubtitle}>
           Get pre-qualified property leads from consumers actively seeking professional guidance
@@ -49,7 +54,7 @@ export default function BrokerSplash() {
             <Text style={styles.valueIcon}>⚡</Text>
             <Text style={styles.valueTitle}>Real-Time Leads</Text>
             <Text style={styles.valueDescription}>
-              Get instant notifications when consumers opt in to broker contact
+              Get an email the instant a consumer opts in to broker contact
             </Text>
           </View>
         </Card>
@@ -95,6 +100,9 @@ export default function BrokerSplash() {
         <Text style={styles.footerNote}>
           Takes about 5 minutes • No commitment until payment
         </Text>
+        <Text style={styles.coverageLink} onPress={() => router.push('/public/coverage')}>
+          Not sure your city is covered? Check here
+        </Text>
         <Button
           title="Sign Out"
           variant="outline"
@@ -113,20 +121,21 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingVertical: 24,
   },
-  heroIcon: {
-    fontSize: 56,
+  heroLogo: {
+    width: 64,
+    height: 64,
     marginBottom: 16,
   },
   heroTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textAlign: 'center',
     marginBottom: 12,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 24,
     marginHorizontal: 8,
@@ -137,7 +146,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   valueCard: {
@@ -154,12 +163,12 @@ const styles = StyleSheet.create({
   valueTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   valueDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   ctaSection: {
@@ -171,12 +180,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   ctaDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {
@@ -185,6 +194,14 @@ const styles = StyleSheet.create({
   footerNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
+  },
+  coverageLink: {
+    textAlign: 'center',
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.accent,
+    marginTop: 16,
+    textDecorationLine: 'underline',
   },
 });

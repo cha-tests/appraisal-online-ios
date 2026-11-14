@@ -6,13 +6,14 @@
     "scheme": "appraisalonline",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.appraisalonline.mobile",
-      "buildNumber": "14",
+      "buildNumber": "22",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We need your location to find comparable properties",
         "NSCameraUsageDescription": "Appraisal Online uses your camera to scan your card during checkout and to take verification photos during broker signup.",
@@ -26,11 +27,18 @@
     "android": {
       "package": "com.appraisalonline.mobile",
       "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.INTERNET"
       ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
     },
     "extra": {
       "eas": {
@@ -44,6 +52,18 @@
         {
           "merchantIdentifier": "merchant.com.appraisal.online",
           "enableGooglePay": false
+        }
+      ],
+      "expo-font",
+      "expo-router",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
         }
       ]
     ]

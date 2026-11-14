@@ -12,6 +12,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { PHONE_COUNTRIES, DEFAULT_PHONE_COUNTRY, type PhoneCountry } from '../../config/marketConfig';
+import { IconWarning } from './icons';
 
 interface PhoneInputProps {
   label?: string;
@@ -58,7 +59,13 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
     // "0917...", UK: "07...") — that leading 0 is dropped once a dial code
     // is prepended, or the combined number is one digit too long and wrong.
     const digitsOnly = nextLocal.replace(/[^\d]/g, '').replace(/^0+/, '');
-    onChangeText(`${nextCountry.dialCode}${digitsOnly}`);
+    // No digits typed yet — emit a real empty string rather than a bare
+    // dial code ("+63"). Callers that treat this field as optional (e.g.
+    // broker-optins.tsx) check `if (phone)` to decide whether to validate
+    // at all; a leftover dial code with no digits was always truthy there,
+    // so clearing the field still tripped "please enter a valid number"
+    // instead of being treated as skipped.
+    onChangeText(digitsOnly ? `${nextCountry.dialCode}${digitsOnly}` : '');
   };
 
   const handleLocalChange = (text: string) => {
@@ -95,7 +102,12 @@ export function PhoneInput({ label, value, onChangeText, error, editable = true,
           editable={editable}
         />
       </View>
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && (
+        <View style={styles.errorRow}>
+          <IconWarning size={14} color="#EF4444" strokeWidth={2} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       <Modal visible={pickerVisible} transparent animationType="fade" onRequestClose={() => setPickerVisible(false)}>
         <TouchableOpacity
@@ -179,10 +191,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1F2937',
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 4,
+  },
   errorText: {
     color: '#EF4444',
     fontSize: 12,
-    marginTop: 4,
+    flex: 1,
   },
   modalOverlay: {
     flex: 1,

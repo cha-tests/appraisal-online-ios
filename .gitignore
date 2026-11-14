@@ -35,3 +35,6 @@ yarn-debug.log*
 # OS files
 Thumbs.db
 .DS_Store
+
+# Claude Code agent worktrees (local tooling scratch space, not project content)
+.claude/worktrees/

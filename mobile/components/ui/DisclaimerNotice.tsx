@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Card } from './Card';
 import { PRC_VERIFICATION_URL } from '../../config/disclaimers';
+import { IconWarning } from './icons';
 
 interface DisclaimerNoticeProps {
   title: string;
@@ -15,6 +16,10 @@ interface DisclaimerNoticeProps {
    */
   acknowledged?: boolean;
   onToggleAcknowledged?: (value: boolean) => void;
+  /** Set once the caller's own validation has run and this wasn't
+   * acknowledged — turns the card's border red and adds an inline warning
+   * below the checkbox, same treatment as TextInput/PhoneInput's error. */
+  error?: string;
 }
 
 export function DisclaimerNotice({
@@ -23,11 +28,12 @@ export function DisclaimerNotice({
   showPrcLink,
   acknowledged,
   onToggleAcknowledged,
+  error,
 }: DisclaimerNoticeProps) {
   const isInteractive = onToggleAcknowledged !== undefined;
 
   return (
-    <Card variant="outlined" style={styles.card}>
+    <Card variant="outlined" style={[styles.card, !!error && styles.cardError]}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.text}>{text}</Text>
 
@@ -43,11 +49,18 @@ export function DisclaimerNotice({
           onPress={() => onToggleAcknowledged!(!acknowledged)}
           activeOpacity={0.7}
         >
-          <View style={[styles.checkbox, acknowledged && styles.checkboxChecked]}>
+          <View style={[styles.checkbox, acknowledged && styles.checkboxChecked, !!error && styles.checkboxError]}>
             {acknowledged && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={styles.checkboxLabel}>I have read and understood this notice</Text>
         </TouchableOpacity>
+      )}
+
+      {!!error && (
+        <View style={styles.errorRow}>
+          <IconWarning size={14} color="#DC2626" strokeWidth={2} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
     </Card>
   );
@@ -58,6 +71,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderColor: '#FCD34D',
     marginBottom: 16,
+  },
+  cardError: {
+    borderColor: '#DC2626',
   },
   title: {
     fontSize: 14,
@@ -97,6 +113,9 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: '#92400E',
   },
+  checkboxError: {
+    borderColor: '#DC2626',
+  },
   checkmark: {
     color: '#FFFFFF',
     fontSize: 13,
@@ -106,6 +125,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#78350F',
+    flex: 1,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 10,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '600',
     flex: 1,
   },
 });

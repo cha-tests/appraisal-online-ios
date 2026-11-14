@@ -1,5 +1,6 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { BrokerProfile, City, BrokerTier, BrokerRole } from '../types';
+import { BROKER_TIER_CITY_LIMIT, getBrokerAnnualPrice } from '../config/brokerTiers';
 
 export const brokerService = {
   // Create broker profile
@@ -10,9 +11,21 @@ export const brokerService = {
     phone?: string,
     website?: string,
     role: BrokerRole = 'broker',
-    tier: BrokerTier = 'Premium Annual'
+    tier: BrokerTier = 'Premium Annual',
+    referralCode?: string
   ) {
     try {
+      // An unrecognized or blank code just means no attribution — never
+      // blocks signup (see resolve_referral_code's own comment, migration
+      // 030). referred_by is only ever set once, here, at creation.
+      let referredBy: string | null = null;
+      if (referralCode?.trim()) {
+        const { data: resolvedId } = await supabase.rpc('resolve_referral_code', {
+          p_code: referralCode.trim(),
+        });
+        referredBy = resolvedId ?? null;
+      }
+
       const { data, error } = await supabase
         .from('broker_profiles')
         .insert({
@@ -27,6 +40,7 @@ export const brokerService = {
           email_enabled: true,
           push_enabled: true,
           sms_enabled: false,
+          referred_by: referredBy,
         })
         .select()
         .single();
@@ -75,6 +89,41 @@ export const brokerService = {
   },
 
   /**
+   * Uploads a broker's profile photo to the public 'broker-photos' bucket
+   * at <user_id>/photo.jpg (migration 025) — unlike KYC documents, this is
+   * meant to be visible to consumers, so it returns a public URL rather
+   * than a storage path. `upsert: true` so re-uploading replaces cleanly.
+   */
+  async uploadProfilePhoto(
+    userId: string,
+    fileUri: string
+  ): Promise<{ success: boolean; url?: string; error?: string }> {
+    try {
+      const response = await fetch(fileUri);
+      const blob = await response.blob();
+      const path = `${userId}/photo.jpg`;
+
+      const { error } = await supabase.storage.from('broker-photos').upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage.from('broker-photos').getPublicUrl(path);
+      // Cache-bust so the new photo shows immediately — the path never
+      // changes on re-upload, so without this a cached copy of the old
+      // photo could keep showing under the same URL.
+      return { success: true, url: `${data.publicUrl}?t=${Date.now()}` };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload photo',
+      };
+    }
+  },
+
+  /**
    * Records that KYC documents were submitted and resets status to
    * 'pending' for admin review (see scripts/review-kyc.ts). Re-submitting
    * (e.g. after a rejection) is safe to call again — it just re-queues it.
@@ -103,27 +152,27 @@ export const brokerService = {
     }
   },
 
-  /**
-   * Claims a founding-member slot (₱5,000/year locked for life) for the
-   * calling broker, if any of the first 1,000 remain — see migration 015.
-   * Idempotent: safe to call more than once for the same broker. Returns
-   * `founding_member_number: null` (not an error) once slots run out —
-   * the broker still signs up, just without the lock.
-   */
-  async claimFoundingMemberSlot(
+  // Claims a broker's permanent place in the global signup order (migration
+  // 034), which fixes their intro price tier. Idempotent — safe to call
+  // more than once for the same broker. Returns the display price too
+  // (computed locally from the rank, same formula as get_broker_annual_price)
+  // purely so the caller can show it immediately without a second round
+  // trip; the actual charge is always computed server-side at payment time.
+  async claimBrokerSignupRank(
     userId: string
-  ): Promise<{ success: boolean; founding_member_number?: number | null; error?: string }> {
+  ): Promise<{ success: boolean; signupRank?: number; priceCents?: number; error?: string }> {
     try {
-      const { data, error } = await supabase.rpc('claim_founding_member_slot', {
+      const { data, error } = await supabase.rpc('claim_broker_signup_rank', {
         p_user_id: userId,
       });
 
       if (error) throw error;
-      return { success: true, founding_member_number: data as number | null };
+      const signupRank = data as number;
+      return { success: true, signupRank, priceCents: getBrokerAnnualPrice(signupRank) };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to claim founding member slot',
+        error: error instanceof Error ? error.message : 'Failed to claim signup rank',
       };
     }
   },
@@ -257,64 +306,13 @@ export const brokerService = {
   },
 
   // Check if a city has reached founder cap (30 per city max)
-  async checkFounderCapacity(cityId: string): Promise<{ available: boolean; count: number }> {
-    try {
-      const { data, error } = await supabase
-        .from('cities')
-        .select('founder_count_lifetime')
-        .eq('id', cityId)
-        .single();
-
-      if (error) throw error;
-
-      const count = data.founder_count_lifetime || 0;
-      const available = count < 30;
-
-      return { available, count };
-    } catch (error) {
-      console.error('Error checking founder capacity:', error);
-      return { available: false, count: 0 };
-    }
-  },
-
-  // Validate city selection based on tier
-  async validateCitySelection(
-    tier: BrokerTier,
-    cityIds: string[]
-  ): Promise<{
-    valid: boolean;
-    errors: string[];
-  }> {
-    const tierCities: Record<BrokerTier, number> = {
-      'Founder Lifetime': 25,
-      'Premium Annual': 10,
-      'Basic Annual': 1,
-    };
-
+  // Validate city selection — every broker is capped at the same limit now
+  // (migration 034), so this is just a count check.
+  validateCitySelection(cityIds: string[]): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
-    // Check city count limit
-    if (cityIds.length > tierCities[tier]) {
-      errors.push(`${tier} tier allows up to ${tierCities[tier]} cities. You selected ${cityIds.length}.`);
-    }
-
-    // Check founder cap for each city (only for Lifetime)
-    if (tier === 'Founder Lifetime') {
-      for (const cityId of cityIds) {
-        const { available, count } = await this.checkFounderCapacity(cityId);
-        if (!available) {
-          // Get city name for error message
-          const { data: city } = await supabase
-            .from('cities')
-            .select('name')
-            .eq('id', cityId)
-            .single();
-
-          errors.push(
-            `${city?.name || 'City'} has reached the maximum of 30 Founder members (current: ${count}). Choose another city.`
-          );
-        }
-      }
+    if (cityIds.length > BROKER_TIER_CITY_LIMIT) {
+      errors.push(`You can cover up to ${BROKER_TIER_CITY_LIMIT} cities. You selected ${cityIds.length}.`);
     }
 
     return {
@@ -327,7 +325,7 @@ export const brokerService = {
   async updateCities(userId: string, tier: BrokerTier, cityIds: string[]) {
     try {
       // Validate selection
-      const validation = await this.validateCitySelection(tier, cityIds);
+      const validation = this.validateCitySelection(cityIds);
 
       if (!validation.valid) {
         return {
@@ -351,6 +349,19 @@ export const brokerService = {
         .single();
 
       if (error) throw error;
+
+      // A city this broker just added may already have leads sitting
+      // unrouted — created while no broker (or none with an active
+      // subscription) had selected it yet, so route_lead_to_brokers
+      // matched nobody at the time and never got retried (see migration
+      // 027). Catches this broker up on those now. Best-effort: a failure
+      // here shouldn't undo the city selection that already succeeded.
+      const { error: routingError } = await supabase.rpc('route_orphaned_leads_to_broker', {
+        p_broker_id: userId,
+      });
+      if (routingError) {
+        console.error('Orphaned-lead routing failed (non-blocking):', routingError);
+      }
 
       return { success: true, profile: data as BrokerProfile };
     } catch (error) {
@@ -488,7 +499,7 @@ export const brokerService = {
    * hands a paying customer's data to a broker — an unpaid or lapsed broker
    * must not receive it. That gating lives in the SQL function, not here.
    */
-  async routeLeadToBrokers(leadId: string, cityId: string | null) {
+  async routeLeadToBrokers(leadId: string, cityId: string | null, brokerCount?: number | null) {
     if (!cityId) {
       return { success: true, routedCount: 0 };
     }
@@ -497,6 +508,7 @@ export const brokerService = {
       const { data, error } = await supabase.rpc('route_lead_to_brokers', {
         p_lead_id: leadId,
         p_city_id: cityId,
+        p_broker_count: brokerCount ?? null,
       });
 
       if (error) throw error;

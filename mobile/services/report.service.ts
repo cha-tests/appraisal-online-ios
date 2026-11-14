@@ -1,11 +1,24 @@
+import { Platform } from 'react-native';
 import { supabase, parseSupabaseError } from './supabase';
-import { Report, Property, ComparableSale, ValueRange, ReportAllowance } from '../types';
+import { Report, Property, ComparableSale, ValueRange, ReportAllowance, ConnectedBrokerRouting } from '../types';
 import axios from 'axios';
 import { findCityId } from '../utils/matchCity';
 import { brokerService } from './broker.service';
 import { formatCurrency, getMarketConfig } from '../config/marketConfig';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
+// Separate keys per platform rather than one shared key: a Google API key's
+// "Application restrictions" are mutually exclusive (Websites XOR iOS apps
+// XOR Android apps XOR none), and this app's native side calls Gemini with
+// a plain REST request rather than through Google's own native SDK, so an
+// "iOS apps"/"Android apps" restriction wouldn't even recognize it as a
+// legitimate caller — only "Websites" (HTTP referrer) is a restriction that
+// actually works for how this app calls Gemini. That's web-only, so the web
+// key and the native key have to be genuinely different keys, each
+// restricted (or not) appropriately for how it's actually used.
+const GEMINI_API_KEY =
+  Platform.OS === 'web'
+    ? process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY_WEB
+    : process.env.EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY;
 // Use the "-latest" alias rather than a pinned version. Verified live against
 // a real key: gemini-2.5-flash now 404s for new API keys/projects ("no longer
 // available to new users") — Google had already moved the recommended model
@@ -88,6 +101,25 @@ export const reportService = {
     error?: any;
   }> {
     try {
+      // Called directly from the client on every platform, including web.
+      // EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY_WEB (see the const above) is meant
+      // to be restricted by HTTP referrer in Google Cloud Console
+      // (appraisalonline.com/* + localhost for dev) rather than proxied
+      // through a backend — the Generative Language API supports direct
+      // browser calls (it sends the CORS headers for it, unlike the Places
+      // REST API — see placesWeb.service.ts's header comment for why that
+      // one genuinely can't go this route), and this keeps the whole
+      // consumer valuation flow working on web with no backend dependency
+      // at all. EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY (no _WEB suffix) is the
+      // separate native-only key, unrestricted — same exposure tier it
+      // already accepted before this, just via app-binary obscurity rather
+      // than a key-level restriction (Google's "iOS apps"/"Android apps"
+      // restriction types don't apply here; see the const's own comment).
+      //
+      // If you do want this proxied through a backend again later (e.g. once
+      // one is deployed for other reasons), see backend/src/routes/valuation.ts
+      // and mobile/services/payment.service.ts's authHeaders() pattern.
+
       // If no API key, use mock valuation based on comparables
       if (!GEMINI_API_KEY) {
         return this.generateMockValuation(propertyDetails, comparables, countryCode);
@@ -446,7 +478,9 @@ export const reportService = {
     phone?: string,
     isOwner?: boolean,
     intendsToSell?: boolean,
-    titleUrl?: string
+    titleUrl?: string,
+    requestedBrokerCount?: number,
+    helpTags?: string[]
   ) {
     try {
       const updates: Record<string, unknown> = {
@@ -455,6 +489,8 @@ export const reportService = {
       };
       if (isOwner !== undefined) updates.is_owner = isOwner;
       if (intendsToSell !== undefined) updates.intends_to_sell = intendsToSell;
+      if (requestedBrokerCount !== undefined) updates.requested_broker_count = requestedBrokerCount;
+      if (helpTags && helpTags.length > 0) updates.help_tags = helpTags;
       if (titleUrl) {
         updates.title_url = titleUrl;
         updates.title_submitted_at = new Date().toISOString();
@@ -473,11 +509,24 @@ export const reportService = {
         // If opted in, create a lead
         await this.createLeadFromReport(reportId, data.user_id, data.property_id);
       } else if (!optedIn) {
-        // Revoking (or declining outright) — archive any lead already
-        // created for this report so a broker who was routed to it stops
-        // seeing it as active. A no-op if none exists yet (the initial
-        // decline path, before any lead was ever created).
-        await supabase.from('leads').update({ status: 'archived' }).eq('report_id', reportId);
+        // Revoking (or declining outright). broker_contact_opted_in=false
+        // above already stops any future routing/escalation
+        // (route_all_orphaned_leads/escalate_all_pending_leads both check
+        // it) — this only needs to pull back brokers already routed,
+        // which is a no-op on the initial-decline path since no lead
+        // exists yet. Per-broker revoke_broker_contact (migration 037),
+        // not a leads.status write — that column no longer exists.
+        // settings.tsx's own "Cancel this request" flow calls
+        // cancelRequestForLead directly with a homeowner-chosen reason;
+        // this path (no UI reason available) uses a generic one.
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('report_id', reportId)
+          .maybeSingle();
+        if (lead) {
+          await this.cancelRequestForLead(lead.id, 'changed_mind');
+        }
       }
 
       return { success: true, report: data as Report };
@@ -486,6 +535,83 @@ export const reportService = {
         success: false,
         error: parseSupabaseError(error),
       };
+    }
+  },
+
+  // The consumer side's view of every broker routed to any of their leads
+  // (migration 039) — one row per lead_routings entry, with the broker's
+  // own public listing info rather than the homeowner's PII (the
+  // homeowner already has that). Backs consumer/settings.tsx's per-broker
+  // status list and revoke flow.
+  async getMyConnectedBrokers(): Promise<{ success: boolean; brokers?: ConnectedBrokerRouting[]; error?: any }> {
+    try {
+      const { data, error } = await supabase.rpc('get_my_connected_brokers');
+      if (error) throw error;
+      return { success: true, brokers: (data as ConnectedBrokerRouting[]) || [] };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
+    }
+  },
+
+  // Revokes one specific routed broker (migration 037's
+  // revoke_broker_contact) — not yet claimed: silently dropped, nothing
+  // for that broker to have seen; already claimed: kept and marked
+  // 'revoked' so their own inbox reflects it, with a stop-contact notice
+  // a later phase sends.
+  async revokeBrokerContact(leadRoutingId: string, reason: string, reasonNote?: string) {
+    try {
+      const { error } = await supabase.rpc('revoke_broker_contact', {
+        p_lead_routing_id: leadRoutingId,
+        p_reason: reason,
+        p_reason_note: reasonNote || null,
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
+    }
+  },
+
+  // "Cancel this request" — revokes every broker currently routed to this
+  // lead in one action, for a homeowner who wants out entirely rather than
+  // reviewing each one individually. Loops revokeBrokerContact (no new RPC
+  // needed: each row's own revoke is already a simple, independent
+  // operation — see migration 037's header comment on why routing doesn't
+  // need cross-row locking the way a shared-slot claim market would).
+  //
+  // Also flips the parent report's broker_contact_opted_in to false — this
+  // is what escalate_all_pending_leads/route_all_orphaned_leads actually
+  // check before inviting anyone else, so without this a "cancelled"
+  // lead would keep attracting new broker invites on its own. It's also
+  // what report-view.tsx's "You're connected" banner reads, so skipping it
+  // would leave that banner stuck on after the homeowner just cancelled.
+  async cancelRequestForLead(leadId: string, reason: string, reasonNote?: string) {
+    try {
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .select('id, report_id')
+        .eq('id', leadId)
+        .single();
+      if (leadError) throw leadError;
+
+      const { data: routings, error } = await supabase
+        .from('lead_routings')
+        .select('id')
+        .eq('lead_id', leadId);
+      if (error) throw error;
+
+      for (const routing of routings || []) {
+        await this.revokeBrokerContact(routing.id, reason, reasonNote);
+      }
+
+      await supabase
+        .from('reports')
+        .update({ broker_contact_opted_in: false })
+        .eq('id', lead.report_id);
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: parseSupabaseError(error) };
     }
   },
 
@@ -524,6 +650,7 @@ export const reportService = {
           property_address: property.address,
           property_value: report.estimated_value,
           city_id: cityId,
+          lead_tags: report.help_tags || null,
         })
         .select()
         .single();
@@ -533,7 +660,11 @@ export const reportService = {
       // Previously nothing ever inserted into lead_routings, so a lead existed
       // in the database but no broker's inbox ever showed it, regardless of
       // whether their selected_cities matched.
-      const routeResult = await brokerService.routeLeadToBrokers(lead.id, cityId);
+      const routeResult = await brokerService.routeLeadToBrokers(
+        lead.id,
+        cityId,
+        report.requested_broker_count
+      );
       if (!routeResult.success) {
         console.error('Lead created but routing failed:', routeResult.error);
       }
@@ -611,6 +742,18 @@ function buildValuationPrompt(
       ? `- Year Built: ${propertyDetails.year_built}\n`
       : '- Year Built: Not applicable / not provided (vacant land)\n';
 
+  // Free-text flag for a situation the structured fields don't capture —
+  // agricultural land, mixed-use, co-owned/inherited, disaster-damaged,
+  // pre-selling, etc. (see property-details.tsx). Optional, so only shown
+  // to the model when the consumer actually filled it in.
+  const specialSituationLine = propertyDetails.special_situation?.trim()
+    ? `- Additional Context From Owner: ${propertyDetails.special_situation.trim()}\n`
+    : '';
+
+  const specialSituationInstruction = propertyDetails.special_situation?.trim()
+    ? `\n\nADDITIONAL CONTEXT FROM OWNER: The owner flagged the following about this property, which the structured fields above don't capture: "${propertyDetails.special_situation.trim()}". Factor this into your reasoning and market trends sections where it would realistically affect value, marketability, or how a buyer would approach this property (e.g. agricultural/raw land, mixed commercial-residential use, shared/undivided ownership, storm or fire damage, or a pre-selling/not-yet-built unit each change the analysis in different ways) — do not just restate it without engaging with it.`
+    : '';
+
   return `You are a professional real estate analyst AI. Based on the following property details, produce (1) a structured valuation JSON block — including comparable sales you identify or plausibly estimate for this specific area, using your knowledge of the location — and (2) a full narrative valuation report.
 
 PROPERTY DETAILS:
@@ -620,8 +763,8 @@ PROPERTY DETAILS:
 - Square Feet: ${propertyDetails.square_feet}
 ${yearBuiltLine}- Property Type: ${propertyDetails.property_type}
 - Condition: ${propertyDetails.condition}${parkingLine}
-
-CONSISTENCY — READ THIS CAREFULLY: The PROPERTY DETAILS above are the actual, user-provided facts about this specific property. Every part of your response — the JSON block and every section of the narrative report, especially "Property Description" — MUST restate these exact same figures (bedrooms, bathrooms, square footage, year built, property type, condition, parking) with no substitutions, rounding, or invented alternatives. Do not describe a different, generic, or "typical" property for the area instead of the one actually described above — this is the single most common mistake to avoid. If the address itself is hard to place precisely (e.g. a Plus Code or an area with limited data), reason about the neighborhood/location using the address text, but the property's own physical facts always come from PROPERTY DETAILS above, never from assumptions about what's "typical" for that location.
+${specialSituationLine}
+CONSISTENCY — READ THIS CAREFULLY: The PROPERTY DETAILS above are the actual, user-provided facts about this specific property. Every part of your response — the JSON block and every section of the narrative report, especially "Property Description" — MUST restate these exact same figures (bedrooms, bathrooms, square footage, year built, property type, condition, parking) with no substitutions, rounding, or invented alternatives. Do not describe a different, generic, or "typical" property for the area instead of the one actually described above — this is the single most common mistake to avoid. If the address itself is hard to place precisely (e.g. a Plus Code or an area with limited data), reason about the neighborhood/location using the address text, but the property's own physical facts always come from PROPERTY DETAILS above, never from assumptions about what's "typical" for that location.${specialSituationInstruction}
 
 COMPARABLE SALES: You do not have live MLS/transaction data, so you cannot cite verified real sales. Instead, generate exactly 3 plausible comparable sales for streets or areas actually near this address — use real, specific local street/neighborhood names for this location rather than generic placeholders (e.g. real streets in the same subdivision, suburb, or district), with sale prices realistic for that specific area, not just the country as a whole. These represent your best local-market estimate, not verified transactions — do not claim or imply they are confirmed real sales.
 
@@ -788,7 +931,7 @@ Not available in demonstration mode.
 Not available in demonstration mode.
 
 ## 9. Recommendations
-Configure a live Gemini API key to receive full AI-generated analysis.
+Try generating this report again for a full AI-powered analysis, or connect with a local licensed professional through the app for a complete assessment of your property.
 
 ## 10. Disclaimer
 This report is generated by an AI system and is intended for informational purposes only. It does not constitute a formal appraisal, professional valuation, or financial advice. The estimated values are based on publicly available data and AI analysis, and may not reflect actual market conditions. For legally binding valuations, please consult a licensed appraiser or real estate professional. Appraisal Online is operated by Digital Ventures, UAE.`;

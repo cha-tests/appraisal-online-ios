@@ -25,6 +25,7 @@ if (!fs.existsSync(PDF_TEMP_DIR)) {
 // section headers/emphasis rely on size and color for hierarchy instead of
 // boldness.
 const FONT_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/fonts/NotoSans-Variable.ttf');
+const LOGO_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '../assets/images/logo.png');
 
 export function registerFonts(doc: PDFKit.PDFDocument): void {
   doc.registerFont('NotoSans', FONT_PATH);
@@ -59,6 +60,14 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       doc.on('error', reject);
 
       // Header
+      // PDFKit's image `align` option only centers within a `fit`/`cover`
+      // box — passing a plain `width` (no fit box) silently ignores align
+      // and just left-aligns at the current cursor, which is what happened
+      // here before this was caught in a render test.
+      const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      doc.image(LOGO_PATH, { fit: [contentWidth, 36], align: 'center' });
+      doc.moveDown(0.3);
+
       doc.fontSize(24).font('NotoSans').text('Property Valuation Report', {
         align: 'center',
       });
@@ -86,13 +95,32 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
         doc.moveDown();
       }
 
-      // Client disclaimer — exact wording agreed at the Sep 1, 2026 sync-up
-      // (see mobile/config/disclaimers.ts, CLIENT_DISCLAIMER_TEXT, which
-      // this must be kept in sync with). Plain "!" rather than the ⚠️
-      // emoji — PDFKit's default Helvetica font only supports the WinAnsi
-      // character set, so the emoji renders as garbled mojibake ("& þ")
-      // instead of a warning sign.
+      // Mandated AI-accuracy disclaimer (exact wording, see CLAUDE.md's
+      // "Critical business rules" — required in the in-app view, email
+      // body, and PDF). This was accidentally dropped from this generator
+      // when it was rewritten to use the newer broker-verification notice
+      // below instead of alongside it; restored here as its own block.
+      // Plain "!" rather than the ⚠️ emoji — PDFKit's default Helvetica
+      // font only supports the WinAnsi character set, so the emoji renders
+      // as garbled mojibake ("& þ") instead of a warning sign.
       doc.fontSize(10).fillColor('#DC2626').text('! IMPORTANT NOTICE', {
+        align: 'left',
+        underline: true,
+      });
+
+      doc.fontSize(9).fillColor('#000000').text(
+        'This is a computer estimate. It is not a licensed appraisal. Banks, courts, and government agencies ' +
+        'do not accept this as a formal valuation.',
+        { align: 'left', lineGap: 4 }
+      );
+
+      doc.moveDown();
+
+      // Broker-verification disclaimer — exact wording agreed at the Sep 1,
+      // 2026 sync-up (see mobile/config/disclaimers.ts, CLIENT_DISCLAIMER_TEXT,
+      // which this must be kept in sync with). A separate concern from the
+      // AI-accuracy notice above; neither replaces the other.
+      doc.fontSize(10).fillColor('#DC2626').text('! WORKING WITH A PROFESSIONAL', {
         align: 'left',
         underline: true,
       });
@@ -151,6 +179,12 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       doc.text(`Year Built: ${property.year_built ?? 'N/A'}`);
       doc.text(`Property Type: ${property.property_type || 'N/A'}`);
       doc.text(`Condition: ${property.condition || 'N/A'}`);
+      if (property.special_situation) {
+        doc.fontSize(9).fillColor('#4B5563').text(`Note from owner: ${property.special_situation}`, {
+          lineGap: 2,
+        });
+        doc.fillColor('#000000').fontSize(10);
+      }
 
       doc.moveDown();
 
@@ -184,6 +218,24 @@ export async function generateReportPDF(reportId: string): Promise<Buffer> {
       const fullReportMarkdown = report.gemini_response?.full_report_markdown;
       if (fullReportMarkdown) {
         renderNarrativeReport(doc, fullReportMarkdown);
+        doc.moveDown();
+      } else if (!report.gemini_response?.is_mock) {
+        // The JSON half of the Gemini response (value, comparables) parsed
+        // fine, but the narrative half after the ===FULL_REPORT=== marker
+        // came back empty — distinct from the is_mock case above, where the
+        // whole response is a known offline placeholder. Without this, a
+        // report missing 9 of its 10 sections rendered with no indication
+        // anything was wrong.
+        doc.fontSize(10).fillColor('#DC2626').text('! DETAILED ANALYSIS UNAVAILABLE', {
+          align: 'left',
+          underline: true,
+        });
+        doc.fontSize(9).fillColor('#000000').text(
+          "We generated the valuation and estimated range above, but couldn't produce the full written " +
+          'analysis for this report. The property information and comparable sales below are still accurate ' +
+          '— try generating this report again for the complete write-up.',
+          { align: 'left', lineGap: 4 }
+        );
         doc.moveDown();
       }
 

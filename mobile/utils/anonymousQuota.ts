@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../services/storage';
 
 /**
  * A guest (pre-signup) can now generate a real Gemini valuation before an

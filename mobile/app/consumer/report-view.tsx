@@ -4,13 +4,12 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { BackButton } from '../../components/ui/BackButton';
 import { CurrencyValue } from '../../components/ui/CurrencyValue';
 import { useReportStore } from '../../stores/report.store';
 import { pdfService } from '../../services/pdf.service';
 import { formatDistance, formatCurrency } from '../../config/marketConfig';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
-import { CLIENT_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { CLIENT_DISCLAIMER_TEXT, AI_ESTIMATE_DISCLAIMER_TEXT } from '../../config/disclaimers';
 import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { theme } from '../../theme';
 
@@ -62,9 +61,12 @@ export default function ReportView() {
       const result = await pdfService.downloadReportPDF(report, currentProperty, propertyAddress);
 
       if (result.success) {
-        Alert.alert('Success', `Report downloaded successfully!\n\nFile: ${propertyAddress}.pdf`, [
-          { text: 'OK' },
-        ]);
+        // On web there's no downloadable file — a print dialog opened
+        // instead, where "Save as PDF" is the user's own next step.
+        const message = result.printedInBrowser
+          ? 'Use your browser\'s print dialog to save this report as a PDF.'
+          : `Report downloaded successfully!\n\nFile: ${propertyAddress}.pdf`;
+        Alert.alert('Success', message, [{ text: 'OK' }]);
       } else {
         Alert.alert('Error', result.error || 'Failed to download PDF report');
       }
@@ -89,9 +91,7 @@ export default function ReportView() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.push('/consumer/home')} />
-
+    <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/home')}>
       {/* Shown when Gemini failed and report.service.ts silently fell back to
           a generic placeholder valuation (see generateMockValuation) — that
           fallback exists so a real-API hiccup doesn't strand the user
@@ -129,7 +129,12 @@ export default function ReportView() {
         </View>
       </View>
 
-      <DisclaimerNotice title="⚠️ Important Notice" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
+      {/* Mandated AI-accuracy disclaimer (CLAUDE.md), restored here — see
+          config/disclaimers.ts's AI_ESTIMATE_DISCLAIMER_TEXT comment for
+          why this needs to coexist with, not be replaced by, the
+          broker-verification notice below. */}
+      <DisclaimerNotice title="⚠️ Important Notice" text={AI_ESTIMATE_DISCLAIMER_TEXT} />
+      <DisclaimerNotice title="⚠️ Working With a Professional" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
 
       {/* Property summary */}
       <Card variant="default" style={styles.summaryCard}>
@@ -149,6 +154,17 @@ export default function ReportView() {
           <Text style={styles.summaryLabel}>Condition</Text>
           <Text style={styles.summaryValue}>{currentProperty?.condition || '—'}</Text>
         </View>
+        {!!currentProperty?.special_situation && (
+          <>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Note</Text>
+              <Text style={[styles.summaryValue, styles.summaryValueWrap]}>
+                {currentProperty.special_situation}
+              </Text>
+            </View>
+          </>
+        )}
       </Card>
 
       {/* Comparables Section */}
@@ -279,6 +295,11 @@ const styles = StyleSheet.create({
     ...theme.type.bodySm,
     fontFamily: theme.font.bodySemibold,
     color: theme.color.text,
+  },
+  summaryValueWrap: {
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: theme.space.lg,
   },
   sectionTitle: {
     ...theme.type.subheading,

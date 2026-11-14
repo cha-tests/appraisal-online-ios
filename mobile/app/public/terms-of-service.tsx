@@ -2,23 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
-import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { theme } from '../../theme';
 
 export default function TermsOfService() {
   const router = useRouter();
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
         <Text style={styles.title}>Terms of Service</Text>
         <Text style={styles.lastUpdated}>Last updated: August 21, 2026</Text>
       </View>
@@ -105,10 +98,7 @@ export default function TermsOfService() {
       <Card variant="outlined" style={styles.section}>
         <Text style={styles.sectionTitle}>9. Refund Policy</Text>
         <Text style={styles.sectionText}>
-          Refunds are available within the tier-specific window:
-          {'\n'}• Founder Lifetime: 14 days from purchase
-          {'\n'}• Premium Annual: 30 days from purchase
-          {'\n'}• Basic Annual: 30 days from purchase
+          Refunds are available within 30 days of purchase, no questions asked.
           {'\n'}
           {'\n'}Refunds are processed within 5-10 business days.
         </Text>
@@ -156,32 +146,32 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 12,
     marginBottom: 4,
   },
   lastUpdated: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   section: {
     marginBottom: 16,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   sectionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 22,
   },
   bold: {
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   footer: {
     height: 32,

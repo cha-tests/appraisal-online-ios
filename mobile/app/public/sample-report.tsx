@@ -4,22 +4,18 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { AI_ESTIMATE_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_TEXT } from '../../config/disclaimers';
+import { theme } from '../../theme';
 
-export default function DemoContent() {
+export default function SampleReportScreen() {
   const router = useRouter();
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start' }}
-        />
-        <Text style={styles.title}>See How It Works</Text>
+        <Text style={styles.title}>See a Sample Report</Text>
         <Text style={styles.subtitle}>
           Explore sample reports, alerts, and broker profiles
         </Text>
@@ -34,11 +30,7 @@ export default function DemoContent() {
         <Text style={styles.reportMeta}>Based on 5 comparable sales</Text>
       </Card>
 
-      <View style={styles.disclaimerCard}>
-        <Text style={styles.disclaimerText}>
-          ⚠️ This is a computer estimate. It is not a licensed appraisal. Banks, courts, and government agencies do not accept this as a formal valuation.
-        </Text>
-      </View>
+      <DisclaimerNotice title="⚠️ Important Notice" text={AI_ESTIMATE_DISCLAIMER_TEXT} />
 
       {/* Sample Comparables */}
       <Text style={styles.sectionTitle}>Similar Properties Sold</Text>
@@ -66,7 +58,7 @@ export default function DemoContent() {
       </Card>
 
       {/* Sample Lead Alert */}
-      <Text style={styles.sectionTitle}>Sample Lead Alert (Premium/Founder)</Text>
+      <Text style={styles.sectionTitle}>Sample Lead Alert</Text>
 
       <Card variant="elevated" style={styles.alertCard}>
         <Text style={styles.alertIcon}>🔔</Text>
@@ -76,36 +68,6 @@ export default function DemoContent() {
         <Text style={styles.alertMeta}>
           Homeowner is interested in professional guidance • Contacted 2 minutes ago
         </Text>
-      </Card>
-
-      {/* Sample Weekly Digest */}
-      <Text style={styles.sectionTitle}>Sample Weekly Digest (Basic)</Text>
-
-      <Card variant="default" style={styles.digestCard}>
-        <Text style={styles.digestTitle}>📧 Your Weekly Leads • Monday, June 24</Text>
-        <Text style={styles.digestSubtitle}>3 new opportunities in your city</Text>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>123 Oak Avenue</Text>
-          <Text style={styles.digestItemValue}>$850,000</Text>
-        </View>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>456 Elm Street</Text>
-          <Text style={styles.digestItemValue}>$825,000</Text>
-        </View>
-
-        <View style={styles.digestItem}>
-          <Text style={styles.digestItemAddress}>789 Maple Drive</Text>
-          <Text style={styles.digestItemValue}>$875,000</Text>
-        </View>
-
-        <Button
-          title="View All Details"
-          size="small"
-          onPress={() => {}}
-          style={{ marginTop: 12 }}
-        />
       </Card>
 
       {/* Sample Broker Profile */}
@@ -118,7 +80,6 @@ export default function DemoContent() {
           </View>
           <View style={styles.brokerInfo}>
             <Text style={styles.brokerName}>Sarah Martinez</Text>
-            <Text style={styles.brokerBadge}>Founder Member</Text>
           </View>
         </View>
 
@@ -137,6 +98,8 @@ export default function DemoContent() {
           onPress={() => {}}
         />
       </Card>
+
+      <DisclaimerNotice title="⚠️ Working With a Professional" text={CLIENT_DISCLAIMER_TEXT} showPrcLink />
 
       {/* Features Highlight */}
       <Text style={styles.sectionTitle}>What You'll Get</Text>
@@ -191,18 +154,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginTop: 16,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 24,
   },
@@ -213,32 +176,19 @@ const styles = StyleSheet.create({
   reportAddress: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   reportValue: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 4,
   },
   reportMeta: {
     fontSize: 13,
-    color: '#6B7280',
-  },
-  disclaimerCard: {
-    backgroundColor: '#FEF3C7',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FBBF24',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 24,
-  },
-  disclaimerText: {
-    fontSize: 13,
-    color: '#78350F',
-    lineHeight: 18,
+    color: theme.color.textMuted,
   },
   comparableCard: {
     marginBottom: 12,
@@ -251,21 +201,21 @@ const styles = StyleSheet.create({
   comparableAddress: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   comparableDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 2,
   },
   comparablePrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   comparableDistance: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   alertCard: {
     backgroundColor: '#F0F9FF',
@@ -279,54 +229,24 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 8,
   },
   alertAddress: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   alertValue: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 4,
   },
   alertMeta: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     textAlign: 'center',
-  },
-  digestCard: {
-    marginBottom: 24,
-  },
-  digestTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  digestSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  digestItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  digestItemAddress: {
-    fontSize: 14,
-    color: '#1F2937',
-  },
-  digestItemValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#10B981',
   },
   brokerCard: {
     backgroundColor: '#F0F9FF',
@@ -355,22 +275,12 @@ const styles = StyleSheet.create({
   brokerName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
-  },
-  brokerBadge: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2563EB',
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
   },
   brokerBio: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -380,7 +290,7 @@ const styles = StyleSheet.create({
   },
   brokerContactItem: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   featureItem: {
     flexDirection: 'row',
@@ -389,19 +299,19 @@ const styles = StyleSheet.create({
   },
   featureIcon: {
     fontSize: 24,
-    color: '#10B981',
+    color: theme.color.success,
     marginRight: 12,
     marginTop: -2,
   },
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   featureDesc: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {

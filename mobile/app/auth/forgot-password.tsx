@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { TextInput } from '../../components/ui/TextInput';
 import { Card } from '../../components/ui/Card';
 import { authService } from '../../services/auth.service';
+import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -59,10 +61,10 @@ export default function ForgotPasswordScreen() {
       const result = await authService.requestPasswordReset(email);
 
       if (result.success) {
-        Alert.alert('Success', `Password reset link sent to ${email}. Check your email.`);
-        setStep('password');
+        Alert.alert('Success', `A verification code was sent to ${email}. Check your email.`);
+        setStep('code');
       } else {
-        setError(result.error || 'Failed to send reset code');
+        setError(friendlyAuthErrorMessage(result.error, 'Failed to send reset code'));
       }
     } catch (err) {
       setError('Failed to send reset code');
@@ -84,7 +86,7 @@ export default function ForgotPasswordScreen() {
       if (result.success) {
         setStep('password');
       } else {
-        setError(result.error || 'Invalid code. Please try again.');
+        setError(result.error?.message || 'Invalid code. Please try again.');
       }
     } catch (err) {
       setError('Invalid code. Please try again.');
@@ -107,7 +109,7 @@ export default function ForgotPasswordScreen() {
         Alert.alert('Success', 'Your password has been reset. Please sign in.');
         router.push('/auth/login');
       } else {
-        setError(result.error || 'Failed to reset password');
+        setError(result.error?.message || 'Failed to reset password');
       }
     } catch (err) {
       setError('Failed to reset password');
@@ -117,15 +119,13 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start', marginBottom: 20 }}
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
         />
         <Text style={styles.title}>Reset Password</Text>
         <Text style={styles.subtitle}>
@@ -262,15 +262,20 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
+  mark: {
+    width: 40,
+    height: 40,
+    marginBottom: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   form: {
     marginBottom: 24,
@@ -290,7 +295,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
   },
   footer: {
@@ -301,6 +306,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
 });

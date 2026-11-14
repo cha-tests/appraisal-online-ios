@@ -1,0 +1,51 @@
+# Render Blueprint for the Appraisal Online backend.
+#
+# This is the standalone Express/Postmark/notification-poller service in
+# `backend/` — it is NOT the mobile app and NOT Supabase (Supabase already
+# runs itself; nothing here manages it). Deploying this is what lets the
+# backend run 24/7 so it can: send broker invite/missed-lead/stop-contact
+# emails, send consumer check-in emails, and proxy a few server-side calls
+# (Places, Gemini).
+#
+# Deploy via the Render dashboard: New + -> Blueprint -> select this repo.
+# Render reads this file and creates the service below automatically; any
+# env var marked `sync: false` has to be typed in by hand in Render's
+# dashboard afterward (Render deliberately never reads secret values out of
+# a committed file).
+services:
+  - type: web
+    name: appraisal-online-backend
+    runtime: node
+    rootDir: backend
+    plan: starter # paid tier ($7/mo as of late 2026) — the free tier sleeps
+                  # after 15 minutes idle, which breaks the notification
+                  # poller (it needs to run every 2 minutes, all day).
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: POSTMARK_API_KEY
+        sync: false
+      - key: POSTMARK_FROM_EMAIL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MOBILE_URL
+        sync: false
+        # The production app's real URL/domain, used to lock down CORS.
+        # A placeholder is fine at first (e.g. https://appraisalonline.com)
+        # and can be corrected once you have a real one.

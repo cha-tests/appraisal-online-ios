@@ -31,73 +31,43 @@ export default function BrokerSplash() {
           </div>
           <div className="bg-blue-50 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">📌 Targeted by Location</h3>
-            <p className="text-gray-600">Choose up to 25 cities and focus on your strongest markets</p>
+            <p className="text-gray-600">Choose up to 5 cities and focus on your strongest markets</p>
           </div>
           <div className="bg-blue-50 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">✓ Pre-Qualified</h3>
             <p className="text-gray-600">All leads are from homeowners who have explicitly opted in</p>
           </div>
           <div className="bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">🏆 Founder Option</h3>
-            <p className="text-gray-600">Lifetime membership with real-time notifications</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">🏆 Intro Pricing</h3>
+            <p className="text-gray-600">Lock in a lower rate the earlier you join, through Dec 31, 2026</p>
           </div>
         </div>
 
         {/* Pricing */}
         <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Membership Tiers</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Founder */}
-            <div className="border-2 border-blue-600 rounded-lg p-6 relative">
-              <div className="absolute -top-3 left-4 bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold">
-                Most Popular
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Founder Lifetime</h3>
-              <div className="text-3xl font-bold text-blue-600 mb-4">$499</div>
-              <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                <li>✓ 25 cities coverage</li>
-                <li>✓ Real-time notifications</li>
-                <li>✓ Unlimited leads</li>
-                <li>✓ Text + Email + Push</li>
-                <li>✓ 14-day money back</li>
-              </ul>
-              <button className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition">
-                Get Started
-              </button>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Membership</h2>
+          <div className="border-2 border-blue-600 rounded-lg p-6 relative max-w-md">
+            <div className="absolute -top-3 left-4 bg-blue-600 text-white px-3 py-1 rounded text-sm font-semibold">
+              Premium Annual
             </div>
-
-            {/* Premium */}
-            <div className="border border-gray-300 rounded-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Premium Annual</h3>
-              <div className="text-3xl font-bold text-gray-900 mb-4">$199 <span className="text-sm text-gray-600 font-normal">/year</span></div>
-              <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                <li>✓ 10 cities coverage</li>
-                <li>✓ Weekly digest</li>
-                <li>✓ Unlimited leads</li>
-                <li>✓ Email delivery</li>
-                <li>✓ 30-day money back</li>
-              </ul>
-              <button className="w-full bg-gray-100 text-gray-900 py-2 rounded font-semibold hover:bg-gray-200 transition">
-                Get Started
-              </button>
-            </div>
-
-            {/* Basic */}
-            <div className="border border-gray-300 rounded-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Basic Annual</h3>
-              <div className="text-3xl font-bold text-gray-900 mb-4">$49 <span className="text-sm text-gray-600 font-normal">/year</span></div>
-              <ul className="space-y-2 text-sm text-gray-600 mb-6">
-                <li>✓ 1 city coverage</li>
-                <li>✓ Weekly digest</li>
-                <li>✓ Unlimited leads</li>
-                <li>✓ Email delivery</li>
-                <li>✓ 30-day money back</li>
-              </ul>
-              <button className="w-full bg-gray-100 text-gray-900 py-2 rounded font-semibold hover:bg-gray-200 transition">
-                Get Started
-              </button>
-            </div>
+            <div className="text-3xl font-bold text-blue-600 mb-1 mt-2">$9.95 – $24.95 <span className="text-sm text-gray-600 font-normal">/year</span></div>
+            <p className="text-sm text-gray-500 mb-4">Price depends on when you sign up — see below</p>
+            <ul className="space-y-2 text-sm text-gray-600 mb-6">
+              <li>✓ 5 cities coverage</li>
+              <li>✓ Real-time notifications</li>
+              <li>✓ Unlimited leads</li>
+              <li>✓ Email + Push delivery</li>
+              <li>✓ 30-day money back</li>
+            </ul>
+            <button className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition">
+              Get Started
+            </button>
           </div>
+          <p className="text-sm text-gray-500 mt-4 max-w-2xl">
+            Intro pricing through December 31, 2026: $9.95/year for the first 1,000 brokers to join, $14.95/year for
+            the next 1,000, and $19.95/year after that. Starting January 1, 2027, the price is $24.95/year for every
+            broker, new or renewing.
+          </p>
         </div>
 
         {/* CTA */}

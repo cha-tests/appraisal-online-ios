@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { BackButton } from '../../components/ui/BackButton';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { PropertyMap } from '../../components/property/PropertyMap';
 import { useReportStore } from '../../stores/report.store';
@@ -54,8 +53,7 @@ export default function ConfirmAddress() {
   const cityLine = [parsed.city, parsed.province].filter(Boolean).join(', ');
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.back()} />
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       <ProgressBar progress={33} label="1 of 3" />
 
       <PropertyMap

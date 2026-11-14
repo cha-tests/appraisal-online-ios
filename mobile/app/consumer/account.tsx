@@ -12,15 +12,18 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { useReportStore } from '../../stores/report.store';
 import { reportService } from '../../services/report.service';
 import { authService } from '../../services/auth.service';
+import { withTimeout } from '../../services/withTimeout';
 import { Report } from '../../types';
 import { formatCurrency } from '../../config/marketConfig';
 import { shortAddressLabel } from '../../utils/addressComponents';
 import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { beginSignOut } from '../../utils/signOutGuard';
+import { theme } from '../../theme';
 
 export default function ConsumerAccount() {
   const router = useRouter();
@@ -31,6 +34,8 @@ export default function ConsumerAccount() {
   const [reports, setReports] = useState<Report[]>([]);
   const [allowance, setAllowance] = useState({ used: 0, remaining: 3 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
   const [openingReportId, setOpeningReportId] = useState<string | null>(null);
 
@@ -40,32 +45,38 @@ export default function ConsumerAccount() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
-        // Fetch user's reports
-        const { success, reports: userReports } = await reportService.getUserReports(user.id);
-        if (success && userReports) {
-          setReports(userReports);
-        }
+        await withTimeout(
+          (async () => {
+            // Fetch user's reports
+            const { success, reports: userReports } = await reportService.getUserReports(user.id);
+            if (success && userReports) {
+              setReports(userReports);
+            }
 
-        // Check free allowance
-        const today = new Date();
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthDate = monthStart.toISOString().split('T')[0];
+            // Check free allowance
+            const today = new Date();
+            const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const monthDate = monthStart.toISOString().split('T')[0];
 
-        const allowanceData = await reportService.checkReportAllowance(user.id);
-        setAllowance({
-          used: 3 - (allowanceData.remaining || 0),
-          remaining: allowanceData.remaining || 0,
-        });
+            const allowanceData = await reportService.checkReportAllowance(user.id);
+            setAllowance({
+              used: 3 - (allowanceData.remaining || 0),
+              remaining: allowanceData.remaining || 0,
+            });
+          })()
+        );
       } catch (err) {
         console.error('Error loading account data:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
 
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -129,27 +140,31 @@ export default function ConsumerAccount() {
     }
   };
 
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your account. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start', marginBottom: 16 }}
-        />
         <Text style={styles.title}>Your Account</Text>
         <Text style={styles.email}>{user?.email}</Text>
       </View>
@@ -204,7 +219,7 @@ export default function ConsumerAccount() {
                 </Text>
               </View>
               {openingReportId === item.id ? (
-                <ActivityIndicator size="small" color="#9CA3AF" />
+                <ActivityIndicator size="small" color={theme.color.textFaint} />
               ) : (
                 <Text style={styles.reportDate}>
                   {new Date(item.created_at).toLocaleDateString()}
@@ -247,9 +262,7 @@ export default function ConsumerAccount() {
 
       <TouchableOpacity
         style={styles.settingItem}
-        onPress={() => {
-          Alert.alert('Coming Soon', 'Profile customization features are coming soon');
-        }}
+        onPress={() => router.push('/consumer/profile')}
       >
         <View>
           <Text style={styles.settingLabel}>Profile</Text>
@@ -294,12 +307,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   email: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   allowanceCard: {
     marginBottom: 24,
@@ -307,7 +320,7 @@ const styles = StyleSheet.create({
   allowanceTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   allowanceContent: {
@@ -322,38 +335,38 @@ const styles = StyleSheet.create({
   allowanceUsed: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#EF4444',
+    color: theme.color.danger,
   },
   allowanceRemaining: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   allowanceLabel: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
   },
   allowanceBar: {
     flex: 1,
     height: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
   allowanceFill: {
     height: '100%',
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.color.danger,
     borderRadius: 4,
   },
   allowanceHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   reportCard: {
@@ -361,11 +374,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   reportCardContent: {
     flex: 1,
@@ -373,22 +386,22 @@ const styles = StyleSheet.create({
   reportAddress: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   reportValue: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   reportDate: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -397,12 +410,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -412,21 +425,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   settingLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   settingHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   settingArrow: {
     fontSize: 18,
-    color: '#D1D5DB',
+    color: theme.color.track,
   },
   supportCard: {
     backgroundColor: '#FEF3C7',

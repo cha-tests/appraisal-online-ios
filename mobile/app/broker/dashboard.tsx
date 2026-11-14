@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { LoadError } from '../../components/ui/LoadError';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { subscriptionService } from '../../services/subscription.service';
 import { supabase } from '../../services/supabase';
-import { Lead, BrokerProfile, Subscription } from '../../types';
-import { formatCurrency, getMarketConfig } from '../../config/marketConfig';
-import { currencySymbol } from '../../components/ui/CurrencyValue';
+import { withTimeout } from '../../services/withTimeout';
+import { BrokerProfile, Subscription, LeadRoutingPreview, LeadRoutingStatus } from '../../types';
+import { formatCurrency, getCurrencySymbol } from '../../config/marketConfig';
+import { LEAD_ROUTING_STATUS_LABELS } from '../../config/leadRoutingStatus';
+import { theme } from '../../theme';
 
 interface DashboardMetrics {
   totalLeads: number;
@@ -19,17 +22,78 @@ interface DashboardMetrics {
   averageLeadValue: number;
 }
 
-// Shape of a lead_routings row as fetched below (`lead:lead_id(*, ...)`),
-// not the bare `Lead` row itself — the list actually renders the routing's
-// nested `lead`, `lead_id`, and `delivery_status`, not fields on `Lead`.
-interface RecentLeadRouting {
-  id: string;
-  lead_id: string;
-  delivery_status?: string;
-  lead?: Lead & {
-    consumer_email?: string;
-    property?: { address_components?: { country_code?: string } };
-    report?: { title_url?: string };
+const PIPELINE_STATUSES: LeadRoutingStatus[] = ['new', 'contacted', 'in_talks', 'converted', 'lost', 'revoked'];
+
+type PipelineCounts = Record<LeadRoutingStatus, number>;
+
+function countByStatus(leads: LeadRoutingPreview[]): PipelineCounts {
+  const counts = { new: 0, contacted: 0, in_talks: 0, converted: 0, lost: 0, revoked: 0 };
+  for (const lead of leads) counts[lead.status]++;
+  return counts;
+}
+
+// Same client-side-aggregation shape as countByStatus above — all three KPIs
+// are derived from the one get_my_lead_routings() result this screen already
+// fetches, no extra RPCs.
+//
+//  - Leads This Month: rows whose invited_at (lr.created_at — the only
+//    creation-style timestamp get_my_lead_routings() exposes; see migration
+//    037/038) falls in the current calendar month. For the common case this
+//    is also when the underlying lead/report was created, since
+//    route_lead_to_brokers fires in the same transaction as the consumer's
+//    opt-in (CLAUDE.md's "lead speed gate") — it only diverges for a row
+//    added later by escalate_lead_routing, where invited_at is genuinely
+//    later than the lead's own creation. Using it anyway is the more
+//    broker-meaningful reading here: it counts leads as they actually landed
+//    in *this* broker's pipeline this month, escalation invite included.
+//  - Conversion Rate: converted / claimed-and-not-revoked, as a percentage.
+//    Revoked is homeowner-initiated (they called it off), not a broker
+//    underperformance signal, so it's dropped from the denominator entirely
+//    rather than counted as a loss.
+//  - Avg Lead Value: mean estimated_value across claimed rows (the only rows
+//    the RPC ever populates estimated_value for — see the CASE WHEN
+//    claim_status = 'claimed' in get_my_lead_routings()). Revoked rows are
+//    still claim_status = 'claimed' (a revoke after claiming keeps the row,
+//    just flips status — see CLAUDE.md) and keep a real estimated_value, so
+//    they're left in: a broker genuinely spent the claim on a real property
+//    value, which is what this metric is about, not the outcome.
+function computeMetrics(leads: LeadRoutingPreview[]): DashboardMetrics {
+  const now = new Date();
+  const thisMonthLeads = leads.filter((lead) => {
+    const invitedAt = new Date(lead.invited_at);
+    return invitedAt.getFullYear() === now.getFullYear() && invitedAt.getMonth() === now.getMonth();
+  }).length;
+
+  const claimedLeads = leads.filter((lead) => lead.claim_status === 'claimed');
+  const conversionEligible = claimedLeads.filter((lead) => lead.status !== 'revoked');
+  const converted = conversionEligible.filter((lead) => lead.status === 'converted');
+  const conversionRate =
+    conversionEligible.length > 0 ? (converted.length / conversionEligible.length) * 100 : 0;
+
+  // estimated_value is stored (and returned by get_my_lead_routings) in
+  // minor units — cents — same convention as everywhere else it's read
+  // (Recent Leads below, lead-inbox.tsx, lead-detail.tsx all pass it
+  // straight through formatCurrency, which divides by 100; see
+  // report.service.ts's "estimated_value * 100" write and its own comment
+  // on the convention). DashboardMetrics.averageLeadValue is kept in whole
+  // currency units instead, to match thisMonthLeads/conversionRate already
+  // being plain display-ready numbers — converted once here, so the JSX
+  // below can keep its existing `/ 1000` "K" formatting unchanged.
+  const claimedValuesMinorUnits = claimedLeads
+    .map((lead) => lead.estimated_value)
+    .filter((value): value is number => value != null);
+  const averageLeadValue =
+    claimedValuesMinorUnits.length > 0
+      ? claimedValuesMinorUnits.reduce((sum, value) => sum + value, 0) / claimedValuesMinorUnits.length / 100
+      : 0;
+
+  return {
+    totalLeads: leads.length,
+    thisMonthLeads,
+    // One decimal place (e.g. 28.5), matching the precision the old mock
+    // value used — rounded, not truncated, so 1/3 reads as 33.3 not 33.
+    conversionRate: Math.round(conversionRate * 10) / 10,
+    averageLeadValue,
   };
 }
 
@@ -38,17 +102,26 @@ export default function BrokerDashboard() {
   const user = useAuthStore((state) => state.user);
   const [brokerProfile, setBrokerProfile] = useState<BrokerProfile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [recentLeads, setRecentLeads] = useState<RecentLeadRouting[]>([]);
+  const [recentLeads, setRecentLeads] = useState<LeadRoutingPreview[]>([]);
+  const [pipelineCounts, setPipelineCounts] = useState<PipelineCounts | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  // Bumped by the Retry button to re-run the load effect below without
+  // duplicating its body.
+  const [reloadToken, setReloadToken] = useState(0);
   const [refundInfo, setRefundInfo] = useState<{ daysRemaining: number; canRefund: boolean } | null>(null);
   // Broker's own market, for the aggregate "Avg Lead Value" metric below —
   // per-lead values (see the recent-leads list) already use each lead's own
   // property country instead, since a broker's leads can span cities.
   const [countryCode, setCountryCode] = useState<string | null>(null);
 
-  // Static symbol lookup (not Intl.formatToParts, which Hermes lacks on-device).
-  const symbol = currencySymbol(getMarketConfig(countryCode).currency);
+  // "Avg Lead Value" below is shown abbreviated ("$5K"), which
+  // formatCurrency isn't built for — it derives just the currency symbol
+  // (₱, A$, £, S$, ...) for the broker's market instead, via the shared
+  // static lookup (see marketConfig.ts's getCurrencySymbol for why — not
+  // Intl.formatToParts, which crashes on-device).
+  const currencySymbol = useMemo(() => getCurrencySymbol(countryCode), [countryCode]);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -56,59 +129,52 @@ export default function BrokerDashboard() {
         if (!user?.id) return;
 
         setLoading(true);
+        setLoadError(false);
 
-        // Fetch broker profile
-        const { profile } = await brokerService.getProfile(user.id);
-        if (profile) {
-          setBrokerProfile(profile);
-          setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
-        }
+        // Raced against a timeout so a hung/slow backend call surfaces as a
+        // normal error (→ Retry UI below) instead of spinning forever.
+        await withTimeout(
+          (async () => {
+            // Fetch broker profile
+            const { profile } = await brokerService.getProfile(user.id);
+            if (profile) {
+              setBrokerProfile(profile);
+              setCountryCode(await brokerService.getBrokerCountryCode(profile.selected_cities ?? []));
+            }
 
-        // Fetch subscription
-        const { subscription: sub } = await subscriptionService.getBrokerSubscription(user.id);
-        if (sub) {
-          setSubscription(sub);
+            // Fetch subscription
+            const { subscription: sub } = await subscriptionService.getBrokerSubscription(user.id);
+            if (sub) {
+              setSubscription(sub);
 
-          // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
-          // daysSincePurchase is legitimately 0 on the day of purchase, and
-          // a truthy check treated that as "no value", showing 0 days left
-          // instead of the full window on day one.
-          const eligibility = await subscriptionService.checkRefundEligibility(user.id);
-          const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
-          setRefundInfo({
-            daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
-            canRefund: eligibility.eligible,
-          });
-        }
+              // Check refund eligibility. `?? 0`, not `|| 0` / a truthy check —
+              // daysSincePurchase is legitimately 0 on the day of purchase, and
+              // a truthy check treated that as "no value", showing 0 days left
+              // instead of the full window on day one.
+              const eligibility = await subscriptionService.checkRefundEligibility(user.id);
+              const daysSincePurchase = eligibility.daysSincePurchase ?? 0;
+              setRefundInfo({
+                daysRemaining: Math.max(0, (eligibility.refundWindow || 30) - daysSincePurchase),
+                canRefund: eligibility.eligible,
+              });
+            }
 
-        // Fetch recent leads for this broker
-        const { data: leads } = await supabase
-          .from('lead_routings')
-          .select(
-            '*, lead:lead_id(*, consumer:consumer_id(email), property:property_id(address_components), report:report_id(title_url))'
-          )
-          .eq('broker_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (leads) {
-          // A consumer who revokes broker contact archives the underlying
-          // lead (see report.service.ts's updateBrokerOptIn) — filtered
-          // client-side since the archive status lives on the nested
-          // `lead`, not lead_routings itself, so it can't be pushed into
-          // the query above without an inner-join filter.
-          setRecentLeads(leads.filter((r: any) => r.lead?.status !== 'archived') as any);
-        }
-
-        // Calculate metrics (mock data for now)
-        setMetrics({
-          totalLeads: 24,
-          thisMonthLeads: 7,
-          conversionRate: 28.5,
-          averageLeadValue: 5000,
-        });
+            // Fetch recent leads for this broker — single source of truth
+            // (migrations 037/038), PII fields null until claimed, same as
+            // lead-inbox.tsx/lead-detail.tsx.
+            const { data: leads, error: leadsError } = await supabase.rpc('get_my_lead_routings');
+            if (leadsError) throw leadsError;
+            const allLeads = (leads as LeadRoutingPreview[]) || [];
+            setRecentLeads(allLeads.slice(0, 5));
+            // Pipeline widget needs the full set, not just the 5-item preview
+            // above, to show an accurate count per status.
+            setPipelineCounts(countByStatus(allLeads));
+            setMetrics(computeMetrics(allLeads));
+          })()
+        );
       } catch (err) {
         console.error('Error loading dashboard:', err);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -116,9 +182,14 @@ export default function BrokerDashboard() {
 
     loadDashboardData();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates. The channel name carries a random
+    // suffix so a fast remount (React Strict Mode's double-invoke in web
+    // dev, or quick back/forward navigation) never reuses the same channel
+    // name before the previous one's async removeChannel() finishes — reusing
+    // it hands back an already-subscribed channel, and calling .on() on that
+    // throws "cannot add postgres_changes callbacks ... after subscribe()".
     const leadsSubscription = supabase
-      .channel(`broker_leads_${user?.id}`)
+      .channel(`broker_leads_${user?.id}_${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
@@ -136,13 +207,24 @@ export default function BrokerDashboard() {
     return () => {
       supabase.removeChannel(leadsSubscription);
     };
-  }, [user?.id]);
+  }, [user?.id, reloadToken]);
+
+  if (loadError) {
+    return (
+      <SafeAreaWrapper>
+        <LoadError
+          message="Couldn't load your dashboard. Check your connection and try again."
+          onRetry={() => setReloadToken((t) => t + 1)}
+        />
+      </SafeAreaWrapper>
+    );
+  }
 
   if (loading) {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Loading your dashboard...</Text>
         </View>
       </SafeAreaWrapper>
@@ -168,28 +250,37 @@ export default function BrokerDashboard() {
         </View>
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => router.push('/broker/profile')}
+          onPress={() => router.push('/broker/profile-summary')}
         >
           <Text style={styles.profileIcon}>👤</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Refund Window Alert (if applicable) — not shown for the Free plan
-          ('Basic Annual', see broker/onboarding.tsx's TIER_DETAILS), which
-          has nothing to refund. */}
-      {refundInfo && refundInfo.canRefund && subscription?.tier !== 'Basic Annual' && (
-        <Card variant="outlined" style={styles.refundAlertCard}>
-          <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
-          <Text style={styles.refundAlertText}>
-            You have {refundInfo.daysRemaining} {refundInfo.daysRemaining === 1 ? 'day' : 'days'} left to request a refund if you're not satisfied.
+      {/* KYC status — surfaced here, not just buried in Settings, since
+          submitting verification and then hearing nothing is exactly the
+          turnaround-anxiety failure mode this is meant to resolve. Shown
+          only once something has actually been submitted (kyc_submitted_at)
+          and isn't already approved — KYC is optional, so a broker who
+          never submitted anything still sits at kyc_status 'pending' by DB
+          default and shouldn't see a misleading "under review" banner. */}
+      {brokerProfile?.kyc_status === 'rejected' && (
+        <Card variant="outlined" style={styles.kycAlertCard}>
+          <Text style={styles.kycAlertTitle}>⚠️ Verification needs another look</Text>
+          <Text style={styles.kycAlertText}>
+            {brokerProfile.kyc_rejection_reason || 'Your submitted documents could not be verified.'}
           </Text>
-          <Button
-            title="Request Refund"
-            variant="outline"
-            size="small"
-            onPress={() => router.push('/broker/refund-request')}
-            style={{ marginTop: 12 }}
-          />
+          <Text style={styles.kycAlertHelp}>
+            Contact support@appraisalonline.com to resubmit your documents.
+          </Text>
+        </Card>
+      )}
+      {brokerProfile?.kyc_status === 'pending' && brokerProfile?.kyc_submitted_at && (
+        <Card variant="outlined" style={styles.kycPendingCard}>
+          <Text style={styles.kycPendingTitle}>⏳ Verification under review</Text>
+          <Text style={styles.kycPendingText}>
+            Submitted {new Date(brokerProfile.kyc_submitted_at).toLocaleDateString()} — we'll notify
+            you once it's reviewed.
+          </Text>
         </Card>
       )}
 
@@ -205,10 +296,31 @@ export default function BrokerDashboard() {
             <Text style={styles.metricLabel}>Conversion Rate</Text>
           </Card>
           <Card variant="default" style={styles.metricCard}>
-            <Text style={styles.metricValue}>{symbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
+            <Text style={styles.metricValue}>{currencySymbol}{(metrics.averageLeadValue / 1000).toFixed(0)}K</Text>
             <Text style={styles.metricLabel}>Avg Lead Value</Text>
           </Card>
         </View>
+      )}
+
+      {/* Refund Window Alert (if applicable). Placed below the core metrics
+          rather than above them — a broker opens this screen to check
+          leads/metrics, not for a promotional-style banner, so it
+          shouldn't outrank that data even though it's an important,
+          time-sensitive notice. */}
+      {refundInfo && refundInfo.canRefund && (
+        <Card variant="outlined" style={styles.refundAlertCard}>
+          <Text style={styles.refundAlertTitle}>💰 Money-Back Guarantee Active</Text>
+          <Text style={styles.refundAlertText}>
+            You have {refundInfo.daysRemaining} {refundInfo.daysRemaining === 1 ? 'day' : 'days'} left to request a refund if you're not satisfied.
+          </Text>
+          <Button
+            title="Request Refund"
+            variant="outline"
+            size="small"
+            onPress={() => router.push('/broker/refund-request')}
+            style={{ marginTop: 12 }}
+          />
+        </Card>
       )}
 
       {/* Quick Actions */}
@@ -222,7 +334,7 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => router.push('/broker/profile')}
+          onPress={() => router.push('/broker/profile-summary')}
         >
           <Text style={styles.actionIcon}>🏢</Text>
           <Text style={styles.actionLabel}>Profile</Text>
@@ -236,36 +348,73 @@ export default function BrokerDashboard() {
         </TouchableOpacity>
       </View>
 
-      {/* Recent Leads */}
-      <Text style={styles.sectionTitle}>Recent Leads</Text>
+      {/* Lead Pipeline — real counts per status across every lead routed to
+          this broker (not just the 5-item Recent Leads preview below).
+          Each chip deep-links into the inbox pre-filtered to that status. */}
+      <Text style={styles.sectionTitle}>Lead Pipeline</Text>
 
-      {recentLeads.length > 0 ? (
-        <FlatList
-          data={recentLeads}
-          renderItem={({ item }) => (
+      {pipelineCounts && (
+        <View style={styles.pipelineGrid}>
+          {PIPELINE_STATUSES.map((status) => (
             <TouchableOpacity
-              style={styles.leadCard}
-              onPress={() => router.push(`/broker/lead-detail?id=${item.lead_id}`)}
+              key={status}
+              style={[styles.pipelineChip, pipelineChipStyles[status]]}
+              onPress={() => router.push(`/broker/lead-inbox?status=${status}`)}
               activeOpacity={0.7}
             >
-              <View style={styles.leadCardHeader}>
-                <Text style={styles.leadAddress}>{item.lead?.property_address || 'Property'}</Text>
-                <Text style={styles.leadValue}>
-                  {formatCurrency(item.lead?.property_value || 0, item.lead?.property?.address_components?.country_code)}
-                </Text>
-              </View>
-              <View style={styles.leadCardFooter}>
-                <Text style={styles.leadEmail}>{item.lead?.consumer_email || 'Unknown'}</Text>
-                <Text style={styles.leadStatus}>{item.delivery_status}</Text>
-              </View>
-              {item.lead?.report?.title_url && (
-                <Text style={styles.leadTitleBadge}>✓ Title on file</Text>
-              )}
+              <Text style={styles.pipelineChipCount}>{pipelineCounts[status]}</Text>
+              <Text style={styles.pipelineChipLabel}>{LEAD_ROUTING_STATUS_LABELS[status]}</Text>
             </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-        />
+          ))}
+        </View>
+      )}
+
+      {/* Recent Leads */}
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Leads</Text>
+
+      {recentLeads.length > 0 ? (
+        // A plain View/.map() here, not FlatList — this list never scrolls
+        // on its own (it's a short preview inside the page's own
+        // SafeAreaWrapper ScrollView), and nesting a VirtualizedList inside
+        // a ScrollView of the same orientation is a React Native anti-
+        // pattern that breaks windowing: on web it left a large block of
+        // extra blank space below the list instead of sizing to content.
+        <View>
+          {recentLeads.map((item) => {
+            const claimed = item.claim_status === 'claimed';
+            const full = !claimed && item.requested_broker_count != null && item.claimed_count >= item.requested_broker_count;
+            return (
+              <TouchableOpacity
+                key={item.lead_routing_id}
+                style={styles.leadCard}
+                onPress={() => router.push(`/broker/lead-detail?id=${item.lead_routing_id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.leadCardHeader}>
+                  <Text style={styles.leadAddress}>
+                    {claimed
+                      ? item.property_address || 'Property'
+                      : `${item.property_type || 'Property'} in ${item.city_name || 'your area'}`}
+                  </Text>
+                  <Text style={styles.leadValue}>
+                    {claimed
+                      ? formatCurrency(item.estimated_value || 0, item.city_country)
+                      : item.estimated_value_low != null && item.estimated_value_high != null
+                      ? `${formatCurrency(item.estimated_value_low, item.city_country)}–${formatCurrency(item.estimated_value_high, item.city_country)}`
+                      : ''}
+                  </Text>
+                </View>
+                <View style={styles.leadCardFooter}>
+                  <Text style={styles.leadEmail}>
+                    {claimed ? item.consumer_email || 'Unknown' : full ? 'Already connected' : 'Tap to view & claim'}
+                  </Text>
+                  <Text style={styles.leadStatus}>{LEAD_ROUTING_STATUS_LABELS[item.status]}</Text>
+                </View>
+                {item.has_title_on_file && <Text style={styles.leadTitleBadge}>✓ Title on file</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       ) : (
         <Card variant="default" style={styles.emptyState}>
           <Text style={styles.emptyStateIcon}>📭</Text>
@@ -326,6 +475,17 @@ export default function BrokerDashboard() {
   );
 }
 
+// Keyed the same way as lead-inbox.tsx's status badge colors, so a status
+// reads the same whether seen here or in the inbox list.
+const pipelineChipStyles: Record<LeadRoutingStatus, { backgroundColor: string }> = {
+  new: { backgroundColor: '#FEE2E2' },
+  contacted: { backgroundColor: '#FEF3C7' },
+  in_talks: { backgroundColor: '#DBEAFE' },
+  converted: { backgroundColor: theme.color.successWash },
+  lost: { backgroundColor: '#F3F4F6' },
+  revoked: { backgroundColor: '#FECACA' },
+};
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
@@ -335,7 +495,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   header: {
     flexDirection: 'row',
@@ -349,11 +509,11 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   tierBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
@@ -362,7 +522,7 @@ const styles = StyleSheet.create({
   tierText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   profileButton: {
     width: 44,
@@ -375,15 +535,52 @@ const styles = StyleSheet.create({
   profileIcon: {
     fontSize: 24,
   },
+  kycAlertCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    marginBottom: 20,
+  },
+  kycAlertTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 6,
+  },
+  kycAlertText: {
+    fontSize: 14,
+    color: '#7F1D1D',
+    lineHeight: 20,
+  },
+  kycAlertHelp: {
+    fontSize: 13,
+    color: '#991B1B',
+    marginTop: 8,
+  },
+  kycPendingCard: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    marginBottom: 20,
+  },
+  kycPendingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  kycPendingText: {
+    fontSize: 14,
+    color: '#78350F',
+    lineHeight: 20,
+  },
   refundAlertCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
     borderColor: '#BBDFD4',
     marginBottom: 20,
   },
   refundAlertTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 6,
   },
   refundAlertText: {
@@ -404,12 +601,12 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginBottom: 4,
   },
   metricLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
   },
   quickActionsGrid: {
@@ -432,21 +629,46 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
+  },
+  pipelineGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  pipelineChip: {
+    // ~3 per row with the 8px gap above, same sizing idea as metricCard.
+    width: '31%',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  pipelineChipCount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.color.text,
+  },
+  pipelineChipLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+    marginTop: 2,
+    textAlign: 'center',
   },
   leadCard: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   leadCardHeader: {
     flexDirection: 'row',
@@ -457,13 +679,13 @@ const styles = StyleSheet.create({
   leadAddress: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flex: 1,
   },
   leadValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   leadCardFooter: {
     flexDirection: 'row',
@@ -472,12 +694,12 @@ const styles = StyleSheet.create({
   },
   leadEmail: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   leadStatus: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -492,7 +714,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 32,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -501,12 +723,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -515,8 +737,8 @@ const styles = StyleSheet.create({
   },
   tipsCard: {
     marginBottom: 12,
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
   },
   tipRow: {
     flexDirection: 'row',
@@ -525,7 +747,7 @@ const styles = StyleSheet.create({
   },
   tipDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   tipIcon: {
     fontSize: 20,
@@ -538,12 +760,12 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   tipText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   supportCard: {

@@ -92,6 +92,54 @@ export const authMiddleware = async (
 };
 
 /**
+ * Like authMiddleware, but for endpoints that are proxies rather than
+ * gates — routes/places.ts and routes/valuation.ts exist purely to keep an
+ * API key out of the client bundle, not to restrict access by who's asking,
+ * and the mobile app's own native code path calls both Google and Gemini
+ * directly with no auth at all. Requiring a real Bearer token on the web
+ * proxy was an accidental tightening: a signed-out visitor (the app allows
+ * guest access to the consumer valuation flow — see RequireUserType's
+ * allowGuest) has no session, so `Authorization: Bearer undefined` 401'd
+ * every single time, breaking address lookup and AI valuation before
+ * signup on web specifically — the one flow that most needs to work
+ * without an account. This attaches req.user when a valid token is
+ * present (unused by either route today, kept for parity/future use) but
+ * never rejects the request for having none or an invalid one.
+ */
+export const optionalAuthMiddleware = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    const token = authHeader.slice(7);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser(token);
+
+    if (user) {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('id, email, user_type')
+        .eq('id', user.id)
+        .single();
+      if (profile) {
+        req.token = token;
+        req.user = { id: profile.id, email: profile.email, user_type: profile.user_type };
+      }
+    }
+  } catch (err) {
+    logger.error('Optional auth middleware error (continuing unauthenticated):', err);
+  }
+  next();
+};
+
+/**
  * Ensure user is a broker
  */
 export const brokerOnly = (

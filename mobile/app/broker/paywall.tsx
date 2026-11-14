@@ -6,21 +6,22 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
-import { subscriptionService } from '../../services/subscription.service';
-import { BROKER_TIER_PRICING, BROKER_TIER_FEATURES, formatTierPrice } from '../../config/brokerTiers';
-
-const TIER_PRICING = BROKER_TIER_PRICING;
-const TIER_FEATURES = BROKER_TIER_FEATURES;
+import {
+  BROKER_TIER_FEATURES,
+  BROKER_REFUND_WINDOW_DAYS,
+  formatPriceCents,
+  getBrokerAnnualPrice,
+} from '../../config/brokerTiers';
+import { theme } from '../../theme';
 
 export default function Paywall() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
   const selectedTier = useSubscriptionStore((state) => state.selectedTier);
+  const signupRank = useSubscriptionStore((state) => state.signupRank);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [activating, setActivating] = useState(false);
   const [error, setError] = useState('');
 
-  if (!selectedTier) {
+  if (!selectedTier || !signupRank) {
     return (
       <SafeAreaWrapper>
         <View style={styles.container}>
@@ -31,36 +32,18 @@ export default function Paywall() {
     );
   }
 
-  const pricing = TIER_PRICING[selectedTier];
-  const features = TIER_FEATURES[selectedTier];
-  const isFree = pricing.price === 0;
+  // Display-only estimate, computed from this broker's own signup rank —
+  // the actual charge is always computed server-side at checkout time (see
+  // checkout.tsx), so this can only ever be a preview of what to expect.
+  const priceCents = getBrokerAnnualPrice(signupRank);
+  const features = BROKER_TIER_FEATURES[selectedTier];
 
-  const handleProceedToCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (!agreedToTerms) {
       alert('Please agree to the terms to continue');
       return;
     }
-
-    // The Free tier has nothing to charge — sending it through checkout.tsx
-    // (which unconditionally sets up a Stripe payment) is exactly what was
-    // asking a Free-plan broker for payment. Activate directly instead.
-    if (isFree) {
-      if (!user?.id) {
-        setError('User not authenticated');
-        return;
-      }
-      setError('');
-      setActivating(true);
-      const result = await subscriptionService.createFreeSubscription(user.id);
-      setActivating(false);
-      if (result.success) {
-        router.push('/broker/welcome');
-      } else {
-        setError(result.error?.message || 'Failed to activate your plan');
-      }
-      return;
-    }
-
+    setError('');
     router.push('/broker/checkout');
   };
 
@@ -79,8 +62,8 @@ export default function Paywall() {
         <View style={styles.tierCardHeader}>
           <Text style={styles.tierName}>{selectedTier}</Text>
           <View style={styles.priceContainer}>
-            <Text style={styles.price}>{formatTierPrice(selectedTier)}</Text>
-            {!isFree && <Text style={styles.billingCycle}>{pricing.billingCycle}</Text>}
+            <Text style={styles.price}>{formatPriceCents(priceCents)}</Text>
+            <Text style={styles.billingCycle}>per year</Text>
           </View>
         </View>
 
@@ -114,7 +97,7 @@ export default function Paywall() {
       <Card variant="outlined" style={styles.protectionCard}>
         <Text style={styles.protectionTitle}>🛡️ Protected by Money-Back Guarantee</Text>
         <Text style={styles.protectionText}>
-          Not satisfied? Get a full refund within {pricing.refundWindow} days of your purchase. No questions asked.
+          Not satisfied? Get a full refund within {BROKER_REFUND_WINDOW_DAYS} days of your purchase. No questions asked.
         </Text>
       </Card>
 
@@ -125,11 +108,7 @@ export default function Paywall() {
         <Text style={styles.benefitNumber}>1</Text>
         <View style={styles.benefitContent}>
           <Text style={styles.benefitTitle}>Leads Delivered</Text>
-          <Text style={styles.benefitDescription}>
-            {selectedTier.includes('Founder') || selectedTier.includes('Premium')
-              ? 'Get instant notifications when consumers opt in'
-              : 'Receive leads every Monday morning'}
-          </Text>
+          <Text style={styles.benefitDescription}>Get instant notifications when consumers opt in</Text>
         </View>
       </Card>
 
@@ -171,7 +150,7 @@ export default function Paywall() {
             <Text style={styles.termsLabel}>
               I agree to the{' '}
               <Text style={styles.termsLink}>Terms of Service</Text> and understand the
-              {' '}<Text style={styles.termsLink}>{pricing.refundWindow} days refund policy</Text>
+              {' '}<Text style={styles.termsLink}>{BROKER_REFUND_WINDOW_DAYS} days refund policy</Text>
             </Text>
           </View>
         </TouchableOpacity>
@@ -183,7 +162,7 @@ export default function Paywall() {
         <Card variant="default" style={styles.faqItem}>
           <Text style={styles.faqQ}>How do I cancel?</Text>
           <Text style={styles.faqA}>
-            Contact us anytime. {selectedTier.includes('Founder') ? 'Founder members can request refunds within 14 days.' : 'Annual members can request refunds within 30 days or cancel before next renewal.'}
+            Contact us anytime. You can request a refund within {BROKER_REFUND_WINDOW_DAYS} days or cancel before your next renewal.
           </Text>
         </Card>
       </View>
@@ -193,11 +172,10 @@ export default function Paywall() {
       {/* CTA Buttons */}
       <View style={styles.footer}>
         <Button
-          title={isFree ? 'Activate Free Plan' : 'Proceed to Payment'}
+          title="Proceed to Payment"
           size="large"
           onPress={handleProceedToCheckout}
           disabled={!agreedToTerms}
-          loading={activating}
           style={{ marginBottom: 12 }}
         />
         <Button
@@ -205,7 +183,6 @@ export default function Paywall() {
           variant="outline"
           size="large"
           onPress={() => router.back()}
-          disabled={activating}
         />
       </View>
     </SafeAreaWrapper>
@@ -229,7 +206,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -238,12 +215,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 24,
   },
   tierCard: {
@@ -258,7 +235,7 @@ const styles = StyleSheet.create({
   tierName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   priceContainer: {
     alignItems: 'flex-end',
@@ -266,11 +243,11 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
   },
   billingCycle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 2,
   },
   quickFeatures: {
@@ -278,7 +255,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.color.border,
   },
   quickFeature: {
     alignItems: 'center',
@@ -289,13 +266,13 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 20,
   },
@@ -307,16 +284,16 @@ const styles = StyleSheet.create({
   },
   inclusionCheck: {
     fontSize: 18,
-    color: '#10B981',
+    color: theme.color.success,
     marginRight: 10,
     fontWeight: '700',
   },
   inclusionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   protectionCard: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.successWash,
     borderColor: '#BBDFD4',
     marginBottom: 24,
     marginTop: 16,
@@ -324,7 +301,7 @@ const styles = StyleSheet.create({
   protectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 6,
   },
   protectionText: {
@@ -340,7 +317,7 @@ const styles = StyleSheet.create({
   benefitNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
     marginRight: 16,
     minWidth: 32,
   },
@@ -350,12 +327,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   benefitDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   termsSection: {
@@ -363,7 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.color.border,
   },
   termsCheckbox: {
     flexDirection: 'row',
@@ -374,18 +351,18 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     marginRight: 12,
     marginTop: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxBoxChecked: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -394,11 +371,11 @@ const styles = StyleSheet.create({
   },
   termsLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   termsLink: {
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
   },
   faqSection: {
@@ -407,7 +384,7 @@ const styles = StyleSheet.create({
   faqTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   faqItem: {
@@ -416,16 +393,16 @@ const styles = StyleSheet.create({
   faqQ: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   faqA: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
   },

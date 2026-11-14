@@ -1,13 +1,12 @@
 import { supabase, parseSupabaseError } from './supabase';
 import { User, AuthSession, AuthCredentials, BrokerProfile } from '../types';
+import { withNetworkRetry } from '../utils/retry';
 
-export const authService = {
-  // Sign up with email
-  async signup(
-    email: string,
-    password: string,
-    metadata?: { first_name?: string; last_name?: string; user_type?: string; phone?: string }
-  ) {
+async function signupAttempt(
+  email: string,
+  password: string,
+  metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
+) {
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -16,6 +15,7 @@ export const authService = {
           data: {
             first_name: metadata?.first_name || '',
             last_name: metadata?.last_name || '',
+            suffix: metadata?.suffix || '',
             user_type: metadata?.user_type || 'consumer',
             // Captured once here so a consumer never has to re-enter it when
             // opting in for professional contact later — see the phone
@@ -41,6 +41,7 @@ export const authService = {
           user_type: metadata?.user_type || 'consumer',
           first_name: metadata?.first_name || undefined,
           last_name: metadata?.last_name || undefined,
+          suffix: metadata?.suffix || undefined,
           phone: metadata?.phone || undefined,
           created_at: authData.user.created_at,
           updated_at: authData.user.updated_at || authData.user.created_at,
@@ -56,55 +57,116 @@ export const authService = {
         error: parseSupabaseError(error),
       };
     }
+}
+
+async function signinAttempt(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+    if (!data.session) throw new Error('No session created');
+
+    // Fetch user record and broker profile if applicable
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (userError) throw userError;
+
+    let brokerProfile: BrokerProfile | undefined;
+    if (userData.user_type === 'broker') {
+      const { data: brokerData } = await supabase
+        .from('broker_profiles')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .single();
+
+      brokerProfile = brokerData || undefined;
+    }
+
+    return {
+      success: true,
+      user: userData,
+      session: {
+        user: userData,
+        session_token: data.session.access_token,
+        expires_at: data.session.expires_at,
+        broker_profile: brokerProfile,
+      } as AuthSession,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: parseSupabaseError(error),
+    };
+  }
+}
+
+async function requestPasswordResetAttempt(email: string) {
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'appraisalonline://auth/reset-password',
+    });
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: 'Password reset email sent',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: parseSupabaseError(error),
+    };
+  }
+}
+
+export const authService = {
+  // Sign up with email
+  async signup(
+    email: string,
+    password: string,
+    metadata?: { first_name?: string; last_name?: string; suffix?: string; user_type?: string; phone?: string }
+  ) {
+    return withNetworkRetry(() => signupAttempt(email, password, metadata));
+  },
+
+  // Resolves a signup() call that failed because the email is already
+  // registered. This happens whenever someone abandons signup after the
+  // first submit (closes the app, loses connection, never opens the
+  // verification email) — Supabase's auth.users row is created the moment
+  // signUp() is first called, before anything else about the account
+  // exists, so a retry with the same email comes back "already
+  // registered" even though the person never finished creating anything.
+  // Tries the password just entered to tell apart an abandoned unconfirmed
+  // signup (resume it) from a real existing account (surface a clear error
+  // instead of a dead end).
+  async resolveAlreadyRegistered(email: string, password: string) {
+    const signinResult = await this.signin(email, password);
+    if (signinResult.success) {
+      return { outcome: 'signed_in' as const, ...signinResult };
+    }
+
+    if (signinResult.error?.code === 'email_not_confirmed') {
+      // Same account, same password, just never verified — resend the
+      // confirmation link so they can pick up where they left off instead
+      // of being told the account they thought they never finished exists.
+      await this.resendConfirmationEmail(email);
+      return { outcome: 'unconfirmed' as const };
+    }
+
+    return { outcome: 'conflict' as const };
   },
 
   // Sign in with email and password
   async signin(email: string, password: string) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      if (!data.session) throw new Error('No session created');
-
-      // Fetch user record and broker profile if applicable
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      if (userError) throw userError;
-
-      let brokerProfile: BrokerProfile | undefined;
-      if (userData.user_type === 'broker') {
-        const { data: brokerData } = await supabase
-          .from('broker_profiles')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .single();
-
-        brokerProfile = brokerData || undefined;
-      }
-
-      return {
-        success: true,
-        user: userData,
-        session: {
-          user: userData,
-          session_token: data.session.access_token,
-          expires_at: data.session.expires_at,
-          broker_profile: brokerProfile,
-        } as AuthSession,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: parseSupabaseError(error),
-      };
-    }
+    return withNetworkRetry(() => signinAttempt(email, password));
   },
 
   // Sign in with OAuth (Google)
@@ -175,23 +237,7 @@ export const authService = {
 
   // Request password reset
   async requestPasswordReset(email: string) {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'appraisalonline://auth/reset-password',
-      });
-
-      if (error) throw error;
-
-      return {
-        success: true,
-        message: 'Password reset email sent',
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: parseSupabaseError(error),
-      };
-    }
+    return withNetworkRetry(() => requestPasswordResetAttempt(email));
   },
 
   // Update password
@@ -215,13 +261,16 @@ export const authService = {
     }
   },
 
-  // Verify email with OTP
+  // Verify the password-reset code sent to the broker/consumer's email —
+  // the only caller is forgot-password.tsx's code step, so this needs
+  // type 'recovery', not 'signup' (verifying a signup confirmation code is a
+  // separate flow this function was never used for).
   async verifyOTP(email: string, token: string) {
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
-        type: 'signup',
+        type: 'recovery',
       });
 
       if (error) throw error;

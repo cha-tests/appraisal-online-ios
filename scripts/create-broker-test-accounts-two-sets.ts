@@ -31,7 +31,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const PASSWORD = 'TestPass123!';
 const TIER = 'Premium Annual' as const;
-const TIER_PRICE_CENTS = 19900;
+// $9.95 intro price (migration 034) — these are early test accounts.
+const TIER_PRICE_CENTS = 995;
 const COUNTRIES = ['PH', 'US', 'SG', 'AU', 'GB'];
 
 interface SetSpec {

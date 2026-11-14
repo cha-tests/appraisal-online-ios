@@ -19,6 +19,7 @@ export default function ConsumerLayout() {
         <Stack.Screen name="report-view" />
         <Stack.Screen name="broker-optins" />
         <Stack.Screen name="account" />
+        <Stack.Screen name="profile" />
       </Stack>
     </RequireUserType>
   );

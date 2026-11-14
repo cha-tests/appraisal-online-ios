@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
+import { IconPencil, IconX } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { brokerService } from '../../services/broker.service';
 import { authService } from '../../services/auth.service';
+import { chooseAttachmentSource, withRetry } from '../../utils/attachments';
 import { BrokerProfile } from '../../types';
+import { theme } from '../../theme';
 
 export default function BrokerProfileScreen() {
   const router = useRouter();
@@ -25,8 +28,10 @@ export default function BrokerProfileScreen() {
     bio: '',
     phone: '',
     website: '',
+    profile_photo_url: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -44,6 +49,7 @@ export default function BrokerProfileScreen() {
             bio: brokerProfile.bio || '',
             phone: brokerProfile.phone || '',
             website: brokerProfile.website || '',
+            profile_photo_url: brokerProfile.profile_photo_url || '',
           });
         }
       } catch (err) {
@@ -90,6 +96,56 @@ export default function BrokerProfileScreen() {
     }
   };
 
+  // Uploads immediately on pick rather than staging it for "Save Changes"
+  // — the storage round-trip already has its own success/failure feedback,
+  // and deferring it would mean silently losing the picked photo if the
+  // user backs out before saving the rest of the form.
+  const pickProfilePhoto = async () => {
+    if (!user?.id) return;
+
+    const picked = await chooseAttachmentSource({ title: 'Profile Photo' });
+    if (!picked) return;
+
+    try {
+      setUploadingPhoto(true);
+      const uploaded = await withRetry(() => brokerService.uploadProfilePhoto(user.id, picked.uri));
+      if (!uploaded.success || !uploaded.url) {
+        Alert.alert('Error', uploaded.error || 'Failed to upload photo');
+        return;
+      }
+
+      // Saved right away, independent of "Save Changes" below — otherwise
+      // the file would be uploaded but its link never persisted if the
+      // broker backs out before saving the rest of the form.
+      const { profile: updated } = await brokerService.updateProfile(user.id, {
+        profile_photo_url: uploaded.url,
+      } as any);
+
+      setFormData((prev) => ({ ...prev, profile_photo_url: uploaded.url! }));
+      if (updated) setProfile(updated);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const removeProfilePhoto = () => {
+    if (!user?.id) return;
+    Alert.alert('Remove Photo', 'Remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          const { profile: updated } = await brokerService.updateProfile(user.id, {
+            profile_photo_url: '',
+          } as any);
+          setFormData((prev) => ({ ...prev, profile_photo_url: '' }));
+          if (updated) setProfile(updated);
+        },
+      },
+    ]);
+  };
+
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel', onPress: () => {} },
@@ -127,40 +183,67 @@ export default function BrokerProfileScreen() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
       </View>
 
       {/* Profile Photo Section */}
       <Card variant="default" style={styles.photoCard}>
-        <View style={styles.photoContainer}>
-          <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoIcon}>📸</Text>
+        {formData.profile_photo_url ? (
+          <View style={styles.photoWrapper}>
+            <Image
+              source={{ uri: formData.profile_photo_url }}
+              style={styles.photoPlaceholder}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              style={styles.photoEditBadge}
+              onPress={pickProfilePhoto}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator size="small" color={theme.color.onAccent} />
+              ) : (
+                <IconPencil size={14} color={theme.color.onAccent} strokeWidth={2.5} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.photoRemoveBadge}
+              onPress={removeProfilePhoto}
+              disabled={uploadingPhoto}
+            >
+              <IconX size={12} color={theme.color.onAccent} strokeWidth={2.5} />
+            </TouchableOpacity>
           </View>
-          <Button
-            title="Add Photo"
-            variant="outline"
-            size="small"
-            onPress={() => {
-              Alert.alert('Feature', 'Photo upload coming soon');
-            }}
-          />
-        </View>
-        <Text style={styles.photoHelper}>
-          Add a professional photo to your profile to attract more connections
-        </Text>
+        ) : (
+          <View style={styles.photoContainer}>
+            <View style={styles.photoPlaceholder}>
+              <Text style={styles.photoIcon}>📸</Text>
+            </View>
+            <Button
+              title="Add Photo"
+              variant="outline"
+              size="small"
+              onPress={pickProfilePhoto}
+              loading={uploadingPhoto}
+              disabled={uploadingPhoto}
+            />
+          </View>
+        )}
+        {!formData.profile_photo_url && (
+          <Text style={styles.photoHelper}>
+            Add a professional photo to your profile to attract more connections
+          </Text>
+        )}
       </Card>
 
       {/* Company Information */}
@@ -213,16 +296,24 @@ export default function BrokerProfileScreen() {
 
           <Card variant="elevated" style={styles.previewCard}>
             <View style={styles.previewHeader}>
-              <View style={styles.previewPhotoContainer}>
-                <Text style={styles.previewPhotoIcon}>📸</Text>
-              </View>
+              {formData.profile_photo_url ? (
+                <Image
+                  source={{ uri: formData.profile_photo_url }}
+                  style={styles.previewPhotoContainer}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.previewPhotoContainer}>
+                  <Text style={styles.previewPhotoIcon}>📸</Text>
+                </View>
+              )}
               <View style={styles.previewInfo}>
                 <Text style={styles.previewName}>{formData.company_name || 'Company Name'}</Text>
                 <Text style={styles.previewBadge}>{profile.tier}</Text>
               </View>
             </View>
 
-            {formData.bio && (
+            {!!formData.bio && (
               <>
                 <View style={styles.previewDivider} />
                 <Text style={styles.previewBio}>{formData.bio}</Text>
@@ -232,10 +323,10 @@ export default function BrokerProfileScreen() {
             <View style={styles.previewDivider} />
 
             <View style={styles.previewContact}>
-              {formData.phone && (
+              {!!formData.phone && (
                 <Text style={styles.previewContactItem}>📱 {formData.phone}</Text>
               )}
-              {formData.website && (
+              {!!formData.website && (
                 <Text style={styles.previewContactItem}>🌐 {formData.website}</Text>
               )}
             </View>
@@ -246,7 +337,7 @@ export default function BrokerProfileScreen() {
       {/* Account Settings Link */}
       <Card variant="outlined" style={styles.settingsCard}>
         <Text style={styles.settingsTitle}>Account Settings</Text>
-        <TouchableOpacity onPress={() => Alert.alert('Feature', 'Settings coming soon')}>
+        <TouchableOpacity onPress={() => router.push('/broker/settings')}>
           <Text style={styles.settingsLink}>Manage Notifications & Preferences →</Text>
         </TouchableOpacity>
       </Card>
@@ -298,18 +389,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  backButton: {
-    paddingRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563EB',
-  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   photoCard: {
     alignItems: 'center',
@@ -319,6 +402,35 @@ const styles = StyleSheet.create({
   photoContainer: {
     alignItems: 'center',
     marginBottom: 16,
+  },
+  photoWrapper: {
+    position: 'relative',
+  },
+  photoEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.color.text,
+    borderWidth: 2,
+    borderColor: theme.color.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoRemoveBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.color.danger,
+    borderWidth: 2,
+    borderColor: theme.color.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   photoPlaceholder: {
     width: 100,
@@ -334,14 +446,14 @@ const styles = StyleSheet.create({
   },
   photoHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     marginTop: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     marginTop: 24,
   },
@@ -371,14 +483,14 @@ const styles = StyleSheet.create({
   previewName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   previewBadge: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    color: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -391,7 +503,7 @@ const styles = StyleSheet.create({
   },
   previewBio: {
     fontSize: 14,
-    color: '#1F2937',
+    color: theme.color.text,
     lineHeight: 20,
   },
   previewContact: {
@@ -399,23 +511,23 @@ const styles = StyleSheet.create({
   },
   previewContactItem: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   settingsCard: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
     marginBottom: 24,
     marginTop: 24,
   },
   settingsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   settingsLink: {
     fontSize: 14,
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
   },
   footer: {
@@ -425,7 +537,7 @@ const styles = StyleSheet.create({
     marginTop: 32,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.color.border,
   },
   signOutButton: {
     alignItems: 'center',

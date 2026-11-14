@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TouchableWithoutFeedback, FlatList, ActivityIndicator, Image, Alert, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TouchableWithoutFeedback, FlatList, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
@@ -9,20 +8,21 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Toggle } from '../../components/ui/Toggle';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
+import { AttachmentPreview } from '../../components/ui/AttachmentPreview';
+import { IconWarning } from '../../components/ui/icons';
 import { useAuthStore } from '../../stores/auth.store';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { disclaimerService } from '../../services/disclaimer.service';
+import { checkPhotoQuality } from '../../services/photoQuality.service';
+import { chooseAttachmentSource, withRetry } from '../../utils/attachments';
 import { BROKER_DISCLAIMER_TEXT, BROKER_DISCLAIMER_VERSION } from '../../config/disclaimers';
 import { orderedCountryList, countryFlagEmoji } from '../../config/countries';
+import { BROKER_TIER_CITY_LIMIT, BROKER_REFUND_WINDOW_DAYS, formatPriceCents } from '../../config/brokerTiers';
 import { BrokerTier, BrokerRole, City } from '../../types';
+import { theme } from '../../theme';
 
 const TOTAL_STEPS = 6;
-// Only these two are offered at signup for now, per the Sep 1 pricing
-// decision (₱5,000/year flat, no city cap yet) — 'Founder Lifetime' still
-// exists as a BrokerTier value (other screens reference it) but isn't
-// offered here until the founder-tier mechanics are actually built.
-const TIERS: BrokerTier[] = ['Basic Annual', 'Premium Annual'];
 // Every country is selectable here, not just markets with cities already
 // seeded (see countries.ts) — PH/AU/US pinned to the top since they're the
 // primary launch market plus the two with the most current test activity.
@@ -32,20 +32,13 @@ const COUNTRY_LIST = orderedCountryList();
 const COUNTRY_LABELS: Record<string, string> = Object.fromEntries(
   COUNTRY_LIST.map((c) => [c.code, `${countryFlagEmoji(c.code)} ${c.name}`])
 );
-// 'Basic Annual' and 'Premium Annual' are the stored tier values (unchanged,
-// so this needs no database migration) — only their signup-time label and
-// price are repurposed here for the Free / ₱5,000-a-year plan.
-const TIER_DETAILS = {
-  'Founder Lifetime': { label: 'Founder Lifetime', price: '$499 one-time', refund: '14 days' },
-  'Premium Annual': { label: '₱5,000 Annually', price: '₱5,000/year', refund: '30 days' },
-  'Basic Annual': { label: 'Free', price: 'Free', refund: '30 days' },
-};
 
 export default function BrokerOnboarding() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const setSelectedTier = useSubscriptionStore((state) => state.setSelectedTier);
   const setSelectedCities = useSubscriptionStore((state) => state.setSelectedCities);
+  const setSignupRank = useSubscriptionStore((state) => state.setSignupRank);
 
   const [step, setStep] = useState(1);
   const [cities, setCities] = useState<City[]>([]);
@@ -63,18 +56,28 @@ export default function BrokerOnboarding() {
     license_number: '',
     phone: '',
     website: '',
+    referral_code: '',
     tier: 'Premium Annual' as BrokerTier,
     selectedCities: [] as string[],
     emailEnabled: true,
-    pushEnabled: true,
   });
 
-  // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo, held as
-  // local URIs until submit, then uploaded to the private 'kyc-documents'
-  // bucket. disclaimerAcknowledged gates progressing past this step —
-  // brokers can't reach lead access without accepting the broker disclaimer.
+  // KYC (Clause 3 of the Sep 1 spec): a selfie + a valid-ID photo. Each
+  // uploads to the private 'kyc-documents' bucket immediately on pick
+  // (rather than waiting for final submit) so a flaky connection gets
+  // caught — and retried — early, not at the one moment that matters most.
+  // `*Path` only ever holds a storage path once that upload has actually
+  // succeeded; handleSubmit reads it directly instead of re-uploading.
   const [kycIdUri, setKycIdUri] = useState<string | null>(null);
+  const [kycIdPath, setKycIdPath] = useState<string | null>(null);
+  const [kycIdStatus, setKycIdStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
   const [kycSelfieUri, setKycSelfieUri] = useState<string | null>(null);
+  const [kycSelfiePath, setKycSelfiePath] = useState<string | null>(null);
+  const [kycSelfieStatus, setKycSelfieStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
+  // Bumped on every pick/remove so a slow upload that resolves after the
+  // photo was replaced or cleared doesn't clobber the newer state.
+  const kycIdGenRef = useRef(0);
+  const kycSelfieGenRef = useRef(0);
   const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -109,8 +112,8 @@ export default function BrokerOnboarding() {
     if (stepNum === 1) {
       if (!formData.phone.trim()) newErrors.phone = 'Phone is required';
     } else if (stepNum === 2) {
-      if (!kycIdUri) newErrors.kycId = 'Upload a photo of a valid ID';
-      if (!kycSelfieUri) newErrors.kycSelfie = 'Take a selfie to verify it matches your ID';
+      // ID + selfie are optional — a broker can finish signup without them.
+      // Only block on the disclaimer.
       if (!disclaimerAcknowledged) newErrors.disclaimer = 'Please acknowledge the notice before continuing';
     } else if (stepNum === 4) {
       if (formData.selectedCities.length === 0) {
@@ -123,30 +126,70 @@ export default function BrokerOnboarding() {
   };
 
   const pickKycImage = async (kind: 'id' | 'selfie') => {
-    const permission =
-      kind === 'selfie'
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const picked = await chooseAttachmentSource({
+      title: kind === 'id' ? 'Add a Valid ID' : 'Add a Selfie',
+    });
+    if (!picked) return;
 
-    if (!permission.granted) {
-      Alert.alert(
-        'Permission needed',
-        kind === 'selfie'
-          ? 'Camera access is needed to take a verification selfie.'
-          : 'Photo library access is needed to upload your ID.'
-      );
+    // Catch an obviously blurry or glare-washed photo right away, rather
+    // than making the broker wait for a human reviewer to reject it —
+    // see photoQuality.service.ts for what this can and can't catch.
+    const quality = await checkPhotoQuality(picked.uri);
+    if (!quality.ok) {
+      Alert.alert('Retake Photo', quality.message || 'Please retake this photo.');
       return;
     }
 
-    const result =
-      kind === 'selfie'
-        ? await ImagePicker.launchCameraAsync({ quality: 0.7, cameraType: ImagePicker.CameraType.front })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+    setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
+    uploadKycImage(kind, picked.uri);
+  };
 
-    if (!result.canceled && result.assets?.[0]) {
-      if (kind === 'id') setKycIdUri(result.assets[0].uri);
-      else setKycSelfieUri(result.assets[0].uri);
-      setFormErrors((prev) => ({ ...prev, [kind === 'id' ? 'kycId' : 'kycSelfie']: '' }));
+  const uploadKycImage = (kind: 'id' | 'selfie', uri: string) => {
+    if (!user?.id) return;
+    const genRef = kind === 'id' ? kycIdGenRef : kycSelfieGenRef;
+    const myGen = ++genRef.current;
+
+    if (kind === 'id') {
+      setKycIdUri(uri);
+      setKycIdPath(null);
+      setKycIdStatus('uploading');
+    } else {
+      setKycSelfieUri(uri);
+      setKycSelfiePath(null);
+      setKycSelfieStatus('uploading');
+    }
+
+    withRetry(() => brokerService.uploadKycDocument(user.id, uri, kind)).then((result) => {
+      // Superseded by a newer pick or a remove while this was in flight.
+      if (genRef.current !== myGen) return;
+
+      if (kind === 'id') {
+        setKycIdPath(result.success ? result.path ?? null : null);
+        setKycIdStatus(result.success ? 'uploaded' : 'error');
+      } else {
+        setKycSelfiePath(result.success ? result.path ?? null : null);
+        setKycSelfieStatus(result.success ? 'uploaded' : 'error');
+      }
+    });
+  };
+
+  const retryKycUpload = (kind: 'id' | 'selfie') => {
+    const uri = kind === 'id' ? kycIdUri : kycSelfieUri;
+    if (uri) uploadKycImage(kind, uri);
+  };
+
+  const removeKycImage = (kind: 'id' | 'selfie') => {
+    // Invalidate any in-flight upload for this field so its result, once it
+    // resolves, is ignored instead of reviving a photo the broker removed.
+    (kind === 'id' ? kycIdGenRef : kycSelfieGenRef).current++;
+    if (kind === 'id') {
+      setKycIdUri(null);
+      setKycIdPath(null);
+      setKycIdStatus(null);
+    } else {
+      setKycSelfieUri(null);
+      setKycSelfiePath(null);
+      setKycSelfieStatus(null);
     }
   };
 
@@ -160,8 +203,6 @@ export default function BrokerOnboarding() {
     setStep(step - 1);
   };
 
-  // No per-tier city cap for now ("Lead coverage = no limit for now") — a
-  // broker can select as many cities as they want regardless of plan.
   const handleCityToggle = (cityId: string) => {
     const currentCities = formData.selectedCities;
 
@@ -171,6 +212,11 @@ export default function BrokerOnboarding() {
         selectedCities: prev.selectedCities.filter((c) => c !== cityId),
       }));
     } else {
+      if (currentCities.length >= BROKER_TIER_CITY_LIMIT) {
+        setError(`You can cover up to ${BROKER_TIER_CITY_LIMIT} cities. Remove one to add another.`);
+        return;
+      }
+
       setError('');
       setFormData((prev) => ({
         ...prev,
@@ -201,42 +247,54 @@ export default function BrokerOnboarding() {
           formData.phone,
           formData.website,
           formData.role,
-          formData.tier
+          formData.tier,
+          formData.referral_code
         );
         if (!created.success) {
           throw new Error(created.error?.message || 'Failed to create broker profile');
         }
       }
 
-      // KYC — uploads should already exist by the time step 2 was passed,
-      // but re-check defensively rather than trust component state alone.
-      if (!kycIdUri || !kycSelfieUri) {
-        throw new Error('Missing ID or selfie photo — please go back and add both');
+      // createProfile always inserts selected_cities as [] — this is what
+      // actually persists the cities picked in step 4 (previously nothing
+      // did; formData.selectedCities only ever reached the ephemeral
+      // subscription store, used for value-reveal.tsx's estimates, never
+      // the database). Also covers a returning broker re-running this flow
+      // with a changed city selection, since getProfile found a profile.
+      const citiesResult = await brokerService.updateCities(userId, formData.tier, formData.selectedCities);
+      if (!citiesResult.success) {
+        throw new Error(citiesResult.error?.message || 'Failed to save selected cities');
       }
-      const idUpload = await brokerService.uploadKycDocument(userId, kycIdUri, 'id');
-      if (!idUpload.success || !idUpload.path) {
-        throw new Error(idUpload.error || 'Failed to upload ID photo');
-      }
-      const selfieUpload = await brokerService.uploadKycDocument(userId, kycSelfieUri, 'selfie');
-      if (!selfieUpload.success || !selfieUpload.path) {
-        throw new Error(selfieUpload.error || 'Failed to upload selfie');
-      }
-      const kycResult = await brokerService.submitKyc(userId, idUpload.path, selfieUpload.path);
-      if (!kycResult.success) {
-        throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
+
+      // KYC is optional, and each photo already uploaded in the background
+      // the moment it was picked (see uploadKycImage) — only the two
+      // storage paths need to exist now. A lone ID or lone selfie isn't
+      // meaningful for review, so it's treated the same as providing
+      // neither; an upload still in flight or failed at this point is also
+      // skipped rather than blocking signup on it.
+      if (kycIdPath && kycSelfiePath) {
+        const kycResult = await brokerService.submitKyc(userId, kycIdPath, kycSelfiePath);
+        if (!kycResult.success) {
+          throw new Error(kycResult.error?.message || 'Failed to submit KYC documents');
+        }
       }
 
       await disclaimerService.acceptDisclaimer(userId, 'broker', BROKER_DISCLAIMER_VERSION);
 
-      // Founding-member rate lock only applies to the paid (₱5,000/year)
-      // plan — the Free plan has nothing to lock. See migration 015.
-      if (formData.tier === 'Premium Annual') {
-        const founding = await brokerService.claimFoundingMemberSlot(userId);
-        if (founding.success && founding.founding_member_number) {
+      // Claims this broker's permanent place in the signup order, which
+      // fixes their intro price (migration 034). Stored in the subscription
+      // store so paywall.tsx/checkout.tsx can show/charge the right amount
+      // without re-deriving it.
+      const signup = await brokerService.claimBrokerSignupRank(userId);
+      if (signup.success && signup.signupRank) {
+        setSelectedTier('Premium Annual');
+        setSignupRank(signup.signupRank);
+        const priceCents = signup.priceCents;
+        if (priceCents) {
           await new Promise<void>((resolve) => {
             Alert.alert(
-              '🎉 You’re a Founding Member!',
-              `You're founding member #${founding.founding_member_number} of 1,000 — your ₱5,000/year rate is locked in for life, even if pricing goes up later.`,
+              '🎉 Your rate is locked in!',
+              `You're signup #${signup.signupRank} — your intro rate is ${formatPriceCents(priceCents)}/year.`,
               [{ text: 'Continue', onPress: () => resolve() }]
             );
           });
@@ -323,6 +381,14 @@ export default function BrokerOnboarding() {
             value={formData.website}
             onChangeText={(val) => setFormData((prev) => ({ ...prev, website: val }))}
           />
+
+          <TextInput
+            label="Referral Code (Optional)"
+            placeholder="e.g., BRK-000123"
+            autoCapitalize="characters"
+            value={formData.referral_code}
+            onChangeText={(val) => setFormData((prev) => ({ ...prev, referral_code: val }))}
+          />
         </View>
       )}
 
@@ -331,27 +397,41 @@ export default function BrokerOnboarding() {
         <View>
           <Text style={styles.sectionTitle}>Verify Your Identity</Text>
           <Text style={styles.stepDescription}>
-            Every new member goes through a quick verification check before their account is approved for leads.
+            Optional — you can finish signing up without it, but a verified ID and selfie get your account approved for leads faster.
           </Text>
 
-          <Text style={styles.fieldLabel}>Valid ID</Text>
-          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
-            {kycIdUri ? (
-              <Image source={{ uri: kycIdUri }} style={styles.uploadPreview} />
-            ) : (
+          <Text style={styles.fieldLabel}>Valid ID (Optional)</Text>
+          {kycIdUri ? (
+            <AttachmentPreview
+              uri={kycIdUri}
+              isImage
+              status={kycIdStatus ?? 'uploaded'}
+              onRemove={() => removeKycImage('id')}
+              onRetry={() => retryKycUpload('id')}
+              height={160}
+            />
+          ) : (
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('id')}>
               <Text style={styles.uploadPrompt}>Tap to attach a photo of a government ID</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           {formErrors.kycId ? <Text style={styles.errorMessage}>{formErrors.kycId}</Text> : null}
 
-          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie</Text>
-          <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
-            {kycSelfieUri ? (
-              <Image source={{ uri: kycSelfieUri }} style={styles.uploadPreview} />
-            ) : (
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Selfie (Optional)</Text>
+          {kycSelfieUri ? (
+            <AttachmentPreview
+              uri={kycSelfieUri}
+              isImage
+              status={kycSelfieStatus ?? 'uploaded'}
+              onRemove={() => removeKycImage('selfie')}
+              onRetry={() => retryKycUpload('selfie')}
+              height={160}
+            />
+          ) : (
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickKycImage('selfie')}>
               <Text style={styles.uploadPrompt}>Tap to take a selfie</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           {formErrors.kycSelfie ? <Text style={styles.errorMessage}>{formErrors.kycSelfie}</Text> : null}
 
           <View style={{ marginTop: 16 }}>
@@ -363,74 +443,65 @@ export default function BrokerOnboarding() {
                 setDisclaimerAcknowledged(val);
                 setFormErrors((prev) => ({ ...prev, disclaimer: '' }));
               }}
+              error={formErrors.disclaimer}
             />
-            {formErrors.disclaimer ? <Text style={styles.errorMessage}>{formErrors.disclaimer}</Text> : null}
           </View>
 
-          <Text style={styles.kycStatusNote}>
-            A person on our team reviews every submission — approval isn't instant, but you can finish signing up now.
-          </Text>
+          {(kycIdUri || kycSelfieUri) && (
+            <Text style={styles.kycStatusNote}>
+              A person on our team reviews every submission — approval isn't instant, but you can finish signing up now.
+            </Text>
+          )}
         </View>
       )}
 
-      {/* Step 3: Tier Selection */}
+      {/* Step 3: Plan info — one plan, no choice to make. Price depends on
+          signup order and is only known once claimed at submit time (see
+          handleSubmit's claimBrokerSignupRank call), so this step shows
+          what's included rather than a fixed number. */}
       {step === 3 && (
         <View>
-          <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+          <Text style={styles.sectionTitle}>Your Plan</Text>
           <Text style={styles.stepDescription}>
-            Select the membership tier that fits your business needs
+            Every broker gets the same membership — here's what's included
           </Text>
 
-          {TIERS.map((tier) => (
-            <TouchableOpacity
-              key={tier}
-              style={[styles.tierCard, formData.tier === tier && styles.tierCardActive]}
-              onPress={() => {
-                setFormData((prev) => ({ ...prev, tier }));
-                setFormErrors({});
-              }}
-            >
-              <View style={styles.tierHeader}>
-                <Text style={styles.tierName}>{TIER_DETAILS[tier].label}</Text>
-                <Text style={styles.tierPrice}>{TIER_DETAILS[tier].price}</Text>
-              </View>
+          <View style={[styles.tierCard, styles.tierCardActive]}>
+            <View style={styles.tierHeader}>
+              <Text style={styles.tierName}>Premium Annual</Text>
+              <Text style={styles.tierPrice}>Intro pricing</Text>
+            </View>
 
-              <View style={styles.tierFeatures}>
-                <Text style={styles.tierFeature}>📍 No limit on lead coverage cities</Text>
-                <Text style={styles.tierFeature}>
-                  💬 {tier === 'Premium Annual' ? 'Real-time' : 'Weekly'} leads
-                </Text>
-                {tier === 'Premium Annual' && (
-                  <Text style={styles.tierFeature}>
-                    💰 {TIER_DETAILS[tier].refund} money-back guarantee
-                  </Text>
-                )}
-              </View>
+            <View style={styles.tierFeatures}>
+              <Text style={styles.tierFeature}>
+                📍 {BROKER_TIER_CITY_LIMIT} cities
+              </Text>
+              <Text style={styles.tierFeature}>💬 Real-time leads</Text>
+              <Text style={styles.tierFeature}>
+                💰 {BROKER_REFUND_WINDOW_DAYS}-day money-back guarantee
+              </Text>
+            </View>
+          </View>
 
-              <View
-                style={[
-                  styles.tierRadio,
-                  formData.tier === tier && styles.tierRadioActive,
-                ]}
-              />
-            </TouchableOpacity>
-          ))}
+          <Text style={styles.stepDescription}>
+            Your exact rate is locked in based on when you sign up — you'll see it before you pay.
+          </Text>
         </View>
       )}
 
       {/* Step 4: City Selection */}
       {step === 4 && (
         <View>
-          <Text style={styles.sectionTitle}>Select Your Cities</Text>
+          <Text style={styles.sectionTitle}>Where Do You Want Leads From?</Text>
           <Text style={styles.stepDescription}>
-            Choose the cities where you'd like lead coverage.
+            Pick the cities or towns where you want to receive leads — not necessarily where you live or work.
           </Text>
 
           {!!error && <Text style={styles.errorMessage}>{error}</Text>}
 
           {loadingCities ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator color="#2563EB" />
+              <ActivityIndicator color={theme.color.accent} />
             </View>
           ) : (
             <>
@@ -505,9 +576,9 @@ export default function BrokerOnboarding() {
                 </TouchableOpacity>
               </Modal>
 
-              <Text style={styles.dropdownLabel}>Cities or Towns</Text>
+              <Text style={styles.dropdownLabel}>Cities or Towns Where You'll Get Leads</Text>
               <TouchableOpacity
-                style={styles.countryDropdown}
+                style={[styles.countryDropdown, !!formErrors.cities && styles.countryDropdownError]}
                 onPress={() => setCityPickerVisible(true)}
                 activeOpacity={0.7}
               >
@@ -523,10 +594,16 @@ export default function BrokerOnboarding() {
                         .filter((c) => formData.selectedCities.includes(c.id))
                         .map((c) => c.name)
                         .join(', ')
-                    : 'Select your city or town'}
+                    : 'Select the cities where you want leads'}
                 </Text>
                 <Text style={styles.countryDropdownChevron}>▾</Text>
               </TouchableOpacity>
+              {formErrors.cities ? (
+                <View style={styles.errorRow}>
+                  <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+                  <Text style={styles.errorMessage}>{formErrors.cities}</Text>
+                </View>
+              ) : null}
 
               <Modal
                 visible={cityPickerVisible}
@@ -547,7 +624,7 @@ export default function BrokerOnboarding() {
                 >
                   <TouchableWithoutFeedback onPress={() => {}}>
                   <View style={styles.modalCard}>
-                    <Text style={styles.modalTitle}>Select Cities or Towns</Text>
+                    <Text style={styles.modalTitle}>Where Do You Want Leads From?</Text>
                     {/* Cities are seeded per-country as real data comes in
                         (see supabase/migrations' city seeds) — a country
                         with none yet shows an empty state here instead of a
@@ -560,6 +637,7 @@ export default function BrokerOnboarding() {
                           onChangeText={setCitySearch}
                           autoCapitalize="none"
                         />
+                        {!!error && <Text style={styles.errorMessage}>{error}</Text>}
                         <FlatList
                           data={(() => {
                             const countryCities = cities.filter((c) => c.country === selectedCountry);
@@ -590,7 +668,10 @@ export default function BrokerOnboarding() {
 
                             return (
                               <TouchableOpacity
-                                style={[styles.cityItem, isSelected && styles.cityItemSelected]}
+                                style={[
+                                  styles.cityItem,
+                                  isSelected && styles.cityItemSelected,
+                                ]}
                                 onPress={() => handleCityToggle(item.id)}
                               >
                                 <View style={styles.cityItemContent}>
@@ -601,7 +682,12 @@ export default function BrokerOnboarding() {
                                     {item.state ? `, ${item.state}` : ''}
                                   </Text>
                                 </View>
-                                <View style={[styles.cityCheckbox, isSelected && styles.cityCheckboxActive]}>
+                                <View
+                                  style={[
+                                    styles.cityCheckbox,
+                                    isSelected && styles.cityCheckboxActive,
+                                  ]}
+                                >
                                   {isSelected && <Text style={styles.checkmark}>✓</Text>}
                                 </View>
                               </TouchableOpacity>
@@ -633,7 +719,7 @@ export default function BrokerOnboarding() {
           )}
 
           <Text style={styles.cityCount}>
-            Selected: {formData.selectedCities.length} {formData.selectedCities.length === 1 ? 'city' : 'cities'}
+            Selected: {formData.selectedCities.length} of {BROKER_TIER_CITY_LIMIT} cities
           </Text>
         </View>
       )}
@@ -652,19 +738,6 @@ export default function BrokerOnboarding() {
               <Toggle
                 value={formData.emailEnabled}
                 onToggle={(val) => setFormData((prev) => ({ ...prev, emailEnabled: val }))}
-              />
-            </View>
-          </Card>
-
-          <Card variant="default" style={styles.preferencesCard}>
-            <View style={styles.preferenceRow}>
-              <View>
-                <Text style={styles.preferenceLabel}>Push Notifications</Text>
-                <Text style={styles.preferenceHelper}>Get instant alerts on your phone</Text>
-              </View>
-              <Toggle
-                value={formData.pushEnabled}
-                onToggle={(val) => setFormData((prev) => ({ ...prev, pushEnabled: val }))}
               />
             </View>
           </Card>
@@ -715,18 +788,27 @@ export default function BrokerOnboarding() {
               <Text style={styles.reviewLabel}>Website</Text>
               <Text style={styles.reviewValue}>{formData.website || 'Not provided'}</Text>
             </View>
+            <View style={styles.reviewDivider} />
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Referral Code</Text>
+              <Text style={styles.reviewValue}>{formData.referral_code || 'Not provided'}</Text>
+            </View>
           </Card>
 
           <Card variant="default" style={styles.reviewCard}>
             <Text style={styles.reviewSectionLabel}>Verification</Text>
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Valid ID</Text>
-              <Text style={styles.reviewValue}>{kycIdUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+              <Text style={styles.reviewValue}>
+                {kycIdPath ? '✓ Uploaded' : kycIdStatus === 'uploading' ? 'Uploading…' : 'Not uploaded'}
+              </Text>
             </View>
             <View style={styles.reviewDivider} />
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Selfie</Text>
-              <Text style={styles.reviewValue}>{kycSelfieUri ? '✓ Uploaded' : 'Not uploaded'}</Text>
+              <Text style={styles.reviewValue}>
+                {kycSelfiePath ? '✓ Uploaded' : kycSelfieStatus === 'uploading' ? 'Uploading…' : 'Not uploaded'}
+              </Text>
             </View>
           </Card>
 
@@ -734,7 +816,7 @@ export default function BrokerOnboarding() {
             <Text style={styles.reviewSectionLabel}>Plan</Text>
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Selected Plan</Text>
-              <Text style={styles.reviewValue}>{TIER_DETAILS[formData.tier].label}</Text>
+              <Text style={styles.reviewValue}>{formData.tier}</Text>
             </View>
           </Card>
 
@@ -755,11 +837,6 @@ export default function BrokerOnboarding() {
             <View style={styles.reviewRow}>
               <Text style={styles.reviewLabel}>Email</Text>
               <Text style={styles.reviewValue}>{formData.emailEnabled ? 'On' : 'Off'}</Text>
-            </View>
-            <View style={styles.reviewDivider} />
-            <View style={styles.reviewRow}>
-              <Text style={styles.reviewLabel}>Push</Text>
-              <Text style={styles.reviewValue}>{formData.pushEnabled ? 'On' : 'Off'}</Text>
             </View>
           </Card>
         </View>
@@ -794,41 +871,41 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     borderRadius: 2,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#2563EB',
+    backgroundColor: theme.color.accent,
   },
   stepIndicator: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   stepDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 16,
     lineHeight: 20,
   },
   fieldLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   roleRow: {
@@ -844,41 +921,41 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   roleOptionActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   roleOptionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   roleOptionTextActive: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   roleHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginBottom: 20,
   },
   uploadBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     minHeight: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
     overflow: 'hidden',
   },
   uploadPrompt: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
@@ -888,21 +965,21 @@ const styles = StyleSheet.create({
   },
   kycStatusNote: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: 16,
     textAlign: 'center',
   },
   tierCard: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   tierCardActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   tierHeader: {
     flexDirection: 'row',
@@ -913,12 +990,12 @@ const styles = StyleSheet.create({
   tierName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   tierPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   tierFeatures: {
     marginBottom: 12,
@@ -926,7 +1003,7 @@ const styles = StyleSheet.create({
   },
   tierFeature: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 6,
   },
   tierRadio: {
@@ -934,12 +1011,12 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignSelf: 'flex-end',
   },
   tierRadioActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   loadingContainer: {
     paddingVertical: 32,
@@ -951,23 +1028,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
     marginBottom: 16,
+  },
+  countryDropdownError: {
+    borderColor: theme.color.danger,
   },
   countryDropdownText: {
     flex: 1,
     marginRight: 8,
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   countryDropdownChevron: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   dropdownLabel: {
     fontSize: 13,
@@ -977,7 +1057,7 @@ const styles = StyleSheet.create({
   },
   dropdownPlaceholder: {
     fontWeight: '400',
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   modalOverlay: {
     flex: 1,
@@ -990,7 +1070,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     maxHeight: '75%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -1007,7 +1087,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1017,16 +1097,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   countryOptionText: {
     fontSize: 15,
-    color: '#1F2937',
+    color: theme.color.text,
   },
   countryOptionCheck: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   cityItem: {
     flexDirection: 'row',
@@ -1035,7 +1115,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.color.border,
   },
   cityItemSelected: {
     backgroundColor: '#F0F9FF',
@@ -1049,54 +1129,60 @@ const styles = StyleSheet.create({
   cityItemName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   cityItemNameSelected: {
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   cityItemCapacity: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   cityCheckbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cityCheckboxActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#2563EB',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accent,
   },
   cityCheckboxDisabled: {
-    borderColor: '#DBEAFE',
+    borderColor: theme.color.accentWash,
   },
   checkmark: {
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
     fontSize: 14,
     fontWeight: '700',
   },
   cityCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: -8,
     textAlign: 'center',
   },
   noCitiesText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     textAlign: 'center',
     paddingVertical: 24,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
+    flex: 1,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
   },
   preferencesCard: {
     marginBottom: 12,
@@ -1111,12 +1197,12 @@ const styles = StyleSheet.create({
   preferenceLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   preferenceHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   infoCard: {
     marginTop: 16,
@@ -1126,12 +1212,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   reviewCard: {
@@ -1140,7 +1226,7 @@ const styles = StyleSheet.create({
   reviewSectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 10,
@@ -1153,18 +1239,18 @@ const styles = StyleSheet.create({
   },
   reviewLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   reviewValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flexShrink: 1,
     textAlign: 'right',
   },
   reviewDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   footer: {
     marginBottom: 32,

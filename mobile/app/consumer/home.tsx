@@ -26,12 +26,11 @@ import { reportService } from '../../services/report.service';
 import { AUTOCOMPLETE_COUNTRIES, PHONE_COUNTRIES } from '../../config/marketConfig';
 import { parseAddressComponents, isPreciseAddress, isPlusCode } from '../../utils/addressComponents';
 import { shortAddressLabel } from '../../utils/addressComponents';
-import { supabase } from '../../services/supabase';
 import { getAnonymousValuationCount, ANONYMOUS_VALUATION_LIMIT } from '../../utils/anonymousQuota';
+import { autocompleteOnWeb, placeDetailsOnWeb } from '../../services/placesWeb.service';
 import { Report } from '../../types';
 import { theme, card } from '../../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
 
 // Country options for the selector, in AUTOCOMPLETE_COUNTRIES' order (PH
@@ -50,11 +49,6 @@ const COUNTRY_OPTIONS = AUTOCOMPLETE_COUNTRIES.map(
 function componentsFilterFor(country: string | null): string {
   const countries = country ? [country] : AUTOCOMPLETE_COUNTRIES;
   return countries.map((code) => `country:${code}`).join('|');
-}
-
-async function authHeaders() {
-  const { data } = await supabase.auth.getSession();
-  return { Authorization: `Bearer ${data.session?.access_token}` };
 }
 
 interface PlacesPrediction {
@@ -113,10 +107,7 @@ export default function ConsumerHome() {
 
       const componentsFilter = componentsFilterFor(country);
       const response = Platform.OS === 'web'
-        ? await axios.get(`${API_URL}/api/places/autocomplete`, {
-            params: { input, components: componentsFilter },
-            headers: await authHeaders(),
-          })
+        ? { data: await autocompleteOnWeb(input, componentsFilter) }
         : await axios.get('https://maps.googleapis.com/maps/api/place/autocomplete/json', {
             params: {
               input,
@@ -173,10 +164,7 @@ export default function ConsumerHome() {
 
     try {
       const detailResponse = Platform.OS === 'web'
-        ? await axios.get(`${API_URL}/api/places/details`, {
-            params: { place_id: prediction.place_id },
-            headers: await authHeaders(),
-          })
+        ? { data: await placeDetailsOnWeb(prediction.place_id) }
         : await axios.get('https://maps.googleapis.com/maps/api/place/details/json', {
             params: {
               place_id: prediction.place_id,

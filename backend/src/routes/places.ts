@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
-import { authMiddleware } from '../middleware/auth.js';
+import { optionalAuthMiddleware } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -16,12 +16,17 @@ const router = Router();
  * backend (a normal server-to-server call, no CORS involved) fixes web
  * without changing native's behavior, and as a side benefit keeps the API
  * key out of the client bundle entirely.
+ *
+ * Uses optionalAuthMiddleware, not authMiddleware: this route exists only
+ * to hide the API key, and a signed-out guest (the app allows guest access
+ * to the consumer valuation flow) needs address lookup to work too — see
+ * optionalAuthMiddleware's own comment.
  */
 
 /**
  * GET /api/places/autocomplete
  */
-router.get('/autocomplete', authMiddleware, async (req: Request, res: Response) => {
+router.get('/autocomplete', optionalAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { input, components } = req.query;
 
@@ -65,7 +70,7 @@ router.get('/autocomplete', authMiddleware, async (req: Request, res: Response) 
 /**
  * GET /api/places/details
  */
-router.get('/details', authMiddleware, async (req: Request, res: Response) => {
+router.get('/details', optionalAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { place_id } = req.query;
 

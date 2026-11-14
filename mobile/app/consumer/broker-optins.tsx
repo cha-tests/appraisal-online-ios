@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { PhoneInput } from '../../components/ui/PhoneInput';
 import { Toggle } from '../../components/ui/Toggle';
+import { AttachmentPreview } from '../../components/ui/AttachmentPreview';
 import { useReportStore } from '../../stores/report.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { reportService } from '../../services/report.service';
@@ -17,6 +15,30 @@ import { useRequireAccount } from '../../hooks/useRequireAccount';
 import { disclaimerService } from '../../services/disclaimer.service';
 import { DisclaimerNotice } from '../../components/ui/DisclaimerNotice';
 import { CLIENT_DISCLAIMER_TEXT, CLIENT_DISCLAIMER_VERSION } from '../../config/disclaimers';
+import { chooseAttachmentSource, withRetry, PickedAttachment } from '../../utils/attachments';
+import { LEAD_TAG_OPTIONS } from '../../config/leadTags';
+import { theme } from '../../theme';
+
+// No hard cap (migration 036 removed the one migration 035 added — MVP
+// decision: trust the homeowner rather than block them). Above this many,
+// a confirm dialog double-checks the number before submitting rather than
+// silently routing to a crowd of brokers off of a likely typo — doesn't
+// block anything, just makes sure a big number was intentional.
+const LARGE_REQUEST_CONFIRM_THRESHOLD = 10;
+
+/** Resolves true if the homeowner confirms a request this large, false if they want to change it. */
+function confirmLargeBrokerRequest(count: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Connect with that many?',
+      `You're asking to connect with ${count} professionals — most homeowners choose far fewer. Continue with ${count}?`,
+      [
+        { text: 'Let me change it', style: 'cancel', onPress: () => resolve(false) },
+        { text: `Yes, connect with ${count}`, onPress: () => resolve(true) },
+      ]
+    );
+  });
+}
 
 /** A compact Yes/No pair for the ownership/selling-intent questions. */
 function YesNoRow({
@@ -60,11 +82,22 @@ export default function BrokerOptins() {
   // isn't required on that path. See config/disclaimers.ts for the text.
   const [disclaimerAcknowledged, setDisclaimerAcknowledged] = useState(false);
   const userId = useAuthStore((state) => state.user?.id);
-  // Optional — Clause 5 of the Sep 1 spec doesn't require a phone number to
-  // connect with a broker (email is always on file). Pre-filled from
-  // savedPhone when it exists, blank for accounts that predate phone-at-signup.
+  // Pre-filled from savedPhone when it exists, blank for accounts that
+  // predate phone-at-signup. Whether this actually gets sent to a broker is
+  // gated by sharePhone below, not by whether this field has a value —
+  // email is always on file either way (Clause 5 of the Sep 1 spec).
   const [phone, setPhone] = useState(savedPhone || '');
-  const [error, setError] = useState('');
+  // Never pre-checked — sharing a phone number with a broker is its own
+  // consent decision, separate from the broker-contact opt-in itself (see
+  // CLAUDE.md's "Consent" rule).
+  const [sharePhone, setSharePhone] = useState(false);
+  // Mandatory once opted in, but no default — left blank until the
+  // consumer actively enters a number (see handleContinue's validation).
+  const [brokerCount, setBrokerCount] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  // For failures that aren't about a specific field (a save that failed,
+  // an unexpected exception) — shown once at the bottom, same as before.
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Only ever asked here, alongside the broker opt-in — never on the
@@ -73,43 +106,29 @@ export default function BrokerOptins() {
   // spec — "don't require that yet... it's only for serious sellers").
   const [isOwner, setIsOwner] = useState<boolean | null>(null);
   const [intendsToSell, setIntendsToSell] = useState<boolean | null>(null);
+  // Lightweight lead-tagging (synthetic user report item #9) — purely a
+  // visible signal for the broker, not a routing input. Multi-select since
+  // a property can genuinely match more than one (e.g. facing foreclosure
+  // *and* managed remotely from overseas).
+  const [helpTags, setHelpTags] = useState<string[]>([]);
+  const toggleHelpTag = (value: string) => {
+    setHelpTags((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+    );
+  };
   const [titleFile, setTitleFile] = useState<{
     uri: string;
     mimeType: string;
     name?: string;
+    isImage: boolean;
   } | null>(null);
-
-  const pickTitlePhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Photo library access is needed to attach your title.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'image/jpeg', name: asset.fileName ?? undefined });
-    }
-  };
-
-  const pickTitleFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'image/*'],
-      copyToCacheDirectory: true,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setTitleFile({ uri: asset.uri, mimeType: asset.mimeType || 'application/pdf', name: asset.name });
-    }
-  };
-
-  const chooseTitleSource = () => {
-    Alert.alert('Attach your land title', 'Is your title a photo or a file?', [
-      { text: 'Photo', onPress: pickTitlePhoto },
-      { text: 'File (PDF or document)', onPress: pickTitleFile },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  // Set once uploadTitleDocument's upload actually succeeds — handleContinue
+  // reads this directly instead of re-uploading at submit time.
+  const [titleUploadPath, setTitleUploadPath] = useState<string | null>(null);
+  const [titleUploadStatus, setTitleUploadStatus] = useState<'uploading' | 'uploaded' | 'error' | null>(null);
+  // Bumped on every pick/remove so a slow upload that resolves after the
+  // file was replaced or cleared doesn't clobber the newer state.
+  const titleGenRef = useRef(0);
 
   if (!report) {
     return (
@@ -128,9 +147,7 @@ export default function BrokerOptins() {
   // see account.tsx settings.
   if (report.broker_contact_opted_in) {
     return (
-      <SafeAreaWrapper scrollable>
-        <BackButton onPress={() => router.push('/consumer/report-view')} />
-
+      <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/report-view')}>
         {/* Leads with the confirmation itself rather than a "Want
             professional help?" header — that question is already answered
             at this point, so restating it above the answer just buries the
@@ -160,14 +177,87 @@ export default function BrokerOptins() {
     );
   }
 
+  // Uploads immediately on pick rather than staging it for handleContinue —
+  // the storage round-trip already has its own success/failure feedback
+  // (and a retry), and deferring it would mean the whole opt-in waits on a
+  // slow upload at the one moment the consumer wants to finish quickly.
+  const uploadTitleDocument = (picked: PickedAttachment) => {
+    if (!userId) return;
+    const myGen = ++titleGenRef.current;
+
+    setTitleFile({ uri: picked.uri, mimeType: picked.mimeType, name: picked.name, isImage: picked.isImage });
+    setTitleUploadPath(null);
+    setTitleUploadStatus('uploading');
+
+    withRetry(() => reportService.uploadTitleDocument(userId, report.id, picked.uri, picked.mimeType)).then(
+      (result) => {
+        // Superseded by a newer pick or a remove while this was in flight.
+        if (titleGenRef.current !== myGen) return;
+        setTitleUploadPath(result.success ? result.path ?? null : null);
+        setTitleUploadStatus(result.success ? 'uploaded' : 'error');
+      }
+    );
+  };
+
+  const pickTitleDocument = async () => {
+    const picked = await chooseAttachmentSource({
+      title: 'Attach Your Land Title',
+      allowCamera: true,
+      allowLibrary: true,
+      allowFiles: true,
+    });
+    if (!picked) return;
+    uploadTitleDocument(picked);
+  };
+
+  const retryTitleUpload = () => {
+    if (titleFile) uploadTitleDocument(titleFile);
+  };
+
+  const removeTitleDocument = () => {
+    titleGenRef.current++; // invalidate any in-flight upload
+    setTitleFile(null);
+    setTitleUploadPath(null);
+    setTitleUploadStatus(null);
+  };
+
   const handleContinue = async () => {
     try {
-      setError('');
+      setFormError('');
 
-      if (optedIn && !disclaimerAcknowledged) {
-        setError('Please acknowledge the notice above before connecting with a broker.');
-        return;
+      if (optedIn) {
+        const newErrors: Record<string, string> = {};
+
+        const parsedCount = parseInt(brokerCount, 10);
+        if (!brokerCount.trim() || !Number.isInteger(parsedCount) || parsedCount < 1) {
+          newErrors.brokerCount = 'Please enter how many professionals you want to connect with.';
+        }
+
+        if (sharePhone) {
+          // Only validated when the consumer has actually turned sharing on
+          // — the field itself always holds whatever's on file, shared or not.
+          const digitCount = phone.replace(/\D/g, '').length;
+          if (digitCount < 7 || digitCount > 15) {
+            newErrors.phone = 'Please enter a valid mobile number';
+          }
+        }
+
+        if (!disclaimerAcknowledged) {
+          newErrors.disclaimer = 'Please acknowledge the notice above before connecting with a broker.';
+        }
+
+        setErrors(newErrors);
+        if (Object.keys(newErrors).length > 0) return;
+
+        if (parsedCount > LARGE_REQUEST_CONFIRM_THRESHOLD) {
+          const confirmed = await confirmLargeBrokerRequest(parsedCount);
+          if (!confirmed) return;
+        }
+      } else {
+        setErrors({});
       }
+
+      const brokerCountToSave: number | undefined = optedIn ? parseInt(brokerCount, 10) : undefined;
 
       setLoading(true);
 
@@ -178,28 +268,15 @@ export default function BrokerOptins() {
             report_id: report.id,
           });
         }
-        if (phone) {
-          // Optional — only validated when they've actually entered something.
-          const digitCount = phone.replace(/\D/g, '').length;
-          if (digitCount < 7 || digitCount > 15) {
-            setError('Please enter a valid mobile number');
-            return;
-          }
+        if (sharePhone) {
           phoneToSave = phone;
         }
       }
 
-      // Title upload is optional and never blocks continuing — if it fails,
-      // the opt-in itself should still go through.
-      let titleUrl: string | undefined;
-      if (optedIn && titleFile && userId) {
-        const uploaded = await reportService.uploadTitleDocument(userId, report.id, titleFile.uri, titleFile.mimeType);
-        if (uploaded.success && uploaded.path) {
-          titleUrl = uploaded.path;
-        } else {
-          console.error('Title upload failed (non-blocking):', uploaded.error);
-        }
-      }
+      // Already uploaded in the background when picked (see
+      // uploadTitleDocument) — optional either way, so one still in flight
+      // or that failed just isn't included rather than blocking continuing.
+      const titleUrl: string | undefined = optedIn && titleUploadPath ? titleUploadPath : undefined;
 
       // Update report with opt-in status
       const result = await reportService.updateBrokerOptIn(
@@ -208,7 +285,9 @@ export default function BrokerOptins() {
         phoneToSave,
         optedIn ? isOwner ?? undefined : undefined,
         optedIn ? intendsToSell ?? undefined : undefined,
-        titleUrl
+        titleUrl,
+        brokerCountToSave,
+        optedIn ? helpTags : undefined
       );
 
       if (result.success) {
@@ -227,18 +306,17 @@ export default function BrokerOptins() {
           router.push('/consumer/report-view');
         }
       } else {
-        setError(result.error?.message || 'Failed to save preferences');
+        setFormError(result.error?.message || 'Failed to save preferences');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setFormError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.push('/consumer/report-view')} />
+    <SafeAreaWrapper scrollable onBackPress={() => router.push('/consumer/report-view')}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Want professional help?</Text>
@@ -249,27 +327,75 @@ export default function BrokerOptins() {
 
       {/* Opt-in Card */}
       <Card variant="elevated" style={styles.optInCard}>
-        <View style={styles.checkboxRow}>
+        {/* The whole row toggles, not just the switch itself — this is the
+            single most important consent control in the consumer flow, so
+            it gets the larger, full-row tap target standard mobile UIs use
+            for a primary toggle. */}
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          activeOpacity={0.7}
+          onPress={() => setOptedIn(!optedIn)}
+        >
           <Text style={styles.checkboxLabel}>
             I'd like local professionals to contact me
           </Text>
           <Toggle value={optedIn} onToggle={setOptedIn} />
-        </View>
+        </TouchableOpacity>
       </Card>
 
+      {/* Required whenever optedIn — see handleContinue's validation. Left
+          blank rather than defaulted to any number, so the consumer has to
+          make an actual choice instead of silently accepting a preset count. */}
+      {optedIn && (
+        <View style={styles.brokerCountSection}>
+          <Text style={styles.brokerCountLabel}>
+            How many professionals would you like to connect with?
+          </Text>
+          <TextInput
+            placeholder="e.g., 3"
+            value={brokerCount}
+            onChangeText={(text) => {
+              setBrokerCount(text.replace(/[^\d]/g, ''));
+              if (errors.brokerCount) setErrors((prev) => ({ ...prev, brokerCount: '' }));
+            }}
+            keyboardType="number-pad"
+            error={errors.brokerCount}
+          />
+          <Text style={styles.brokerCountHelper}>Most homeowners choose 1-3.</Text>
+        </View>
+      )}
+
       {/* Editable so a wrong number or country code (from signup) can be
-          corrected here — optional, so leaving it blank doesn't block
-          continuing (see handleContinue). */}
+          corrected here — but whether it's actually sent is its own
+          decision via the toggle below, never implied by just having a
+          number on file (see CLAUDE.md's "Consent" rule and handleContinue). */}
       {optedIn && (
         <View style={styles.phoneSection}>
-          <Text style={styles.phoneLabel}>Phone Number (Optional)</Text>
+          <Text style={styles.phoneLabel}>Phone Number</Text>
           <PhoneInput
             value={phone}
-            onChangeText={setPhone}
-            error={error && error.includes('mobile number') ? error : undefined}
+            onChangeText={(text) => {
+              setPhone(text);
+              if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+            }}
+            error={errors.phone}
           />
+
+          <TouchableOpacity
+            style={styles.sharePhoneRow}
+            activeOpacity={0.7}
+            onPress={() => setSharePhone(!sharePhone)}
+          >
+            <Text style={styles.sharePhoneLabel}>
+              Let a professional call or text me at this number
+            </Text>
+            <Toggle value={sharePhone} onToggle={setSharePhone} />
+          </TouchableOpacity>
+
           <Text style={styles.phoneHelper}>
-            We'll only share your phone number with professionals if you provide it. Your data is always private and secure.
+            {sharePhone
+              ? 'This number will be shared with the professional who contacts you.'
+              : "This stays private — they'll reach out by email unless you turn this on."}
           </Text>
         </View>
       )}
@@ -290,18 +416,44 @@ export default function BrokerOptins() {
             <YesNoRow value={intendsToSell} onChange={setIntendsToSell} />
           </View>
 
+          <View style={styles.qualifyRow}>
+            <Text style={styles.qualifyLabel}>Does any of this apply to you? (Optional)</Text>
+            <View style={styles.helpTagsWrap}>
+              {LEAD_TAG_OPTIONS.map((option) => {
+                const active = helpTags.includes(option.value);
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.helpTagChip, active && styles.helpTagChipActive]}
+                    onPress={() => toggleHelpTag(option.value)}
+                  >
+                    <Text style={[styles.helpTagText, active && styles.helpTagTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.helpTagsHelper}>
+              Helps us match you with a professional who has relevant experience.
+            </Text>
+          </View>
+
           <Text style={styles.titleLabel}>Land Title (Optional)</Text>
-          <TouchableOpacity style={styles.titleUploadBox} onPress={chooseTitleSource}>
-            {titleFile ? (
-              titleFile.mimeType.startsWith('image/') ? (
-                <Image source={{ uri: titleFile.uri }} style={styles.titlePreview} />
-              ) : (
-                <Text style={styles.titleUploadPrompt}>📄 {titleFile.name || 'Title file attached'} — tap to change</Text>
-              )
-            ) : (
+          {titleFile ? (
+            <AttachmentPreview
+              uri={titleFile.uri}
+              isImage={titleFile.isImage}
+              fileName={titleFile.name}
+              status={titleUploadStatus ?? 'uploaded'}
+              onRemove={removeTitleDocument}
+              onRetry={retryTitleUpload}
+            />
+          ) : (
+            <TouchableOpacity style={styles.titleUploadBox} onPress={pickTitleDocument}>
               <Text style={styles.titleUploadPrompt}>Tap to attach your land title (photo or file)</Text>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
           <Text style={styles.titleHelper}>
             Not required — but properties with a title on file are prioritized by our broker
             network. We don't verify titles ourselves; brokers review what's submitted.
@@ -316,7 +468,11 @@ export default function BrokerOptins() {
           text={CLIENT_DISCLAIMER_TEXT}
           showPrcLink
           acknowledged={disclaimerAcknowledged}
-          onToggleAcknowledged={setDisclaimerAcknowledged}
+          onToggleAcknowledged={(val) => {
+            setDisclaimerAcknowledged(val);
+            if (errors.disclaimer) setErrors((prev) => ({ ...prev, disclaimer: '' }));
+          }}
+          error={errors.disclaimer}
         />
       )}
 
@@ -332,7 +488,7 @@ export default function BrokerOptins() {
         <View style={styles.benefitItem}>
           <Text style={styles.benefitBullet}>📞</Text>
           <Text style={styles.benefitText}>
-            They'll reach out via your preferred method (or email if no phone provided)
+            They'll reach out by email, or by phone too if you choose to share your number
           </Text>
         </View>
         <View style={styles.benefitItem}>
@@ -343,10 +499,9 @@ export default function BrokerOptins() {
         </View>
       </Card>
 
-      {/* Error Message */}
-      {!!error && !error.includes('mobile number') && (
-        <Text style={styles.errorMessage}>{error}</Text>
-      )}
+      {/* Error Message — a save failure or unexpected exception, not a
+          field-level validation error (those are shown inline above). */}
+      {!!formError && <Text style={styles.errorMessage}>{formError}</Text>}
 
       {/* Actions */}
       <View style={styles.footer}>
@@ -373,7 +528,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -382,12 +537,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 24,
   },
   optInCard: {
@@ -406,7 +561,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#10B981',
+    backgroundColor: theme.color.success,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -414,12 +569,12 @@ const styles = StyleSheet.create({
   connectedIcon: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.color.onAccent,
   },
   connectedTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#047857',
+    color: theme.color.successInk,
     marginBottom: 10,
     textAlign: 'center',
   },
@@ -432,7 +587,7 @@ const styles = StyleSheet.create({
   },
   connectedHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
     textAlign: 'center',
   },
@@ -444,8 +599,23 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     flex: 1,
+  },
+  brokerCountSection: {
+    marginBottom: 24,
+  },
+  brokerCountLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.color.text,
+    marginBottom: 12,
+  },
+  brokerCountHelper: {
+    fontSize: 13,
+    color: theme.color.textMuted,
+    marginTop: 8,
+    lineHeight: 18,
   },
   phoneSection: {
     marginBottom: 24,
@@ -453,14 +623,27 @@ const styles = StyleSheet.create({
   phoneLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 12,
   },
   phoneHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 8,
     lineHeight: 18,
+  },
+  sharePhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  sharePhoneLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.color.text,
+    flex: 1,
+    marginRight: 12,
   },
   qualifySection: {
     marginBottom: 24,
@@ -471,7 +654,7 @@ const styles = StyleSheet.create({
   qualifyLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 10,
   },
   yesNoRow: {
@@ -483,59 +666,86 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.color.surface,
   },
   yesNoOptionActive: {
-    borderColor: '#2563EB',
-    backgroundColor: '#DBEAFE',
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
   },
   yesNoText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   yesNoTextActive: {
-    color: '#2563EB',
+    color: theme.color.accent,
+  },
+  helpTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  helpTagChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.color.track,
+    backgroundColor: theme.color.surface,
+  },
+  helpTagChipActive: {
+    borderColor: theme.color.accent,
+    backgroundColor: theme.color.accentWash,
+  },
+  helpTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.textMuted,
+  },
+  helpTagTextActive: {
+    color: theme.color.accent,
+  },
+  helpTagsHelper: {
+    fontSize: 12,
+    color: theme.color.textFaint,
+    marginTop: 8,
+    lineHeight: 16,
   },
   titleLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 10,
   },
   titleUploadBox: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
+    borderColor: theme.color.track,
     borderRadius: 12,
     minHeight: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
     overflow: 'hidden',
   },
   titleUploadPrompt: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     textAlign: 'center',
     paddingHorizontal: 24,
   },
-  titlePreview: {
-    width: '100%',
-    height: 140,
-  },
   titleHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     marginTop: 8,
     lineHeight: 17,
   },
   benefitsTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   benefitItem: {
@@ -550,7 +760,7 @@ const styles = StyleSheet.create({
   },
   benefitText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
     flex: 1,
   },
@@ -561,10 +771,10 @@ const styles = StyleSheet.create({
   skipText: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   errorMessage: {
-    color: '#EF4444',
+    color: theme.color.danger,
     fontSize: 14,
     marginBottom: 16,
   },

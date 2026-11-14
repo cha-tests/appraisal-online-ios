@@ -8,6 +8,28 @@
 
 export const PRC_VERIFICATION_URL = 'https://www.prc.gov.ph';
 
+/**
+ * The AI-valuation-accuracy disclaimer mandated (exact wording, see
+ * CLAUDE.md's "Critical business rules") for all three required
+ * placements: in-app report view, email body, and PDF. This is a
+ * different concern from CLIENT_DISCLAIMER_TEXT below (which covers
+ * broker-license verification, agreed separately at the Sep 1, 2026
+ * sync-up) — the two coexist, neither replaces the other.
+ *
+ * This sentence was present everywhere up through Aug 2026, but was
+ * accidentally dropped from the in-app report view and both PDF
+ * generators during the Sep 9, 2026 redesign/PDF-rewrite commit, which
+ * wired in CLIENT_DISCLAIMER_TEXT as the only notice shown in those three
+ * spots. It survived untouched in the email template and the public
+ * Sample Report page the whole time. Restored here rather than merged
+ * into CLIENT_DISCLAIMER_TEXT, since that constant has its own version
+ * tracking (disclaimer_acceptances, migration 014) tied to the broker-
+ * verification wording specifically.
+ */
+export const AI_ESTIMATE_DISCLAIMER_TEXT =
+  'This is a computer estimate. It is not a licensed appraisal. Banks, courts, and government agencies ' +
+  'do not accept this as a formal valuation.';
+
 export const CLIENT_DISCLAIMER_VERSION = '2026-09-02';
 
 export const CLIENT_DISCLAIMER_TEXT =

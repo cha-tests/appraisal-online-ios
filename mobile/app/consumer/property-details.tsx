@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { TextInput } from '../../components/ui/TextInput';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { useReportStore } from '../../stores/report.store';
 import { PropertyDetailsFormData } from '../../types';
@@ -18,6 +17,7 @@ import {
   type SizeUnit,
 } from '../../config/marketConfig';
 import { theme, pill } from '../../theme';
+import { IconWarning } from '../../components/ui/icons';
 
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor'];
 
@@ -236,10 +236,12 @@ export default function PropertyDetails() {
             : `Please enter ${Math.round(sqftToSqm(100))}-${Math.round(sqftToSqm(5000000)).toLocaleString()} sq m`;
       }
     }
-    // Optional for vacant land — see isLand above — so a blank year_built
-    // (still 0, its unfilled placeholder value) doesn't block submission.
+    // Optional everywhere — a blank year_built (still 0, its unfilled
+    // placeholder value, see yearText above) doesn't block submission; only
+    // an actually-entered value gets range-checked.
     if (
       !isLand &&
+      formData.year_built !== 0 &&
       (formData.year_built < 1800 || formData.year_built > new Date().getFullYear())
     ) {
       newErrors.year_built = `Please enter year between 1800 and ${new Date().getFullYear()}`;
@@ -289,8 +291,7 @@ export default function PropertyDetails() {
       style={{ flex: 1 }}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
-      <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.back()} />
+      <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
       <ProgressBar progress={66} label="2 of 3" />
 
       <View style={styles.header}>
@@ -362,7 +363,10 @@ export default function PropertyDetails() {
             max={10}
           />
           {(!!errors.bedrooms || !!errors.bathrooms) && (
-            <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
+            <View style={styles.errorRow}>
+              <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+              <Text style={styles.errorText}>{errors.bedrooms || errors.bathrooms}</Text>
+            </View>
           )}
         </View>
       )}
@@ -424,7 +428,7 @@ export default function PropertyDetails() {
       {!isLand && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>State</Text>
-          <View style={styles.conditionGrid}>
+          <View style={[styles.conditionGrid, !!errors.condition && styles.conditionGridError]}>
             {CONDITIONS.map((condition) => {
               const active = formData.condition === condition;
               return (
@@ -438,7 +442,12 @@ export default function PropertyDetails() {
               );
             })}
           </View>
-          {!!errors.condition && <Text style={styles.errorText}>{errors.condition}</Text>}
+          {!!errors.condition && (
+            <View style={styles.errorRow}>
+              <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+              <Text style={styles.errorText}>{errors.condition}</Text>
+            </View>
+          )}
 
           <TextInput
             label="Year Built"
@@ -451,6 +460,20 @@ export default function PropertyDetails() {
           />
         </View>
       )}
+
+      {/* Anything that doesn't fit the fields above — agricultural land,
+          mixed-use, co-owned/inherited, storm/fire damage, pre-selling —
+          optional and independent of Property Type, which only names what
+          the property IS, not a situation around it. */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Anything else we should know?</Text>
+        <TextInput
+          placeholder="e.g., agricultural land, mixed-use, co-owned/inherited, storm damage, pre-selling / not yet built"
+          value={formData.special_situation ?? ''}
+          onChangeText={(val) => updateFormData('special_situation', val || undefined)}
+          multiline
+        />
+      </View>
 
       {/* Navigation */}
       <View style={styles.footer}>
@@ -494,10 +517,16 @@ const styles = StyleSheet.create({
     marginTop: theme.space.md,
     marginBottom: theme.space.md,
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.xs,
+    marginTop: theme.space.xs,
+  },
   errorText: {
     ...theme.type.caption,
     color: theme.color.danger,
-    marginTop: theme.space.xs,
+    flex: 1,
   },
   stepperRow: {
     flexDirection: 'row',
@@ -560,6 +589,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.space.sm + 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: theme.radius.md,
+    padding: theme.space.xs,
+    margin: -theme.space.xs,
+  },
+  conditionGridError: {
+    borderColor: theme.color.danger,
   },
   conditionButton: {
     flexGrow: 1,

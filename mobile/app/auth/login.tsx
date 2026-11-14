@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { Button } from '../../components/ui/Button';
-import { BackButton } from '../../components/ui/BackButton';
 import { TextInput } from '../../components/ui/TextInput';
 import { useAuthStore } from '../../stores/auth.store';
 import { authService } from '../../services/auth.service';
@@ -13,6 +12,8 @@ import {
   clearPendingValuationStash,
 } from '../../services/pendingValuationCompletion';
 import { useReportStore } from '../../stores/report.store';
+import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -80,9 +81,10 @@ export default function LoginScreen() {
 
         router.replace('/consumer/home');
       } else {
-        const errorMessage = typeof result.error === 'object' && result.error?.message
-          ? result.error.message
-          : result.error || 'Invalid email or password';
+        const errorMessage = friendlyAuthErrorMessage(
+          typeof result.error === 'object' ? result.error : undefined,
+          'Invalid email or password'
+        );
         Alert.alert('Login Failed', errorMessage);
       }
     } catch (err) {
@@ -94,10 +96,14 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaWrapper scrollable>
-      <BackButton onPress={() => router.replace('/welcome')} />
+    <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>Welcome Back</Text>
         <Text style={styles.subtitle}>Sign in to your account</Text>
       </View>
@@ -151,15 +157,20 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     alignItems: 'center',
   },
+  mark: {
+    width: 44,
+    height: 44,
+    marginBottom: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   form: {
     marginBottom: 24,
@@ -176,6 +187,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
 });

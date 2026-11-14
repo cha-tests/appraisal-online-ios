@@ -10,6 +10,7 @@ import { subscriptionService } from '../../services/subscription.service';
 import { brokerService } from '../../services/broker.service';
 import { formatCurrency, formatDate } from '../../config/marketConfig';
 import { Subscription } from '../../types';
+import { theme } from '../../theme';
 
 export default function RefundRequest() {
   const router = useRouter();
@@ -94,7 +95,7 @@ export default function RefundRequest() {
     return (
       <SafeAreaWrapper>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
         </View>
       </SafeAreaWrapper>
     );
@@ -168,7 +169,7 @@ export default function RefundRequest() {
         <View style={styles.divider} />
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Days Remaining</Text>
-          <Text style={[styles.detailValue, { color: '#EF4444' }]}>
+          <Text style={[styles.detailValue, { color: theme.color.danger }]}>
             {eligibility.daysSincePurchase ? eligibility.refundWindow! - eligibility.daysSincePurchase : eligibility.refundWindow} days
           </Text>
         </View>
@@ -258,7 +259,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -267,12 +268,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   detailsCard: {
     marginBottom: 24,
@@ -285,27 +286,27 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   sectionHelper: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
   },
   importantCard: {
@@ -331,12 +332,12 @@ const styles = StyleSheet.create({
   alternativesTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   alternativesSubtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginBottom: 12,
   },
   alternativeItem: {
@@ -351,7 +352,7 @@ const styles = StyleSheet.create({
   },
   alternativeText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     flex: 1,
     lineHeight: 18,
   },
@@ -385,12 +386,12 @@ const styles = StyleSheet.create({
   helpTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 6,
   },
   helpText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {

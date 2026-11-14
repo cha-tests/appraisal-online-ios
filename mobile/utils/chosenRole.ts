@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../services/storage';
 
 /**
  * Which path a signed-out visitor picked on the Choose role screen

@@ -15,9 +15,19 @@ import webhookRoutes from './routes/webhooks.js';
 import healthRoutes from './routes/health.js';
 import placesRoutes from './routes/places.js';
 import valuationRoutes from './routes/valuation.js';
+import accountRoutes from './routes/account.js';
+import { startNotificationPoller } from './services/notificationPoller.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Webhook routes are mounted before the global body parsers below, and
+// parse their own bodies individually (see routes/webhooks.ts) rather
+// than relying on them. Stripe's signature check needs the exact raw
+// bytes it signed — a JSON.stringify of an already-parsed body is a
+// different (if structurally identical) byte sequence and always fails
+// verification, which is what express.json() running first would do.
+app.use('/webhooks', webhookRoutes);
 
 // Middleware
 app.use(express.json());
@@ -34,9 +44,6 @@ app.use(cors({
 // Health check (no auth required)
 app.use('/health', healthRoutes);
 
-// Webhook routes (no auth required, but have their own validation)
-app.use('/webhooks', webhookRoutes);
-
 // Public API endpoints
 app.get('/api/status', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -48,6 +55,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/emails', emailRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/valuation', valuationRoutes);
+app.use('/api/account', accountRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -60,6 +68,11 @@ app.listen(PORT, () => {
   logger.info(`🚀 Server running on http://localhost:${PORT}`);
   logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// Drains notification_queue (migration 040) — see
+// services/notificationPoller.ts for why this is a poller rather than a
+// Postgres-triggered HTTP call.
+startNotificationPoller();
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {

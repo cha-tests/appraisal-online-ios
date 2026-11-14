@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { optionalAuthMiddleware } from '../middleware/auth.js';
 import * as geminiService from '../services/gemini.js';
 import { logger } from '../utils/logger.js';
 
@@ -10,17 +10,19 @@ const router = Router();
  *
  * Proxies the Gemini valuation call server-side, mirroring routes/places.ts's
  * reasoning for proxying Google Places: keeps GEMINI_API_KEY out of the
- * mobile app bundle instead of shipping it via EXPO_PUBLIC_*.
+ * client bundle instead of shipping it via EXPO_PUBLIC_*.
  *
- * Not yet wired up to the mobile app — report.service.ts still calls Gemini
- * directly using EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY. Switching the app over to
- * this endpoint only makes sense once the backend is reachable from a real
- * device (i.e. deployed somewhere with a public URL, not just this dev
- * machine's LAN IP) — see the comment on EXPO_PUBLIC_API_URL in
- * mobile/.env.local for why that same constraint already limits the Places
- * proxy to the web build only.
+ * Wired up to the web build only (mobile/services/report.service.ts
+ * branches on Platform.OS === 'web') — native keeps calling Gemini directly
+ * with EXPO_PUBLIC_GOOGLE_GEMINI_API_KEY for now, same constraint as the
+ * Places proxy (this endpoint only works once the backend has a public URL,
+ * which native's EXPO_PUBLIC_API_URL may not point at in every environment).
+ *
+ * optionalAuthMiddleware, not authMiddleware: a signed-out guest can use the
+ * consumer valuation flow before signing up, and this route doesn't care who
+ * (or whether anyone) is asking — see optionalAuthMiddleware's own comment.
  */
-router.post('/generate', authMiddleware, async (req: Request, res: Response) => {
+router.post('/generate', optionalAuthMiddleware, async (req: Request, res: Response) => {
   try {
     const { propertyDetails, location, comparables, countryCode } = req.body;
 

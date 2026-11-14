@@ -7,12 +7,12 @@ import { Card } from '../../components/ui/Card';
 import { useSubscriptionStore } from '../../stores/subscription.store';
 import { brokerService } from '../../services/broker.service';
 import { formatCurrency } from '../../config/marketConfig';
+import { theme } from '../../theme';
 
 interface ValueMetrics {
   estimatedLeadsPerMonth: number;
   estimatedLeadValue: number;
   marketingBudgetPercentage: number;
-  competitorCount: number;
 }
 
 export default function ValueReveal() {
@@ -42,7 +42,6 @@ export default function ValueReveal() {
           estimatedLeadsPerMonth: avgLeadsPerMonth,
           estimatedLeadValue: avgLeadValue,
           marketingBudgetPercentage: 100 / selectedCities.length,
-          competitorCount: Math.max(1, Math.floor(Math.random() * 5) + 2),
         });
       } catch (err) {
         console.error('Error calculating metrics:', err);
@@ -50,7 +49,6 @@ export default function ValueReveal() {
           estimatedLeadsPerMonth: selectedCities.length * 3,
           estimatedLeadValue: 5000,
           marketingBudgetPercentage: 100 / selectedCities.length,
-          competitorCount: 2,
         });
       } finally {
         setLoading(false);
@@ -64,7 +62,7 @@ export default function ValueReveal() {
     return (
       <SafeAreaWrapper>
         <View style={styles.container}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Calculating your opportunity...</Text>
         </View>
       </SafeAreaWrapper>
@@ -137,19 +135,6 @@ export default function ValueReveal() {
             </Text>
           </View>
         </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.metricCardContent}>
-          <Text style={styles.metricCardIcon}>🏆</Text>
-          <View style={styles.metricCardText}>
-            <Text style={styles.metricCardLabel}>Competitive Position</Text>
-            <Text style={styles.metricCardValue}>{metrics.competitorCount - 1} Competitors</Text>
-            <Text style={styles.metricCardHelper}>
-              Limited to {metrics.competitorCount} members per city
-            </Text>
-          </View>
-        </View>
       </Card>
 
       {/* How It Works */}
@@ -191,9 +176,7 @@ export default function ValueReveal() {
           <View style={styles.howItWorksContent}>
             <Text style={styles.howItWorksTitle}>You Get The Lead</Text>
             <Text style={styles.howItWorksText}>
-              {selectedTier === 'Basic Annual'
-                ? 'Leads delivered weekly via digest'
-                : 'You receive real-time notification with full details'}
+              You get an email the moment it happens, with full details
             </Text>
           </View>
         </View>
@@ -245,43 +228,23 @@ export default function ValueReveal() {
         </View>
       </Card>
 
-      {/* CTA — the Free tier has nothing to pay for, so it skips straight to
-          activation instead of the paid tier's payment flow (rating-prompt
-          -> paywall -> checkout). The broker profile itself was already
-          created back in onboarding.tsx's handleSubmit, so "Submit" here
-          just confirms and moves on to the welcome/activation screen. */}
-      {(() => {
-        const isFree = selectedTier === 'Basic Annual';
-        return (
-          <>
-            <View style={styles.ctaSection}>
-              <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
-              <Text style={styles.ctaSubtitle}>
-                {isFree
-                  ? 'Submit to activate your free membership'
-                  : 'Choose your plan and complete payment to activate your membership'}
-              </Text>
-            </View>
+      {/* CTA */}
+      <View style={styles.ctaSection}>
+        <Text style={styles.ctaTitle}>Ready to Get Started?</Text>
+        <Text style={styles.ctaSubtitle}>
+          Choose your plan and complete payment to activate your membership
+        </Text>
+      </View>
 
-            <View style={styles.footer}>
-              <Button
-                title={isFree ? 'Submit' : 'Continue to Payment'}
-                size="large"
-                onPress={() =>
-                  router.push(isFree ? '/broker/welcome' : '/broker/rating-prompt')
-                }
-                style={{ marginBottom: 12 }}
-              />
-              <Button
-                title="Back"
-                variant="outline"
-                size="large"
-                onPress={() => router.back()}
-              />
-            </View>
-          </>
-        );
-      })()}
+      <View style={styles.footer}>
+        <Button
+          title="Continue to Payment"
+          size="large"
+          onPress={() => router.push('/broker/rating-prompt')}
+          style={{ marginBottom: 12 }}
+        />
+        <Button title="Back" variant="outline" size="large" onPress={() => router.back()} />
+      </View>
     </SafeAreaWrapper>
   );
 }
@@ -295,11 +258,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   error: {
     fontSize: 16,
-    color: '#EF4444',
+    color: theme.color.danger,
     marginBottom: 16,
   },
   header: {
@@ -308,12 +271,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   mainMetric: {
     alignItems: 'center',
@@ -321,25 +284,25 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
     marginBottom: 8,
   },
   metricValue: {
     fontSize: 56,
     fontWeight: '700',
-    color: '#10B981',
+    color: theme.color.success,
     marginBottom: 8,
   },
   metricHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
     textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 16,
   },
   whatThisMeansCard: {
@@ -360,19 +323,19 @@ const styles = StyleSheet.create({
   },
   metricCardLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     fontWeight: '600',
     marginBottom: 4,
   },
   metricCardValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   metricCardHelper: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme.color.textFaint,
   },
   howItWorksItem: {
     flexDirection: 'row',
@@ -383,7 +346,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: theme.color.accentWash,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -391,7 +354,7 @@ const styles = StyleSheet.create({
   howItWorksNumberText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   howItWorksContent: {
     flex: 1,
@@ -399,25 +362,25 @@ const styles = StyleSheet.create({
   howItWorksTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 2,
   },
   howItWorksText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
   },
   whyThisWorksTitle: {
     marginTop: 24,
   },
   benefitsCard: {
     marginBottom: 24,
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    borderColor: theme.color.border,
   },
   benefitItem: {
     flexDirection: 'row',
@@ -435,12 +398,12 @@ const styles = StyleSheet.create({
   benefitTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   benefitText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   ctaSection: {
@@ -453,12 +416,12 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 4,
   },
   ctaSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   footer: {

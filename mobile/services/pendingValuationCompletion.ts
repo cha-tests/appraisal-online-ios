@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from './storage';
 import { Property, PropertyDetailsFormData } from '../types';
 import { PendingValuation } from '../stores/report.store';
 import { reportService } from './report.service';

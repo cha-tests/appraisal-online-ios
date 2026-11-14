@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
@@ -19,6 +19,8 @@ import {
   stashPendingValuation,
 } from '../../services/pendingValuationCompletion';
 import { theme } from '../../theme';
+import { friendlyAuthErrorMessage } from '../../utils/retry';
+import { IconWarning } from '../../components/ui/icons';
 
 /**
  * Sign-up gate — screen 3 of 3 of the valuation flow, reached from
@@ -45,7 +47,10 @@ function GateScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [gateError, setGateError] = useState('');
+  const [gateErrors, setGateErrors] = useState<Record<string, string>>({});
+  // For a failure that isn't about a specific field (signup itself failing,
+  // an unexpected exception) — shown once at the bottom, same as before.
+  const [gateFormError, setGateFormError] = useState('');
   // Never pre-checked — same rule as every other consent checkbox in this
   // app (see broker-optins.tsx's disclaimer, CLAUDE.md's "Never pre-check a
   // consent checkbox").
@@ -62,33 +67,37 @@ function GateScreen() {
   const lowFormatted = formatCurrency(pendingValuation.confidenceRange.low, countryCode);
   const highFormatted = formatCurrency(pendingValuation.confidenceRange.high, countryCode);
 
-  const validate = (): string | null => {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email';
+  const validate = (): Record<string, string> => {
+    const newErrors: Record<string, string> = {};
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Please enter a valid email';
     const digitCount = phone.replace(/\D/g, '').length;
-    if (digitCount < 7) return 'Please enter a valid mobile number';
-    if (password.length < 8) return 'Password must be at least 8 characters';
-    if (!agreedToTerms) return 'Please agree to the Terms of Service and Privacy Policy';
-    return null;
+    if (digitCount < 7) newErrors.phone = 'Please enter a valid mobile number';
+    if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+    if (!agreedToTerms) newErrors.terms = 'Please agree to the Terms of Service and Privacy Policy';
+    return newErrors;
   };
 
   const handleCreateAccount = async () => {
-    const validationError = validate();
-    if (validationError) {
-      setGateError(validationError);
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setGateErrors(validationErrors);
       return;
     }
 
-    setGateError('');
+    setGateErrors({});
+    setGateFormError('');
     setLoading(true);
 
     try {
       const breachCheck = await checkPasswordBreach(password);
       if (breachCheck.breached) {
-        setGateError(
-          'This password has appeared in known data breaches. Please choose a different password.'
-        );
+        setGateErrors({
+          password: 'This password has appeared in known data breaches. Please choose a different password.',
+        });
         return;
       }
+
+      const payload = { property: currentProperty, details: currentPropertyDetails, valuation: pendingValuation };
 
       const result = await authService.signup(email, password, {
         first_name: '',
@@ -97,14 +106,38 @@ function GateScreen() {
         phone,
       });
 
-      if (!result.success || !result.user) {
-        setGateError(result.error?.message || 'Unable to create account');
-        return;
+      let signedInUser = result.user;
+      let needsEmailConfirmation = result.needsEmailConfirmation;
+
+      if (!result.success || !signedInUser) {
+        if (result.error?.code === 'user_already_exists' || result.error?.code === 'email_exists') {
+          // Signup only fails this way if the email was already occupied —
+          // most often by an earlier, never-confirmed attempt at this same
+          // form. Figure out which case this is before giving up.
+          const resolved = await authService.resolveAlreadyRegistered(email, password);
+          if (resolved.outcome === 'signed_in' && resolved.user) {
+            signedInUser = resolved.user;
+            needsEmailConfirmation = false;
+          } else if (resolved.outcome === 'unconfirmed') {
+            await stashPendingValuation(payload);
+            router.replace({
+              pathname: '/auth/verify-email',
+              params: { email, hasPendingValuation: '1' },
+            });
+            return;
+          } else {
+            setGateFormError(
+              "An account with this email already exists. Try logging in, or use Forgot Password if you don't remember your password."
+            );
+            return;
+          }
+        } else {
+          setGateFormError(friendlyAuthErrorMessage(result.error, 'Unable to create account'));
+          return;
+        }
       }
 
-      const payload = { property: currentProperty, details: currentPropertyDetails, valuation: pendingValuation };
-
-      if (result.needsEmailConfirmation) {
+      if (needsEmailConfirmation) {
         // No session yet — can't write properties/reports (NOT NULL
         // user_id). Stash to disk since Zustand state won't survive the
         // user leaving to check their inbox; auth/login.tsx finishes the
@@ -117,10 +150,10 @@ function GateScreen() {
         return;
       }
 
-      setUser(result.user);
-      const completion = await completePendingValuation(result.user.id, payload);
+      setUser(signedInUser!);
+      const completion = await completePendingValuation(signedInUser!.id, payload);
       if (!completion.success) {
-        setGateError(completion.error);
+        setGateFormError(completion.error);
         return;
       }
 
@@ -132,7 +165,7 @@ function GateScreen() {
       router.replace('/consumer/report-view');
     } catch (err) {
       console.error('Gate signup error:', err);
-      setGateError('An unexpected error occurred. Please try again.');
+      setGateFormError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -170,27 +203,39 @@ function GateScreen() {
           label="Email"
           placeholder="you@example.com"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text);
+            if (gateErrors.email) setGateErrors((prev) => ({ ...prev, email: '' }));
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           editable={!loading}
+          error={gateErrors.email}
         />
         <TextInput
           label="Password"
           placeholder="At least 8 characters"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            setPassword(text);
+            if (gateErrors.password) setGateErrors((prev) => ({ ...prev, password: '' }));
+          }}
           secureTextEntry
           editable={!loading}
           style={{ marginTop: 12 }}
+          error={gateErrors.password}
         />
         <View style={{ marginTop: 12 }}>
           <PhoneInput
             label="Mobile number"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => {
+              setPhone(text);
+              if (gateErrors.phone) setGateErrors((prev) => ({ ...prev, phone: '' }));
+            }}
             editable={!loading}
             style={{ marginBottom: 0 }}
+            error={gateErrors.phone}
           />
           <Text style={styles.phoneHelper}>
             Only shared with a professional if you opt in to be contacted on a report.
@@ -199,10 +244,19 @@ function GateScreen() {
 
         <TouchableOpacity
           style={styles.gateTermsRow}
-          onPress={() => setAgreedToTerms((prev) => !prev)}
+          onPress={() => {
+            setAgreedToTerms((prev) => !prev);
+            if (gateErrors.terms) setGateErrors((prev) => ({ ...prev, terms: '' }));
+          }}
           activeOpacity={0.7}
         >
-          <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+          <View
+            style={[
+              styles.checkbox,
+              agreedToTerms && styles.checkboxChecked,
+              !!gateErrors.terms && styles.checkboxError,
+            ]}
+          >
             {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
           </View>
           <Text style={styles.gateTermsText}>
@@ -216,8 +270,14 @@ function GateScreen() {
             </Text>
           </Text>
         </TouchableOpacity>
+        {!!gateErrors.terms && (
+          <View style={styles.gateErrorRow}>
+            <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+            <Text style={styles.gateErrorText}>{gateErrors.terms}</Text>
+          </View>
+        )}
 
-        {!!gateError && <Text style={styles.gateErrorText}>{gateError}</Text>}
+        {!!gateFormError && <Text style={styles.gateErrorText}>{gateFormError}</Text>}
 
         <Button
           title={loading ? 'Creating account…' : 'Create account and see value'}
@@ -264,6 +324,7 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [suffix, setSuffix] = useState('');
   // Consumer-only — see the phone comment on the User type. Brokers already
   // provide a phone number during broker/onboarding.tsx, so asking again
   // here would be a duplicate prompt for that account type.
@@ -352,27 +413,52 @@ export default function SignupScreen() {
       const result = await authService.signup(email, password, {
         first_name: firstName,
         last_name: lastName,
+        suffix: suffix.trim() || undefined,
         user_type: userType!,
         // Brokers provide their phone during onboarding instead — see the
         // field's own comment above for why it's consumer-only here.
         phone: userType === 'consumer' ? phone : undefined,
       });
 
-      if (result.success && result.user) {
-        if (result.needsEmailConfirmation) {
-          router.replace({ pathname: '/auth/verify-email', params: { email } });
+      let signedInUser = result.user;
+      let needsEmailConfirmation = result.needsEmailConfirmation;
+
+      if (!result.success || !signedInUser) {
+        if (result.error?.code === 'user_already_exists' || result.error?.code === 'email_exists') {
+          // Signup only fails this way if the email was already occupied —
+          // most often by an earlier, never-confirmed attempt at this same
+          // form. Figure out which case this is before giving up.
+          const resolved = await authService.resolveAlreadyRegistered(email, password);
+          if (resolved.outcome === 'signed_in' && resolved.user) {
+            signedInUser = resolved.user;
+            needsEmailConfirmation = false;
+          } else if (resolved.outcome === 'unconfirmed') {
+            router.replace({ pathname: '/auth/verify-email', params: { email } });
+            return;
+          } else {
+            Alert.alert(
+              'Account Already Exists',
+              "An account with this email already exists. Try logging in instead, or use Forgot Password if you don't remember your password."
+            );
+            return;
+          }
+        } else {
+          Alert.alert('Signup Failed', friendlyAuthErrorMessage(result.error, 'Unable to create account'));
           return;
         }
+      }
 
-        setUser(result.user);
-        // Route based on user type
-        if (userType === 'broker') {
-          router.replace('/broker/onboarding');
-        } else {
-          router.replace('/consumer/home');
-        }
+      if (needsEmailConfirmation) {
+        router.replace({ pathname: '/auth/verify-email', params: { email } });
+        return;
+      }
+
+      setUser(signedInUser!);
+      // Route based on user type
+      if (userType === 'broker') {
+        router.replace('/broker/onboarding');
       } else {
-        Alert.alert('Signup Failed', result.error?.message || 'Unable to create account');
+        router.replace('/consumer/home');
       }
     } catch (err) {
       console.error('Signup error:', err);
@@ -384,14 +470,12 @@ export default function SignupScreen() {
 
   if (!userType) {
     return (
-      <SafeAreaWrapper scrollable>
+      <SafeAreaWrapper scrollable onBackPress={() => router.back()}>
         <View style={styles.header}>
-          <Button
-            title="← Back"
-            variant="outline"
-            size="small"
-            onPress={() => router.back()}
-            style={{ alignSelf: 'flex-start', marginBottom: 20 }}
+          <Image
+            source={require('../../assets/images/splash-icon.png')}
+            style={styles.mark}
+            resizeMode="contain"
           />
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Choose your account type</Text>
@@ -439,15 +523,13 @@ export default function SignupScreen() {
   }
 
   return (
-    <SafeAreaWrapper scrollable>
+    <SafeAreaWrapper scrollable onBackPress={() => router.replace('/welcome')}>
       {/* Header */}
       <View style={styles.header}>
-        <Button
-          title="← Back"
-          variant="outline"
-          size="small"
-          onPress={() => router.replace('/welcome')}
-          style={{ alignSelf: 'flex-start', marginBottom: 16 }}
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.mark}
+          resizeMode="contain"
         />
         <Text style={styles.title}>Create Your Account</Text>
         <Text style={styles.subtitle}>
@@ -456,7 +538,7 @@ export default function SignupScreen() {
       </View>
 
       {/* Form — email, password, confirm password, first name, last name,
-          phone (in that order). */}
+          suffix (optional), phone (in that order). */}
       <View style={styles.form}>
         <TextInput
           placeholder="Email"
@@ -506,6 +588,14 @@ export default function SignupScreen() {
           style={{ marginTop: 12 }}
         />
 
+        <TextInput
+          placeholder="Suffix (optional) — Jr., Sr., III"
+          value={suffix}
+          onChangeText={setSuffix}
+          editable={!loading}
+          style={{ marginTop: 12 }}
+        />
+
         {userType === 'consumer' && (
           <View style={{ marginTop: 12 }}>
             <PhoneInput
@@ -524,13 +614,18 @@ export default function SignupScreen() {
         {/* Terms Agreement — a real checkbox, not just informational text:
             explicit, required, never pre-checked (see CLAUDE.md's "Never
             pre-check a consent checkbox"). */}
-        <Card variant="outlined" style={styles.termsCard}>
+        <Card variant="outlined" style={[styles.termsCard, !!errors.terms && styles.termsCardError]}>
           <TouchableOpacity
             style={styles.termsCheckboxRow}
-            onPress={() => setAgreedToTerms((prev) => !prev)}
+            onPress={() => {
+              setAgreedToTerms((prev) => !prev);
+              if (errors.terms) setErrors((prev) => ({ ...prev, terms: '' }));
+            }}
             activeOpacity={0.7}
           >
-            <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+            <View
+              style={[styles.checkbox, agreedToTerms && styles.checkboxChecked, !!errors.terms && styles.checkboxError]}
+            >
               {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.termsText}>
@@ -545,7 +640,12 @@ export default function SignupScreen() {
             </Text>
           </TouchableOpacity>
         </Card>
-        {!!errors.terms && <Text style={styles.errorMessage}>{errors.terms}</Text>}
+        {!!errors.terms && (
+          <View style={styles.gateErrorRow}>
+            <IconWarning size={14} color={theme.color.danger} strokeWidth={2} />
+            <Text style={styles.errorMessage}>{errors.terms}</Text>
+          </View>
+        )}
 
         <Button
           title={loading ? 'Creating Account...' : 'Create Account'}
@@ -563,6 +663,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 24,
   },
+  mark: {
+    width: 40,
+    height: 40,
+    marginBottom: 12,
+  },
   title: {
     fontSize: 28,
     fontWeight: '700',
@@ -571,7 +676,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   typeSelection: {
     gap: 12,
@@ -580,12 +685,12 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   typeCardSelected: {
-    borderColor: '#2563EB',
+    borderColor: theme.color.accent,
     borderWidth: 2,
   },
   typeDescription: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 8,
     textAlign: 'center',
   },
@@ -594,13 +699,16 @@ const styles = StyleSheet.create({
   },
   phoneHelper: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 6,
   },
   termsCard: {
     backgroundColor: '#F0F9FF',
     borderColor: '#BFDBFE',
     marginTop: 16,
+  },
+  termsCardError: {
+    borderColor: theme.color.danger,
   },
   termsCheckboxRow: {
     flexDirection: 'row',
@@ -617,7 +725,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   termsLink: {
-    color: '#2563EB',
+    color: theme.color.accent,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },
@@ -634,7 +742,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   // --- Gate ---
   gateAddress: {
@@ -668,6 +776,9 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: theme.color.text,
     borderColor: theme.color.text,
+  },
+  checkboxError: {
+    borderColor: theme.color.danger,
   },
   checkmark: {
     color: theme.color.surface,
@@ -713,11 +824,17 @@ const styles = StyleSheet.create({
     color: theme.color.textMuted,
     marginBottom: theme.space.xl,
   },
+  gateErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.xs,
+    marginTop: theme.space.sm,
+    marginBottom: theme.space.sm,
+  },
   gateErrorText: {
     ...theme.type.bodySm,
     color: theme.color.danger,
-    marginTop: theme.space.sm,
-    marginBottom: theme.space.sm,
+    flex: 1,
   },
   footerLink: {
     ...theme.type.bodySm,

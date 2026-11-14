@@ -1,9 +1,11 @@
+import { Platform } from 'react-native';
 import { Report, Property } from '../types';
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { formatCurrency, formatDistance, getMarketConfig, sqftToSqm } from '../config/marketConfig';
-import { CLIENT_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
+import { CLIENT_DISCLAIMER_TEXT, AI_ESTIMATE_DISCLAIMER_TEXT, PRC_VERIFICATION_URL } from '../config/disclaimers';
+import { PDF_LOGO_BASE64_PNG } from '../assets/images/pdfLogoBase64';
 
 /**
  * PDF generation service. Renders the report entirely on-device (via
@@ -32,8 +34,13 @@ export const pdfService = {
     report: Report,
     property: Property | null,
     propertyAddress: string
-  ): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  ): Promise<{ success: boolean; filePath?: string; printedInBrowser?: boolean; error?: string }> {
     try {
+      if (Platform.OS === 'web') {
+        printReportInBrowser(report, property, propertyAddress);
+        return { success: true, printedInBrowser: true };
+      }
+
       const fileUri = await generateLocalPdf(report, property, propertyAddress);
 
       if (await Sharing.isAvailableAsync()) {
@@ -65,6 +72,11 @@ export const pdfService = {
     propertyAddress: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      if (Platform.OS === 'web') {
+        printReportInBrowser(report, property, propertyAddress);
+        return { success: true };
+      }
+
       if (!(await Sharing.isAvailableAsync())) {
         return { success: false, error: 'Sharing is not available on this device' };
       }
@@ -110,6 +122,34 @@ async function generateLocalPdf(
 
   await FileSystem.copyAsync({ from: uri, to: destination });
   return destination;
+}
+
+/**
+ * Web has no equivalent of generateLocalPdf: expo-print's web shim doesn't
+ * generate a file at all — `printToFileAsync()` just calls `window.print()`
+ * and returns nothing (confirmed by reading node_modules/expo-print's own
+ * web implementation), and there's no sandboxed Documents directory for
+ * expo-file-system to write into either. The practical substitute is the
+ * same report HTML opened in its own tab with the browser's native print
+ * dialog triggered immediately — "Save as PDF" there produces the same
+ * artifact a user actually wants, just through the OS/browser's own print
+ * pipeline instead of a generated file this app can share.
+ */
+function printReportInBrowser(report: Report, property: Property | null, propertyAddress: string): void {
+  const html = buildReportHtml(report, property, propertyAddress);
+
+  // No `await` before this — some browsers only honor window.open as a
+  // direct result of a user gesture (the button press that led here) and
+  // silently block it as a popup once a microtask/timer has intervened.
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    throw new Error('Please allow pop-ups for this site to save the report as a PDF.');
+  }
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function escapeHtml(text: string): string {
@@ -269,6 +309,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   @page { margin: 0; }
   body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #1F2937; padding: 0; margin: 0; }
   h1 { font-size: 22px; text-align: center; margin-bottom: 4px; }
+  .logo { display: block; width: 36px; height: 36px; margin: 0 auto 8px; }
   .brand { text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 20px; }
   .disclaimer { border: 1px solid #FCD34D; background: #FEF3C7; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; }
   .disclaimer h2 { color: #92400E; font-size: 13px; margin: 0 0 8px; }
@@ -277,6 +318,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
   h3.section { font-size: 15px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; margin-top: 24px; }
   .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 12px; margin-top: 8px; }
   .facts span b { color: #1F2937; }
+  .special-situation { font-size: 11px; color: #4B5563; margin-top: 8px; line-height: 1.5; }
   .valuation { text-align: center; background: #F0F9FF; border-radius: 10px; padding: 20px; margin-top: 16px; }
   .valuation .amount { font-size: 28px; font-weight: 700; color: #2563EB; }
   .valuation .range { font-size: 12px; color: #6B7280; margin-top: 6px; }
@@ -306,6 +348,7 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 </style>
 </head>
 <body>
+  <img class="logo" src="data:image/png;base64,${PDF_LOGO_BASE64_PNG}" />
   <h1>Property Valuation Report</h1>
   <div class="brand">Appraisal Online</div>
 
@@ -316,6 +359,11 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
 
   <div class="disclaimer">
     <h2>&#9888; Important Notice</h2>
+    <p>${escapeHtml(AI_ESTIMATE_DISCLAIMER_TEXT)}</p>
+  </div>
+
+  <div class="disclaimer">
+    <h2>&#9888; Working With a Professional</h2>
     <p>${escapeHtml(CLIENT_DISCLAIMER_TEXT).replace(
       'www.prc.gov.ph',
       `<a href="${PRC_VERIFICATION_URL}">www.prc.gov.ph</a>`
@@ -334,13 +382,23 @@ function buildReportHtml(report: Report, property: Property | null, propertyAddr
     <span><b>Condition:</b> ${escapeHtml(property?.condition || 'N/A')}</span>
     <span><b>Year Built:</b> ${property?.year_built ? property.year_built : 'N/A'}</span>
   </div>
+  ${property?.special_situation ? `<p class="special-situation"><b>Note from owner:</b> ${escapeHtml(property.special_situation)}</p>` : ''}
 
   <div class="valuation">
     <div class="amount">${escapeHtml(valueFormatted)}</div>
     <div class="range">Estimated Range: ${escapeHtml(lowFormatted)} &ndash; ${escapeHtml(highFormatted)}</div>
   </div>
 
-  ${fullReportMarkdown ? `<div class="narrative">${renderNarrativeHtml(fullReportMarkdown)}</div>` : ''}
+  ${
+    fullReportMarkdown
+      ? `<div class="narrative">${renderNarrativeHtml(fullReportMarkdown)}</div>`
+      : !isMock
+      ? `<div class="disclaimer">
+    <h2>&#9888; Detailed Analysis Unavailable</h2>
+    <p>We generated the valuation and estimated range above, but couldn't produce the full written analysis for this report. The property information and comparable sales below are still accurate — try generating this report again for the complete write-up.</p>
+  </div>`
+      : ''
+  }
 
   <h3 class="section">Comparable Sales</h3>
   ${comparablesHtml || '<p>No comparable sales data available</p>'}

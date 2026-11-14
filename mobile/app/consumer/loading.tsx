@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Alert, Animated, Easing, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaWrapper } from '../../components/layout/SafeAreaWrapper';
 import { ProgressBar } from '../../components/ui/ProgressBar';
@@ -165,6 +165,12 @@ export default function LoadingScreen() {
   return (
     <SafeAreaWrapper>
       <View style={styles.container}>
+        <Image
+          source={require('../../assets/images/splash-icon.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+
         <Animated.View style={{ transform: [{ rotate }] }}>
           <IconSpinner size={40} />
         </Animated.View>
@@ -196,6 +202,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: theme.space['2xl'],
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    marginBottom: theme.space.xl,
   },
   message: {
     ...theme.type.subheading,

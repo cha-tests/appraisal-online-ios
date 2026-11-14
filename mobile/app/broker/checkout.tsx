@@ -8,13 +8,13 @@ import { useSubscriptionStore } from '../../stores/subscription.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { subscriptionService } from '../../services/subscription.service';
 import { paymentService } from '../../services/payment.service';
-import { BROKER_TIER_PRICING, formatTierPrice } from '../../config/brokerTiers';
+import { formatPriceCents, BROKER_REFUND_WINDOW_DAYS } from '../../config/brokerTiers';
 
-// lib/stripe is platform-split: the real SDK on native, inert stubs on web.
-// Importing through it keeps the native-only module out of the web bundle.
-import { CardField, useConfirmPayment, isStripeAvailable } from '../../lib/stripe';
-
-const TIER_PRICING = BROKER_TIER_PRICING;
+// lib/stripe is platform-split: @stripe/stripe-react-native on native,
+// Stripe Elements (@stripe/stripe-js + @stripe/react-stripe-js) on web.
+// Importing through it keeps each platform's SDK out of the other's bundle.
+import { CardField, useConfirmPayment } from '../../lib/stripe';
+import { theme } from '../../theme';
 
 export default function Checkout() {
   const router = useRouter();
@@ -25,8 +25,10 @@ export default function Checkout() {
   const [error, setError] = useState('');
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
-  // Resolved at bundle time by the platform-split lib/stripe module.
-  const stripeAvailable = isStripeAvailable;
+  // The amount actually charged, confirmed by the backend's payment intent
+  // response — this is the only amount ever displayed or recorded, never a
+  // locally-computed guess (see payment.service.ts's createPaymentIntent).
+  const [chargedAmountCents, setChargedAmountCents] = useState<number | null>(null);
 
   if (!selectedTier) {
     return (
@@ -39,26 +41,6 @@ export default function Checkout() {
     );
   }
 
-  if (!stripeAvailable) {
-    return (
-      <SafeAreaWrapper>
-        <View style={styles.container}>
-          <Card variant="outlined" style={styles.noticeCard}>
-            <Text style={styles.noticeIcon}>📱</Text>
-            <Text style={styles.noticeTitle}>Web Checkout Not Available</Text>
-            <Text style={styles.noticeText}>
-              Stripe checkout only works on physical devices running Expo Go.
-              Open this app on your iPhone to complete your purchase.
-            </Text>
-          </Card>
-          <Button title="Go Back" onPress={() => router.back()} style={{ marginTop: 16 }} />
-        </View>
-      </SafeAreaWrapper>
-    );
-  }
-
-  const pricing = TIER_PRICING[selectedTier];
-
   const createPaymentIntent = useCallback(async () => {
     try {
       setError('');
@@ -69,11 +51,9 @@ export default function Checkout() {
         return;
       }
 
-      // Step 1: Create payment intent on the backend
-      const intentResponse = await paymentService.createPaymentIntent(
-        pricing.price,
-        selectedTier
-      );
+      // The backend computes the amount server-side from this broker's real
+      // signup_rank — this response is the actual, authoritative price.
+      const intentResponse = await paymentService.createPaymentIntent();
 
       if (!intentResponse.clientSecret) {
         setError('Failed to create payment intent');
@@ -82,13 +62,14 @@ export default function Checkout() {
 
       setClientSecret(intentResponse.clientSecret);
       setPaymentIntentId(intentResponse.paymentIntentId);
+      setChargedAmountCents(intentResponse.amount);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create payment');
       console.error('Payment intent error:', err);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, pricing.price, selectedTier]);
+  }, [user?.id]);
 
   // Called unconditionally: the web shim provides a hook-shaped no-op, so this
   // obeys the rules of hooks on every platform. The previous conditional call
@@ -138,13 +119,14 @@ export default function Checkout() {
         return;
       }
 
-      // Step 3: Create subscription in the database
+      // Step 3: Create subscription in the database, recording the amount
+      // the backend actually charged (never a locally-held guess).
       const subscriptionResult = await subscriptionService.createSubscription(
         user.id,
         paymentIntentId,
         paymentIntentId,
         selectedTier,
-        selectedTier.includes('Lifetime') ? 'lifetime' : 'annual'
+        chargedAmountCents ?? 0
       );
 
       if (subscriptionResult.success) {
@@ -159,7 +141,7 @@ export default function Checkout() {
     } finally {
       setProcessingPayment(false);
     }
-  }, [paymentIntentId, clientSecret, user?.id, stripeConfirmPayment]);
+  }, [paymentIntentId, clientSecret, user?.id, stripeConfirmPayment, chargedAmountCents]);
 
   // Step 1: Create intent when component mounts
   useEffect(() => {
@@ -178,19 +160,23 @@ export default function Checkout() {
       <Card variant="default" style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>{selectedTier}</Text>
-          <Text style={styles.summaryPrice}>{formatTierPrice(selectedTier)}</Text>
+          <Text style={styles.summaryPrice}>
+            {chargedAmountCents != null ? formatPriceCents(chargedAmountCents) : '—'}
+          </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { fontWeight: '700' }]}>Total</Text>
-          <Text style={styles.summaryTotal}>{formatTierPrice(selectedTier)}</Text>
+          <Text style={styles.summaryTotal}>
+            {chargedAmountCents != null ? formatPriceCents(chargedAmountCents) : '—'}
+          </Text>
         </View>
       </Card>
 
       {/* Payment Status */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
+          <ActivityIndicator size="large" color={theme.color.accent} />
           <Text style={styles.loadingText}>Setting up secure payment...</Text>
         </View>
       ) : clientSecret && paymentIntentId ? (
@@ -211,12 +197,6 @@ export default function Checkout() {
                 postalCodeEnabled={false}
                 placeholder={{
                   number: '4242 4242 4242 4242',
-                }}
-                onCardChange={(cardDetails) => {
-                  // Update state if needed for validation
-                  if (cardDetails.expiryMonth) {
-                    // Card details are available
-                  }
                 }}
                 style={styles.cardField}
               />
@@ -241,10 +221,7 @@ export default function Checkout() {
           <Card variant="default" style={styles.termsCard}>
             <Text style={styles.termsText}>
               By clicking "Complete Purchase," you agree to our Terms of Service and authorize the
-              charge to your card. Refunds are available within {selectedTier === 'Founder Lifetime'
-                ? '14'
-                : '30'}{' '}
-              days.
+              charge to your card. Refunds are available within {BROKER_REFUND_WINDOW_DAYS} days.
             </Text>
           </Card>
         </>
@@ -288,12 +265,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   summaryCard: {
     marginBottom: 24,
@@ -305,22 +282,22 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.color.textMuted,
   },
   summaryPrice: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.color.text,
   },
   summaryDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.color.border,
     marginVertical: 12,
   },
   summaryTotal: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2563EB',
+    color: theme.color.accent,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -328,29 +305,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     marginTop: 12,
-  },
-  noticeCard: {
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FBBF24',
-  },
-  noticeIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  noticeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  noticeText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
   },
   instructionCard: {
     marginBottom: 16,
@@ -364,12 +320,12 @@ const styles = StyleSheet.create({
   instructionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
+    color: theme.color.text,
     marginBottom: 8,
   },
   instructionText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 20,
   },
   securityCard: {
@@ -385,17 +341,17 @@ const styles = StyleSheet.create({
   },
   securityText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
     flex: 1,
   },
   termsCard: {
     marginBottom: 24,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.color.surface,
   },
   termsText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.color.textMuted,
     lineHeight: 18,
   },
   errorMessage: {
@@ -414,9 +370,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cardField: {
-    backgroundColor: '#FFFFFF',
-    textColor: '#1F2937',
-    borderColor: '#E5E7EB',
+    backgroundColor: theme.color.surface,
+    textColor: theme.color.text,
+    borderColor: theme.color.border,
   },
   errorCard: {
     marginBottom: 24,

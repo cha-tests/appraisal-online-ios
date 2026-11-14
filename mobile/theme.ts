@@ -68,7 +68,11 @@ export const monoPalette: Palette = {
   success: '#3A3E47',
   successInk: '#16181D',
   successWash: '#F2F3F5',
-  danger: '#16181D',
+  // The one deliberate exception to "monochrome" — a validation error
+  // (a missing/invalid required field) needs a color cue that doesn't
+  // blend into every other line on the screen, so this is a real red
+  // rather than the same ink everything else here uses.
+  danger: '#DC2626',
   onAccent: '#FFFFFF',
   track: '#E1E3E8',
 };
