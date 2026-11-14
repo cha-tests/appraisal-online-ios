@@ -8,11 +8,45 @@ import {
   getPendingKyc,
   getKycSignedUrl,
   decideKyc,
+  getBrokerWaitlist,
   signOut,
   PendingKycRow,
+  BrokerWaitlistRow,
 } from '@/lib/supabase';
 
 type AuthState = 'checking' | 'signed-out' | 'not-admin' | 'admin';
+type AdminTab = 'kyc' | 'waitlist';
+
+/** One CSV-safe field: quoted, with embedded quotes doubled, whenever the
+ * value itself contains a comma, quote, or newline — the three characters
+ * that would otherwise break column alignment on import. */
+function csvField(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
+}
+
+function downloadBrokerWaitlistCsv(rows: BrokerWaitlistRow[]) {
+  const header = ['email', 'source', 'created_at'];
+  const lines = [header.join(',')];
+  for (const row of rows) {
+    lines.push(
+      [csvField(row.email), csvField(row.source || ''), csvField(row.created_at)].join(',')
+    );
+  }
+  // Leading BOM so Excel (which otherwise guesses the file's encoding)
+  // reliably opens this as UTF-8 instead of mangling non-ASCII characters.
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `broker-waitlist-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 interface ExpandedPhotos {
   idUrl: string | null;
@@ -32,6 +66,12 @@ export default function AdminPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [decisionLoading, setDecisionLoading] = useState<string | null>(null);
 
+  const [activeTab, setActiveTab] = useState<AdminTab>('kyc');
+  const [waitlistRows, setWaitlistRows] = useState<BrokerWaitlistRow[]>([]);
+  const [loadingWaitlist, setLoadingWaitlist] = useState(false);
+  const [waitlistError, setWaitlistError] = useState('');
+  const [waitlistLoaded, setWaitlistLoaded] = useState(false);
+
   useEffect(() => {
     const check = async () => {
       const user = await getCurrentUser();
@@ -49,6 +89,24 @@ export default function AdminPage() {
     if (authState !== 'admin') return;
     loadPending();
   }, [authState]);
+
+  useEffect(() => {
+    if (authState !== 'admin' || activeTab !== 'waitlist' || waitlistLoaded) return;
+    loadWaitlist();
+  }, [authState, activeTab, waitlistLoaded]);
+
+  const loadWaitlist = async () => {
+    setLoadingWaitlist(true);
+    setWaitlistError('');
+    const result = await getBrokerWaitlist();
+    if (result.success) {
+      setWaitlistRows(result.rows || []);
+      setWaitlistLoaded(true);
+    } else {
+      setWaitlistError(result.error || 'Failed to load the broker waitlist');
+    }
+    setLoadingWaitlist(false);
+  };
 
   const loadPending = async () => {
     setLoadingRows(true);
@@ -143,13 +201,8 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Broker Verification</h1>
-            <p className="text-gray-600 mt-1">
-              {rows.length} pending submission{rows.length === 1 ? '' : 's'}
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Admin</h1>
           <button
             onClick={async () => {
               await signOut();
@@ -160,6 +213,35 @@ export default function AdminPage() {
             Sign out
           </button>
         </div>
+
+        <div className="flex gap-2 mb-8 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('kyc')}
+            className={`px-4 py-2 font-semibold text-sm border-b-2 -mb-px transition ${
+              activeTab === 'kyc'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Broker Verification
+          </button>
+          <button
+            onClick={() => setActiveTab('waitlist')}
+            className={`px-4 py-2 font-semibold text-sm border-b-2 -mb-px transition ${
+              activeTab === 'waitlist'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Waitlist
+          </button>
+        </div>
+
+        {activeTab === 'kyc' && (
+        <>
+        <p className="text-gray-600 -mt-4 mb-6">
+          {rows.length} pending submission{rows.length === 1 ? '' : 's'}
+        </p>
 
         {listError && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{listError}</div>
@@ -303,6 +385,60 @@ export default function AdminPage() {
               );
             })}
           </div>
+        )}
+        </>
+        )}
+
+        {activeTab === 'waitlist' && (
+          <>
+            <div className="flex items-center justify-between mb-6 -mt-4">
+              <p className="text-gray-600">
+                {waitlistRows.length} signup{waitlistRows.length === 1 ? '' : 's'}
+              </p>
+              <button
+                onClick={() => downloadBrokerWaitlistCsv(waitlistRows)}
+                disabled={loadingWaitlist || waitlistRows.length === 0}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                Export CSV
+              </button>
+            </div>
+
+            {waitlistError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700">{waitlistError}</div>
+            )}
+
+            {loadingWaitlist ? (
+              <div className="text-gray-500">Loading…</div>
+            ) : waitlistRows.length === 0 ? (
+              <div className="bg-white rounded-xl shadow p-8 text-center text-gray-500">
+                No waitlist signups yet.
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+                    <tr>
+                      <th className="px-5 py-3">Email</th>
+                      <th className="px-5 py-3">Source</th>
+                      <th className="px-5 py-3">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {waitlistRows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="px-5 py-3 text-gray-900">{row.email}</td>
+                        <td className="px-5 py-3 text-gray-500">{row.source || '—'}</td>
+                        <td className="px-5 py-3 text-gray-500">
+                          {new Date(row.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

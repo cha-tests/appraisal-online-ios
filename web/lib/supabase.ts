@@ -213,6 +213,32 @@ export async function getKycSignedUrl(path: string): Promise<string | null> {
   return data?.signedUrl || null;
 }
 
+export interface BrokerWaitlistRow {
+  id: string;
+  email: string;
+  source: string | null;
+  created_at: string;
+}
+
+/**
+ * Every broker waitlist signup (migration 044) — admin-only, RLS-enforced
+ * the same way as getPendingKyc above. No sending happens from here; the
+ * admin panel just exports this as a CSV for a manual Resend campaign.
+ */
+export async function getBrokerWaitlist(): Promise<{ success: boolean; rows?: BrokerWaitlistRow[]; error?: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('broker_waitlist')
+      .select('id, email, source, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { success: true, rows: (data || []) as BrokerWaitlistRow[] };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to load the broker waitlist' };
+  }
+}
+
 /** Approve or reject a broker's KYC submission (admin only — RLS-enforced). */
 export async function decideKyc(
   userId: string,

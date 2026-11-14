@@ -285,6 +285,69 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        .waitlist-section {
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 40px 32px;
+            text-align: center;
+            margin-top: 24px;
+        }
+
+        .waitlist-section h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .waitlist-section p {
+            font-size: 15px;
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+
+        .waitlist-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .waitlist-form input[type="email"] {
+            flex: 1 1 260px;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        .waitlist-form button {
+            padding: 12px 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .waitlist-form button:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .waitlist-message {
+            margin-top: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            display: none;
+        }
+
         footer {
             background: #1f2937;
             color: white;
@@ -521,6 +584,22 @@
             <button class="cta-button" onclick="window.location.href='mailto:wallacepanlilio@gmail.com'">Start Free Trial</button>
         </div>
 
+        <!-- Broker waitlist — for a visitor not ready to email right now.
+             Inserts directly into Supabase (broker_waitlist, migration 044)
+             via the REST API with the anon key, same security model as
+             every other EXPO_PUBLIC_*/NEXT_PUBLIC_* anon key already
+             shipped in this app: safe to expose, RLS is the real boundary
+             (open INSERT, admin-only SELECT). -->
+        <div class="waitlist-section">
+            <h2>Not ready right now?</h2>
+            <p>Leave your email and we'll let you know as soon as broker sign-up is open here on the web.</p>
+            <form class="waitlist-form" id="waitlistForm">
+                <input type="email" id="waitlistEmail" placeholder="you@example.com" required>
+                <button type="submit">Join the waitlist</button>
+            </form>
+            <p class="waitlist-message" id="waitlistMessage"></p>
+        </div>
+
         <!-- FAQ Section -->
         <h2 class="section-title" style="margin-top: 64px;">Common Questions</h2>
 
@@ -570,5 +649,68 @@
     <footer>
         <p>&copy; 2026 Appraisal Online. All rights reserved. | <a href="/privacy">Privacy</a> | <a href="/terms">Terms</a> | <a href="/contact">Contact</a></p>
     </footer>
+
+    <script>
+        (function () {
+            // TODO: fill in your real Supabase project values before this
+            // goes live. The anon key is meant to be public (same as every
+            // EXPO_PUBLIC_SUPABASE_ANON_KEY already shipped in the mobile/
+            // web app bundles) -- broker_waitlist's RLS policies (migration
+            // 044) are the actual access boundary: open INSERT, admin-only
+            // SELECT.
+            var SUPABASE_URL = 'YOUR_SUPABASE_URL'; // e.g. https://xxxxx.supabase.co
+            var SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+            var form = document.getElementById('waitlistForm');
+            var emailInput = document.getElementById('waitlistEmail');
+            var messageEl = document.getElementById('waitlistMessage');
+            var submitButton = form.querySelector('button[type="submit"]');
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                var email = emailInput.value.trim();
+                if (!email) return;
+
+                submitButton.disabled = true;
+                submitButton.textContent = 'Joining...';
+                messageEl.style.display = 'none';
+
+                fetch(SUPABASE_URL + '/rest/v1/broker_waitlist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+                        Prefer: 'return=minimal',
+                    },
+                    body: JSON.stringify({ email: email, source: 'partners_landing' }),
+                })
+                    .then(function (response) {
+                        // 201 = inserted. 409 = already on the list (the
+                        // unique index on lower(email) rejected a repeat
+                        // signup) -- treated as success either way, since
+                        // what the visitor actually cares about (being on
+                        // the list) is already true.
+                        if (response.ok || response.status === 409) {
+                            form.reset();
+                            messageEl.textContent = "You're on the list! We'll email you as soon as broker sign-up is open.";
+                            messageEl.style.color = '#059669';
+                            messageEl.style.display = 'block';
+                        } else {
+                            throw new Error('Request failed: ' + response.status);
+                        }
+                    })
+                    .catch(function () {
+                        messageEl.textContent = 'Something went wrong -- please try again in a moment.';
+                        messageEl.style.color = '#dc2626';
+                        messageEl.style.display = 'block';
+                    })
+                    .finally(function () {
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Join the waitlist';
+                    });
+            });
+        })();
+    </script>
 </body>
 </html>
